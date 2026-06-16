@@ -71,6 +71,8 @@ export interface TenantBranch {
   openingTime: string | null
   closingTime: string | null
   facilitiesJson: string[] | null
+  latitude?: number | string | null
+  longitude?: number | string | null
   createdAt: string
   gym?: { id: string; name: string }
 }
