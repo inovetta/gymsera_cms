@@ -30,12 +30,17 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
       const refreshToken = localStorage.getItem('gymsera_refresh_token')
       const userStr = localStorage.getItem('gymsera_user')
       const user = userStr ? JSON.parse(userStr) : null
-      set({ accessToken, refreshToken, user, isAuthenticated: !!accessToken && !!user, isLoading: false })
+      const isAuth = !!accessToken && !!user
+      if (!isAuth) {
+        document.cookie = 'gymsera_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+      }
+      set({ accessToken, refreshToken, user, isAuthenticated: isAuth, isLoading: false })
     } catch {
       // Corrupted localStorage — clear it and treat as logged out
       localStorage.removeItem('gymsera_access_token')
       localStorage.removeItem('gymsera_refresh_token')
       localStorage.removeItem('gymsera_user')
+      document.cookie = 'gymsera_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
       set({ isLoading: false, isAuthenticated: false })
     }
   },
