@@ -7,7 +7,7 @@ import {
   ArrowLeft, Building2, Mail, Phone, MapPin, CheckCircle, XCircle, ShieldOff,
   Package, Star, Users, GitBranch, Dumbbell, FileCheck, Globe, RefreshCw,
   Clock, ToggleLeft, ToggleRight, CreditCard, FileText, Plus, Send,
-  CheckCheck, AlertCircle, Camera, ImageIcon, BanknoteIcon,
+  CheckCheck, AlertCircle, Camera, ImageIcon, BanknoteIcon, History,
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { StatusBadge } from '@/components/features/status-badge'
@@ -61,6 +61,14 @@ export default function TenantDetailPage() {
   const [reactivateDialog, setReactivateDialog] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [suspendReason, setSuspendReason] = useState('')
+  const [deactivateBranchDialog, setDeactivateBranchDialog] = useState<{ open: boolean; branchId: string }>({ open: false, branchId: '' })
+  const [deactivateBranchReason, setDeactivateBranchReason] = useState('')
+  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; branchId: string; branchName: string }>({ open: false, branchId: '', branchName: '' })
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['admin-branch-visibility-history', historyDialog.branchId],
+    queryFn: () => adminApi.getBranchVisibilityHistory(historyDialog.branchId),
+    enabled: historyDialog.open && !!historyDialog.branchId,
+  })
 
   // Subscription dialog
   const [assignSubDialog, setAssignSubDialog] = useState(false)
@@ -156,6 +164,18 @@ export default function TenantDetailPage() {
       adminApi.updateTenantBranchStatus(tenantId, branchId, status),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] }); toast({ title: 'Branch status updated' }) },
     onError: () => toast({ title: 'Error', description: 'Failed to update branch status', variant: 'destructive' }),
+  })
+
+  const travelerVisibilityMutation = useMutation({
+    mutationFn: ({ branchId, status, reason }: { branchId: string; status: 'active' | 'deactivated'; reason?: string }) =>
+      adminApi.updateBranchTravelerVisibility(branchId, status, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
+      setDeactivateBranchDialog({ open: false, branchId: '' })
+      setDeactivateBranchReason('')
+      toast({ title: 'Branch traveler visibility updated' })
+    },
+    onError: (err: any) => toast({ title: 'Error', description: err?.message || 'Failed to update visibility', variant: 'destructive' }),
   })
 
   const createBranchMutation = useMutation({
@@ -720,10 +740,27 @@ export default function TenantDetailPage() {
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                             <span className="text-xs font-bold text-primary">{branch.branchName.charAt(0)}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
+                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className="text-sm font-semibold">{branch.branchName}</p>
                               <StatusBadge status={branch.status} />
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                (branch.travelerVisibilityStatus || 'pending') === 'active'
+                                  ? 'bg-green-100 text-green-800 border border-green-200'
+                                  : (branch.travelerVisibilityStatus || 'pending') === 'deactivated'
+                                  ? 'bg-red-100 text-red-800 border border-red-200'
+                                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                              }`}>
+                                Traveler: {(branch.travelerVisibilityStatus || 'pending').toUpperCase()}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 px-1.5 text-[10px] text-muted-foreground flex items-center gap-0.5 hover:text-primary hover:bg-muted"
+                                onClick={() => setHistoryDialog({ open: true, branchId: branch.id, branchName: branch.branchName })}
+                              >
+                                <History className="h-3 w-3" /> History
+                              </Button>
                             </div>
                             <p className="text-xs text-muted-foreground">{branch.address || '—'}</p>
                             {(branch.openingTime || branch.closingTime) && (
@@ -737,6 +774,11 @@ export default function TenantDetailPage() {
                                 {branch.facilitiesJson.length > 5 && <Badge variant="secondary" className="text-xs">+{branch.facilitiesJson.length - 5}</Badge>}
                               </div>
                             )}
+                            {(branch.travelerVisibilityStatus || 'pending') === 'deactivated' && branch.deactivationReason && (
+                              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mt-2 max-w-md">
+                                <strong>Deactivation Reason:</strong> {branch.deactivationReason}
+                              </p>
+                            )}
                           </div>
                           <div className="flex flex-col gap-2 shrink-0">
                             <Button size="sm" variant="outline" onClick={() => setBranchDialog({ open: true, mode: 'edit', branch })}>
@@ -745,6 +787,28 @@ export default function TenantDetailPage() {
                             <Button size="sm" variant="outline" onClick={() => branchStatusMutation.mutate({ branchId: branch.id, status: branch.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })} disabled={branchStatusMutation.isPending}>
                               {branch.status === 'ACTIVE' ? <><ToggleRight className="h-4 w-4 mr-1 text-green-600" />Disable</> : <><ToggleLeft className="h-4 w-4 mr-1 text-muted-foreground" />Enable</>}
                             </Button>
+                            {(branch.travelerVisibilityStatus || 'pending') !== 'active' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-green-600 text-green-600 hover:bg-green-50 text-xs py-1 h-8"
+                                onClick={() => travelerVisibilityMutation.mutate({ branchId: branch.id, status: 'active' })}
+                                disabled={travelerVisibilityMutation.isPending}
+                              >
+                                Activate Traveler
+                              </Button>
+                            )}
+                            {(branch.travelerVisibilityStatus || 'pending') !== 'deactivated' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-red-600 text-red-600 hover:bg-red-50 text-xs py-1 h-8"
+                                onClick={() => setDeactivateBranchDialog({ open: true, branchId: branch.id })}
+                                disabled={travelerVisibilityMutation.isPending}
+                              >
+                                Deactivate Traveler
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -1003,6 +1067,98 @@ export default function TenantDetailPage() {
               disabled={!newStatus}
             >
               Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Branch Dialog */}
+      <Dialog open={deactivateBranchDialog.open} onOpenChange={(o) => !o && setDeactivateBranchDialog({ open: false, branchId: '' })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deactivate Branch Traveler Visibility</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to deactivate this branch from traveler visibility? It will no longer appear in traveler search or discovery results.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="deactivate-reason">Reason for Deactivation</Label>
+              <Textarea
+                id="deactivate-reason"
+                placeholder="Enter the reason for deactivation (mandatory)..."
+                value={deactivateBranchReason}
+                onChange={(e) => setDeactivateBranchReason(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivateBranchDialog({ open: false, branchId: '' })}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => travelerVisibilityMutation.mutate({
+                branchId: deactivateBranchDialog.branchId,
+                status: 'deactivated',
+                reason: deactivateBranchReason
+              })}
+              disabled={!deactivateBranchReason.trim() || travelerVisibilityMutation.isPending}
+            >
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Branch Visibility History Dialog */}
+      <Dialog open={historyDialog.open} onOpenChange={(o) => !o && setHistoryDialog({ open: false, branchId: '', branchName: '' })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Visibility Logs: {historyDialog.branchName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 max-h-[350px] overflow-y-auto">
+            {historyLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading visibility history...</p>
+            ) : !historyData?.data?.history || historyData.data.history.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No visibility logs found for this branch.</p>
+            ) : (
+              <div className="space-y-3">
+                {historyData.data.history.map((log: any) => (
+                  <div key={log.id} className="border-b pb-2.5 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        log.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : log.status === 'deactivated'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {log.status.toUpperCase()}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground flex items-center">
+                        {log.changedAt ? new Date(log.changedAt).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    {log.reason && (
+                      <p className="text-xs text-muted-foreground bg-muted p-2 rounded mt-1.5 border">
+                        {log.reason}
+                      </p>
+                    )}
+                    {log.changedBy && (
+                      <p className="text-[9px] text-muted-foreground/80 mt-1">
+                        By User ID: {log.changedBy}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryDialog({ open: false, branchId: '', branchName: '' })}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
