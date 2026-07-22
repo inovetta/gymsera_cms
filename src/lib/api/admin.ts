@@ -13,7 +13,7 @@ export interface TenantSubscription {
   autoRenew: boolean
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED'
   createdAt: string
-  package?: { id: string; name: string; price: number; billingCycle: string; maxBranches: number; maxTrainers: number; maxMembers: number }
+  package?: { id: string; name: string; price: number; billingCycle: string; maxOrganizations: number; maxBranches: number; maxTrainers: number; maxMembers: number }
 }
 
 export interface PlatformInvoice {
@@ -71,6 +71,12 @@ export interface TenantBranch {
   openingTime: string | null
   closingTime: string | null
   facilitiesJson: string[] | null
+  latitude?: number | string | null
+  longitude?: number | string | null
+  travelerVisibilityStatus?: 'pending' | 'active' | 'deactivated'
+  deactivationReason?: string | null
+  deactivatedAt?: string | null
+  deactivatedBy?: string | null
   createdAt: string
   gym?: { id: string; name: string }
 }
@@ -441,6 +447,16 @@ export const adminApi = {
 
   deleteTenantBranchImage: async (tenantId: string, branchId: string, imageUrl: string): Promise<ApiResponse<null>> => {
     const { data } = await apiClient.delete(`/admin/tenants/${tenantId}/branches/${branchId}/images`, { data: { imageUrl } })
+    return data
+  },
+
+  updateBranchTravelerVisibility: async (branchId: string, status: 'active' | 'deactivated', reason?: string): Promise<ApiResponse<{ branch: TenantBranch }>> => {
+    const { data } = await apiClient.patch(`/admin/branches/${branchId}/traveler-visibility`, { status, reason })
+    return data
+  },
+
+  getBranchVisibilityHistory: async (branchId: string): Promise<ApiResponse<{ history: Array<{ id: string; branchId: string; status: string; reason: string | null; changedBy: string | null; changedAt: string }> }>> => {
+    const { data } = await apiClient.get(`/admin/branches/${branchId}/traveler-visibility/history`)
     return data
   },
 }

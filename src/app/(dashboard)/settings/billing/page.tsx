@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Layers, Users, GitBranch, Dumbbell, Clock, CreditCard, Copy, Check, AlertCircle } from 'lucide-react'
+import { CheckCircle, Layers, Users, GitBranch, Dumbbell, Clock, CreditCard, Copy, Check, AlertCircle, Building } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -227,25 +227,49 @@ export default function BillingPage() {
         {/* Available packages */}
         <div>
           <h2 className="text-base font-semibold mb-4">Available Plans</h2>
-          {packages.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No plans available at the moment.
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bank Transfer Details</CardTitle>
+              <CardDescription>Send payment to activate/renew plan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="bg-muted p-3 rounded-lg space-y-2 font-mono text-xs">
+                {Object.entries(BANK_DETAILS).map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">{label}:</span>
+                    <span className="font-semibold text-right select-all">{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 items-start text-xs text-muted-foreground">
+                <AlertCircle className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                <span>
+                  Please email your transaction proof with your Tenant ID to support@gymsera.com after transfer.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Plan Upgrade Selection */}
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold">Available Subscription Plans</h3>
+            <p className="text-muted-foreground text-sm mt-0.5">Upgrade or renew your subscription tier</p>
+          </div>
+
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-64 rounded-lg" />
+              ))}
+            </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
               {packages.map((pkg) => {
-                const isCurrent = pkg.id === currentPackageId
+                const isCurrent = currentPackageId === pkg.id
                 return (
-                  <Card
-                    key={pkg.id}
-                    className={cn(
-                      'relative transition-all',
-                      isCurrent && 'border-primary ring-1 ring-primary',
-                      !isCurrent && 'hover:border-primary/50 cursor-pointer'
-                    )}
-                  >
+                  <Card key={pkg.id} className={cn('relative', isCurrent && 'border-primary border-2 shadow-sm')}>
                     {isCurrent && (
                       <div className="absolute -top-3 left-4">
                         <Badge className="bg-primary text-primary-foreground text-xs">Current Plan</Badge>
@@ -266,6 +290,10 @@ export default function BillingPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Building className="h-3.5 w-3.5" />
+                          <span>Up to {pkg.maxOrganizations} organization{pkg.maxOrganizations !== 1 ? 's' : ''}</span>
+                        </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <GitBranch className="h-3.5 w-3.5" />
                           <span>Up to {pkg.maxBranches} branch{pkg.maxBranches !== 1 ? 'es' : ''}</span>
