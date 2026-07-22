@@ -54,6 +54,7 @@ apiClient.interceptors.response.use(
       if (!refreshToken) {
         isRefreshing = false
         localStorage.clear()
+        document.cookie = 'gymsera_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -76,6 +77,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         isRefreshing = false
         localStorage.clear()
+        document.cookie = 'gymsera_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
         window.location.href = '/login'
         return Promise.reject(refreshError)
       }

@@ -282,6 +282,7 @@ export interface PlatformPackage {
   description?: string
   price: number
   billingCycle: BillingCycle
+  maxOrganizations: number
   maxBranches: number
   maxTrainers: number
   maxMembers: number
