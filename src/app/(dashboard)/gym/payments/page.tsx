@@ -248,7 +248,7 @@ export default function PaymentsPage() {
           <div className="text-muted-foreground space-y-0.5">
             <p><span className="font-medium text-blue-600">Step 1 (Staff):</span> Click <Inbox className="inline h-3.5 w-3.5 mx-0.5" /> to mark payment as collected after receiving cash/proof.</p>
             {isGymHost && (
-              <p><span className="font-medium text-green-600">Step 2 (You):</span> Click <ShieldCheck className="inline h-3.5 w-3.5 mx-0.5" /> to give final approval — this activates the member's subscription.</p>
+              <p><span className="font-medium text-green-600">Step 2 (You):</span> Click <ShieldCheck className="inline h-3.5 w-3.5 mx-0.5" /> to give final approval — this activates the member&apos;s subscription.</p>
             )}
             {!isGymHost && (
               <p><span className="font-medium">Step 2 (Gym Host):</span> The gym owner will give final approval to activate subscriptions.</p>

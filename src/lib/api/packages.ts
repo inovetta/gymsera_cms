@@ -6,6 +6,7 @@ export interface CreatePackagePayload {
   description?: string
   price: number
   billingCycle: string
+  maxOrganizations: number
   maxBranches: number
   maxTrainers: number
   maxMembers: number

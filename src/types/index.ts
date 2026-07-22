@@ -91,6 +91,11 @@ export interface Gym {
   genderType: GenderType
   status: string
   createdAt: string
+  phone?: string
+  email?: string
+  address?: string
+  latitude?: number | string
+  longitude?: number | string
 }
 
 export interface GymListing {
@@ -277,6 +282,7 @@ export interface PlatformPackage {
   description?: string
   price: number
   billingCycle: BillingCycle
+  maxOrganizations: number
   maxBranches: number
   maxTrainers: number
   maxMembers: number

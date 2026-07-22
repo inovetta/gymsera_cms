@@ -6,8 +6,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(amount: number, currency = 'PKR') {
-  return new Intl.NumberFormat('en-PK', { style: 'currency', currency, minimumFractionDigits: 0 }).format(amount)
+export function formatCurrency(amount: number | string | null | undefined, currency = 'PKR') {
+  const parsed = typeof amount === 'number' ? amount : parseFloat(String(amount))
+  const value = isNaN(parsed) || !isFinite(parsed) ? 0 : parsed
+  try {
+    return new Intl.NumberFormat('en-PK', { style: 'currency', currency, minimumFractionDigits: 0 }).format(value)
+  } catch (e) {
+    return `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 0 })}`
+  }
 }
 
 export function formatDate(date: string | Date, pattern = 'MMM dd, yyyy') {

@@ -52,7 +52,7 @@ function BranchCard({ branch, onEdit, onDeactivate }: { branch: Branch; onEdit: 
   const router = useRouter()
   const facilities = Array.isArray(branch.facilities)
     ? branch.facilities
-    : Object.keys((branch.facilities as Record<string, boolean>) || {}).filter(k => (branch.facilities as Record<string, boolean>)[k])
+    : Object.keys((branch.facilities as unknown as Record<string, boolean>) || {}).filter(k => (branch.facilities as unknown as Record<string, boolean>)[k])
 
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/gym/branches/${branch.id}`)}>
@@ -187,7 +187,7 @@ export default function BranchesPage() {
     setEditBranch(branch)
     const facs = Array.isArray(branch.facilities)
       ? branch.facilities as string[]
-      : Object.keys((branch.facilities as Record<string, boolean>) || {}).filter(k => (branch.facilities as Record<string, boolean>)[k])
+      : Object.keys((branch.facilities as unknown as Record<string, boolean>) || {}).filter(k => (branch.facilities as unknown as Record<string, boolean>)[k])
     setForm({
       branchName: branch.branchName,
       address: branch.address,
