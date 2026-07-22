@@ -223,7 +223,7 @@ export default function PlansPage() {
   }
 
   const onSubmit = (values: PlanForm) => {
-    const payload = { ...values, branchId: values.branchId === 'gym-wide' ? null : values.branchId || null }
+    const payload = { ...values, branchId: values.branchId === 'gym-wide' ? undefined : values.branchId || undefined }
     if (editPlan) {
       updateMutation.mutate({ id: editPlan.id, payload })
     } else {
