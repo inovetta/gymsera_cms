@@ -11,6 +11,7 @@ export interface Notification {
   body?: string
   priority: 'normal' | 'high'
   deepLink?: string
+  metadataJson?: Record<string, string>
   isRead: boolean
   createdAt: string
   updatedAt: string
