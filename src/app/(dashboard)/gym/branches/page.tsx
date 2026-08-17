@@ -167,13 +167,19 @@ export default function BranchesPage() {
     onError: () => toast({ title: 'Error', description: 'Failed to update branch', variant: 'destructive' }),
   })
 
-  const deactivateMutation = useMutation({
-    mutationFn: (id: string) => gymApi.updateBranch(id, { status: 'INACTIVE' }),
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => gymApi.deleteBranch(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      queryClient.invalidateQueries({ queryKey: ['plans'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] })
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
       setDeactivateTarget(null)
-      toast({ title: 'Branch deactivated' })
+      toast({ title: 'Branch deleted', description: 'Branch and associated data have been removed.' })
     },
+    onError: () => toast({ title: 'Error', description: 'Failed to delete branch', variant: 'destructive' }),
   })
 
   const openCreate = () => {
@@ -456,11 +462,12 @@ export default function BranchesPage() {
       <ConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(open) => !open && setDeactivateTarget(null)}
-        title="Deactivate Branch"
-        description={`Are you sure you want to deactivate "${deactivateTarget?.branchName}"?`}
-        confirmLabel="Deactivate"
-        onConfirm={() => deactivateTarget && deactivateMutation.mutate(deactivateTarget.id)}
-        loading={deactivateMutation.isPending}
+        title="Delete Branch"
+        description={`Are you sure you want to delete "${deactivateTarget?.branchName}"? All related membership plans, staff assignments, and branch-specific data will be removed.`}
+        confirmLabel="Delete Branch"
+        variant="destructive"
+        onConfirm={() => deactivateTarget && deleteMutation.mutate(deactivateTarget.id)}
+        loading={deleteMutation.isPending}
       />
     </>
   )
