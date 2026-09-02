@@ -137,33 +137,33 @@ export default function TenantDetailPage() {
 
   const approveMutation = useMutation({
     mutationFn: () => adminApi.approveTenant(tenantId),
-    onSuccess: () => { invalidate(); setApproveDialog(false); toast({ title: 'Tenant approved — provisioning queued' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to approve tenant', variant: 'destructive' }),
+    onSuccess: () => { invalidate(); setApproveDialog(false); toast({ title: 'Tenant approved — database provisioned' }) },
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to approve tenant', variant: 'destructive' }),
   })
 
   const rejectMutation = useMutation({
     mutationFn: () => adminApi.rejectTenant(tenantId, rejectReason),
     onSuccess: () => { invalidate(); setRejectDialog(false); setRejectReason(''); toast({ title: 'Application rejected' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to reject application', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reject application', variant: 'destructive' }),
   })
 
   const suspendMutation = useMutation({
     mutationFn: () => adminApi.suspendTenant(tenantId, suspendReason),
     onSuccess: () => { invalidate(); setSuspendDialog(false); setSuspendReason(''); toast({ title: 'Tenant suspended' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to suspend tenant', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to suspend tenant', variant: 'destructive' }),
   })
 
   const reactivateMutation = useMutation({
     mutationFn: () => adminApi.reactivateTenant(tenantId),
     onSuccess: () => { invalidate(); setReactivateDialog(false); toast({ title: 'Tenant reactivated' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to reactivate tenant', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reactivate tenant', variant: 'destructive' }),
   })
 
   const branchStatusMutation = useMutation({
     mutationFn: ({ branchId, status }: { branchId: string; status: 'ACTIVE' | 'INACTIVE' }) =>
       adminApi.updateTenantBranchStatus(tenantId, branchId, status),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] }); toast({ title: 'Branch status updated' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to update branch status', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update branch status', variant: 'destructive' }),
   })
 
   const travelerVisibilityMutation = useMutation({
@@ -175,7 +175,7 @@ export default function TenantDetailPage() {
       setDeactivateBranchReason('')
       toast({ title: 'Branch traveler visibility updated' })
     },
-    onError: (err: any) => toast({ title: 'Error', description: err?.message || 'Failed to update visibility', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update visibility', variant: 'destructive' }),
   })
 
   const createBranchMutation = useMutation({
@@ -185,7 +185,7 @@ export default function TenantDetailPage() {
       setBranchDialog({ open: false, mode: 'create' })
       toast({ title: 'Branch created' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to create branch', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to create branch', variant: 'destructive' }),
   })
 
   const updateBranchMutation = useMutation({
@@ -196,19 +196,19 @@ export default function TenantDetailPage() {
       setBranchDialog({ open: false, mode: 'create' })
       toast({ title: 'Branch updated' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to update branch', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update branch', variant: 'destructive' }),
   })
 
   const uploadLogoMutation = useMutation({
     mutationFn: (file: File) => adminApi.uploadTenantLogo(tenantId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Logo updated' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to upload logo', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to upload logo', variant: 'destructive' }),
   })
 
   const uploadCoverMutation = useMutation({
     mutationFn: (file: File) => adminApi.uploadTenantCover(tenantId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Cover image updated' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to upload cover', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to upload cover', variant: 'destructive' }),
   })
 
   const assignSubMutation = useMutation({
@@ -220,13 +220,13 @@ export default function TenantDetailPage() {
       setAssignSubDialog(false)
       toast({ title: 'Subscription assigned successfully' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to assign subscription', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to assign subscription', variant: 'destructive' }),
   })
 
   const revokeSubMutation = useMutation({
     mutationFn: (subId: string) => adminApi.revokeTenantSubscription(tenantId, subId),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] }); toast({ title: 'Subscription revoked' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to revoke subscription', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to revoke subscription', variant: 'destructive' }),
   })
 
   const createInvoiceMutation = useMutation({
@@ -237,7 +237,7 @@ export default function TenantDetailPage() {
       setInvoiceForm({ subtotal: 0, description: '', dueDate: '', status: 'ISSUED' })
       toast({ title: 'Invoice created' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to create invoice', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to create invoice', variant: 'destructive' }),
   })
 
   const updateInvoiceMutation = useMutation({
@@ -248,19 +248,19 @@ export default function TenantDetailPage() {
       setUpdateStatusDialog({ open: false, invoice: null })
       toast({ title: 'Invoice status updated' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to update invoice', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update invoice', variant: 'destructive' }),
   })
 
   const sendReminderMutation = useMutation({
     mutationFn: (invoiceId: string) => adminApi.sendInvoiceReminder(tenantId, invoiceId),
     onSuccess: () => toast({ title: 'Payment reminder sent' }),
-    onError: () => toast({ title: 'Error', description: 'Failed to send reminder', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send reminder', variant: 'destructive' }),
   })
 
   const sendConfirmationMutation = useMutation({
     mutationFn: (invoiceId: string) => adminApi.sendInvoiceConfirmation(tenantId, invoiceId),
     onSuccess: () => toast({ title: 'Payment confirmation sent' }),
-    onError: () => toast({ title: 'Error', description: 'Failed to send confirmation', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send confirmation', variant: 'destructive' }),
   })
 
   if (isLoading) {
