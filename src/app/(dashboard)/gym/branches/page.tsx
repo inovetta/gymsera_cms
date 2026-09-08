@@ -41,11 +41,17 @@ interface BranchFormState {
   latitude?: number
   longitude?: number
   status?: string
+  initialPlanName?: string
+  initialPlanPrice?: number
+  initialPlanDuration?: string
 }
 
 const defaultForm = (): BranchFormState => ({
   branchName: '', address: '', cityId: 0, phone: '',
   openingTime: '06:00', closingTime: '22:00', facilities: [],
+  initialPlanName: 'Standard Membership',
+  initialPlanPrice: 5000,
+  initialPlanDuration: 'MONTHLY',
 })
 
 function BranchCard({ branch, onEdit, onDeactivate }: { branch: Branch; onEdit: (b: Branch) => void; onDeactivate: (b: Branch) => void }) {
@@ -234,14 +240,34 @@ export default function BranchesPage() {
     if (!payload.longitude) delete (payload as any).longitude
 
     if (editBranch) {
+      delete (payload as any).initialPlanName
+      delete (payload as any).initialPlanPrice
+      delete (payload as any).initialPlanDuration
       updateMutation.mutate({ id: editBranch.id, payload })
     } else {
+      if (!form.initialPlanName?.trim() || !form.initialPlanPrice || form.initialPlanPrice <= 0) {
+        toast({ title: 'Initial membership plan required', description: 'Every branch must have at least 1 membership plan.', variant: 'destructive' })
+        return
+      }
+      (payload as any).packages = [
+        {
+          name: form.initialPlanName.trim(),
+          price: Number(form.initialPlanPrice),
+          durationType: form.initialPlanDuration || 'MONTHLY',
+          durationValue: form.initialPlanDuration === 'YEARLY' ? 12 : (form.initialPlanDuration === 'QUARTERLY' ? 3 : 1),
+          description: 'Standard access to branch facilities',
+        }
+      ]
+      delete (payload as any).initialPlanName
+      delete (payload as any).initialPlanPrice
+      delete (payload as any).initialPlanDuration
       createMutation.mutate(payload)
     }
   }
 
   const branches = branchesData?.data?.branches ?? []
-  const canSubmit = form.branchName.trim().length > 0 && (!!editBranch || (form.cityId > 0 && form.address.trim().length > 0))
+  const canSubmit = form.branchName.trim().length > 0 &&
+    (!!editBranch || (form.cityId > 0 && form.address.trim().length > 0 && !!form.initialPlanName?.trim() && (form.initialPlanPrice ?? 0) > 0))
 
   return (
     <>
@@ -430,6 +456,56 @@ export default function BranchesPage() {
                 <Button variant="outline" size="sm" onClick={() => addFacility(facilityInput)} disabled={!facilityInput.trim()}>Add</Button>
               </div>
             </div>
+
+            {/* Initial Membership Plan (Mandatory for new branch) */}
+            {!editBranch && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-semibold text-primary">Initial Membership Plan *</Label>
+                    <p className="text-xs text-muted-foreground">Every branch must have at least 1 plan. You can add more later.</p>
+                  </div>
+                  <Badge variant="outline" className="border-primary text-primary text-xs">Mandatory</Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="mb-1 block text-xs">Plan Name *</Label>
+                    <Input
+                      value={form.initialPlanName ?? ''}
+                      onChange={(e) => setForm(p => ({ ...p, initialPlanName: e.target.value }))}
+                      placeholder="e.g. Standard Monthly"
+                      className="h-9 text-sm bg-background"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs">Price (PKR) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={form.initialPlanPrice ?? ''}
+                      onChange={(e) => setForm(p => ({ ...p, initialPlanPrice: e.target.value ? Number(e.target.value) : undefined }))}
+                      placeholder="e.g. 5000"
+                      className="h-9 text-sm bg-background"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs">Duration</Label>
+                    <Select
+                      value={form.initialPlanDuration ?? 'MONTHLY'}
+                      onValueChange={(v) => setForm(p => ({ ...p, initialPlanDuration: v }))}
+                    >
+                      <SelectTrigger className="h-9 text-sm bg-background"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MONTHLY">Monthly</SelectItem>
+                        <SelectItem value="QUARTERLY">Quarterly (3 Mo)</SelectItem>
+                        <SelectItem value="YEARLY">Yearly (12 Mo)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Status (edit only) */}
             {editBranch && (

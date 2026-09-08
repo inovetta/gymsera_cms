@@ -33,6 +33,13 @@ export interface CreateBranchPayload {
   facilities?: string[]
   latitude?: number
   longitude?: number
+  packages?: Array<{
+    name: string
+    price: number
+    durationType?: string
+    durationValue?: number
+    description?: string
+  }>
 }
 
 export interface UpdateBranchPayload {
