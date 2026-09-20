@@ -4,14 +4,30 @@ import { ApiResponse, Tenant, GymReview, PlatformStats } from '@/types'
 export interface TenantSubscription {
   id: string
   tenantId: string
-  platformPackageId: string
+  platformPackageId: string | null
+  billingPlanId?: string | null
+  // MANUAL is the legacy/bank-transfer path (platformPackageId set, package
+  // below populated). IOS/ANDROID/STRIPE are store-verified — branchCount is
+  // the real entitlement, package is deliberately null (see
+  // TenantSubscription.model.js on the backend for why the two catalogs are
+  // kept separate).
+  platform?: 'MANUAL' | 'IOS' | 'ANDROID' | 'STRIPE'
+  branchCount?: number | null
   startDate: string
   endDate: string
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED'
+  // PENDING_MIGRATION/PENDING_CANCEL/SCHEDULED are transitional states from
+  // a cross-provider migration (subscription-migration.service.js) —
+  // PENDING_CANCEL means the host needs to cancel this one themselves
+  // (Apple/Google, no server-side cancel API); SCHEDULED means GymsEra
+  // already scheduled its cancellation with Stripe.
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'PENDING_MIGRATION' | 'PENDING_CANCEL' | 'SCHEDULED'
+  statusNote?: string | null
   autoRenew: boolean
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED'
+  overQuotaCount?: number
+  externalOriginalTransactionId?: string | null
   createdAt: string
   package?: { id: string; name: string; price: number; billingCycle: string; maxOrganizations: number; maxBranches: number; maxTrainers: number; maxMembers: number }
 }

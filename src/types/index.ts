@@ -290,6 +290,36 @@ export interface PlatformPackage {
   status: string
 }
 
+// The central GymsEra plan catalog — branch-count tiers with a monthly/
+// annual PKR price, consumed unchanged by iOS, Android, the website, and
+// the in-app Host Area. Deliberately a separate catalog from PlatformPackage
+// above (see TenantSubscription.model.js's comment on the backend for why).
+export type ProviderSyncStatus = 'SYNCED' | 'PENDING' | 'MISMATCH' | 'NOT_CONFIGURED'
+
+export interface BillingPlan {
+  id: string
+  branchCount: number
+  monthlyPrice: number
+  annualPrice: number
+  currency: string
+  isActive: boolean
+  sortOrder: number
+  iosMonthlyProductId?: string | null
+  iosAnnualProductId?: string | null
+  androidProductId?: string | null
+  androidMonthlyBasePlanId?: string | null
+  androidAnnualBasePlanId?: string | null
+  stripeProductId?: string | null
+  stripeMonthlyPriceId?: string | null
+  stripeAnnualPriceId?: string | null
+  iosSyncStatus: ProviderSyncStatus
+  androidSyncStatus: ProviderSyncStatus
+  stripeSyncStatus: ProviderSyncStatus
+  iosLastSyncedAt?: string | null
+  androidLastSyncedAt?: string | null
+  stripeLastSyncedAt?: string | null
+}
+
 export interface DashboardStats {
   totalMembers: number
   activeSubscriptions: number

@@ -43,6 +43,18 @@ const SUB_STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
   EXPIRED: 'bg-yellow-100 text-yellow-700',
   CANCELLED: 'bg-red-100 text-red-700',
+  // Transitional states from a cross-provider migration — see
+  // subscription-migration.service.js on the backend.
+  PENDING_MIGRATION: 'bg-blue-100 text-blue-700',
+  PENDING_CANCEL: 'bg-orange-100 text-orange-700',
+  SCHEDULED: 'bg-orange-100 text-orange-700',
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  MANUAL: 'Bank Transfer / Manual',
+  IOS: 'Apple App Store',
+  ANDROID: 'Google Play',
+  STRIPE: 'Stripe (Card)',
 }
 
 export default function TenantDetailPage() {
@@ -589,15 +601,25 @@ export default function TenantDetailPage() {
                         <CardContent className="p-5">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="font-semibold">{sub.package?.name ?? 'Unknown Package'}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SUB_STATUS_COLORS[sub.status] ?? ''}`}>{sub.status}</span>
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className="font-semibold">
+                                  {/* Store-verified (IOS/ANDROID/STRIPE) rows never have a `package` —
+                                      branchCount is the real entitlement instead (see
+                                      TenantSubscription.model.js on the backend). */}
+                                  {sub.package?.name ?? (sub.branchCount ? `${sub.branchCount} branch${sub.branchCount !== 1 ? 'es' : ''}` : 'Unknown Package')}
+                                </span>
+                                {sub.platform && sub.platform !== 'MANUAL' && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">
+                                    {PLATFORM_LABELS[sub.platform]}
+                                  </span>
+                                )}
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SUB_STATUS_COLORS[sub.status] ?? ''}`}>{sub.status.replace('_', ' ')}</span>
                                 {isExpired && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Expired</span>}
                                 {isExpiringSoon && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">Expiring soon!</span>}
                               </div>
                               <div className="grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-3">
                                 <span>Billing: {sub.billingCycle}</span>
-                                <span>Amount: {formatCurrency(sub.amount)}</span>
+                                <span>Amount (locked-in): {formatCurrency(sub.amount)}</span>
                                 <span>Auto-renew: {sub.autoRenew ? 'Yes' : 'No'}</span>
                                 <span>Start: {formatDate(sub.startDate)}</span>
                                 <span className={isExpiringSoon ? 'text-yellow-600 font-medium' : isExpired ? 'text-red-600 font-medium' : ''}>Expires: {formatDate(sub.endDate)}</span>
@@ -610,11 +632,23 @@ export default function TenantDetailPage() {
                                   <span className="text-red-600 font-semibold">{Math.abs(daysLeft!)} day{Math.abs(daysLeft!) !== 1 ? 's' : ''} overdue</span>
                                 )}
                               </div>
-                              <div className="mt-1.5">
+                              <div className="mt-1.5 flex items-center gap-3 flex-wrap">
                                 <span className={`text-xs font-medium ${sub.paymentStatus === 'PAID' ? 'text-green-600' : sub.paymentStatus === 'FAILED' ? 'text-red-600' : 'text-yellow-600'}`}>
                                   Payment: {sub.paymentStatus}
                                 </span>
+                                {!!sub.overQuotaCount && (
+                                  <span className="text-xs font-medium text-red-600">Over quota by {sub.overQuotaCount}</span>
+                                )}
                               </div>
+                              {/* Guidance for a transitional state the admin (or the host) needs to
+                                  act on — e.g. "cancel your Apple subscription yourself" after a
+                                  migration to a different provider. See
+                                  subscription-migration.service.js on the backend. */}
+                              {sub.statusNote && (
+                                <div className="mt-2 text-xs rounded-lg bg-orange-50 border border-orange-200 text-orange-700 px-3 py-2">
+                                  {sub.statusNote}
+                                </div>
+                              )}
                             </div>
                             {isActive && (
                               <Button

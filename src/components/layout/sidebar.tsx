@@ -93,6 +93,7 @@ const navSections: NavSection[] = [
       { title: 'Reviews', href: '/admin/reviews', icon: Star },
       { title: 'Cities', href: '/admin/cities', icon: MapPin },
       { title: 'Packages', href: '/admin/packages', icon: Package },
+      { title: 'Billing Plans', href: '/admin/billing-plans', icon: CreditCard },
       { title: 'Analytics', href: '/admin/reports', icon: TrendingUp },
     ],
   },
