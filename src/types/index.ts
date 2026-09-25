@@ -52,15 +52,33 @@ export interface Tenant {
 export interface TenantSubscription {
   id: string
   tenantId: string
-  platformPackageId: string
+  // Nullable now: only the legacy manual/PlatformPackage path (bank
+  // transfer / sales-assisted) sets this. A real store-verified purchase
+  // sets branchCount/platform below instead — see TenantSubscription.model.js.
+  platformPackageId: string | null
+  billingPlanId: string | null
+  // MANUAL is every legacy row (bank transfer / admin-assigned). A real
+  // purchase sets this to where it was actually made.
+  platform: 'MANUAL' | 'IOS' | 'ANDROID' | 'STRIPE'
+  // Snapshotted at purchase time — this, not platformPackageId/package, is
+  // what actually governs branch capacity for a store-verified tenant.
+  branchCount: number | null
+  productId?: string | null
+  externalOriginalTransactionId?: string | null
+  environment?: 'SANDBOX' | 'PRODUCTION' | null
   startDate: string
   endDate: string
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED'
+  // PENDING_MIGRATION/PENDING_CANCEL/SCHEDULED are real transitional states
+  // a cross-platform migration leaves behind — see
+  // subscription-migration.service.js. Never flatten these to ACTIVE.
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'PENDING_MIGRATION' | 'PENDING_CANCEL' | 'SCHEDULED'
   autoRenew: boolean
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED'
   bankTransferRef?: string | null
+  overQuotaCount?: number
+  statusNote?: string | null
   package?: PlatformPackage
   createdAt: string
 }
