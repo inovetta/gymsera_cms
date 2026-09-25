@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -123,6 +123,17 @@ export default function TenantDetailPage() {
     queryFn: () => adminApi.getTenantSubscriptions(tenantId),
   })
 
+  // Read-only integrity report: does this tenant's real branch capacity
+  // agree with its own audit trail, and does overQuotaCount match reality?
+  // Always resolves to the real tenant even from a compound
+  // tenantId:listingId id — capacity is a property of the subscription,
+  // which is tenant-wide, never one organization's own.
+  const { data: capacityAuditData, isLoading: capacityAuditLoading } = useQuery({
+    queryKey: ['admin-tenant-capacity-audit', tenantId],
+    queryFn: () => adminApi.getTenantCapacityAudit(tenantId),
+    enabled: data?.data?.tenant?.status === 'ACTIVE',
+  })
+
   const { data: invoicesData, isLoading: invoicesLoading } = useQuery({
     queryKey: ['admin-tenant-invoices', tenantId],
     queryFn: () => adminApi.getTenantInvoices(tenantId),
@@ -141,6 +152,30 @@ export default function TenantDetailPage() {
   const tenant = data?.data?.tenant
   const packages = Array.isArray(packagesData?.data) ? (packagesData.data as any[]) : []
   const cities = Array.isArray(citiesData?.data) ? (citiesData.data as any[]) : []
+
+  // Branches grouped by organization — a host can genuinely run several
+  // (see tenant.organizations, from GET /admin/tenants/:id), and a flat
+  // pile of all their branches with no grouping was part of what made this
+  // page unreadable for a multi-organization tenant. Falls back to one
+  // "Branches" group when organization data isn't available (e.g. viewing
+  // a single PENDING/REJECTED additional organization directly).
+  const branchGroups = useMemo(() => {
+    const branches = branchesData?.data?.branches ?? []
+    const orgs = tenant?.organizations
+    if (!orgs || !orgs.length) {
+      return branches.length ? [{ orgId: 'all', orgTitle: 'Branches', branches }] : []
+    }
+    const byOrg = new Map(orgs.map((o) => [o.id, { orgId: o.id, orgTitle: o.title, branches: [] as TenantBranch[] }]))
+    const unassigned: TenantBranch[] = []
+    for (const branch of branches) {
+      const group = branch.gymListingId ? byOrg.get(branch.gymListingId) : undefined
+      if (group) group.branches.push(branch)
+      else unassigned.push(branch)
+    }
+    const groups = orgs.map((o) => byOrg.get(o.id)!).filter((g) => g.branches.length > 0)
+    if (unassigned.length) groups.push({ orgId: 'unassigned', orgTitle: 'Other', branches: unassigned })
+    return groups
+  }, [branchesData, tenant?.organizations])
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
@@ -448,6 +483,13 @@ export default function TenantDetailPage() {
               <CreditCard className="h-3.5 w-3.5 mr-1" />
               Subscription
             </TabsTrigger>
+            <TabsTrigger value="capacity">
+              <GitBranch className="h-3.5 w-3.5 mr-1" />
+              Capacity
+              {capacityAuditData?.data?.audit && !capacityAuditData.data.audit.ok && (
+                <Badge variant="secondary" className="ml-1.5 text-xs bg-red-100 text-red-700">!</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="invoices">
               <FileText className="h-3.5 w-3.5 mr-1" />
               Invoices
@@ -671,6 +713,108 @@ export default function TenantDetailPage() {
             </div>
           </TabsContent>
 
+          {/* ── Capacity ── */}
+          {/* The one place that answers "how many branches does this host
+              actually have, across every organization, against their real
+              plan — and does the record agree with the ledger." Before
+              this, that question had no single answer: the tenant list
+              showed a separate row per organization with no shared total,
+              and nothing anywhere compared reservedSlots against
+              capacity_events. See subscription-quota.service.js#auditCapacity. */}
+          <TabsContent value="capacity" className="mt-6">
+            <div className="space-y-4">
+              {tenant.status !== 'ACTIVE' ? (
+                <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Capacity data is only available for active tenants.</CardContent></Card>
+              ) : capacityAuditLoading ? (
+                <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
+              ) : !capacityAuditData?.data?.audit ? (
+                <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No capacity data available.</CardContent></Card>
+              ) : (() => {
+                const audit = capacityAuditData.data.audit
+                return (
+                  <>
+                    <Card className={audit.ok ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30'}>
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Plan capacity</p>
+                            <p className="text-2xl font-bold">
+                              {audit.activeBranches ?? '—'} <span className="text-base font-normal text-muted-foreground">of {audit.maxBranches} branches active</span>
+                            </p>
+                            {audit.usedCapacity != null && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {audit.usedCapacity} committed (active + unbuilt reserved) against a {audit.maxBranches}-branch plan
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {audit.ok ? (
+                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700"><CheckCircle className="h-4 w-4" /> Integrity check passed</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700"><AlertCircle className="h-4 w-4" /> Needs a human look</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {audit.invariantHolds === false && (
+                          <div className="mt-3 text-sm rounded-lg bg-red-100 border border-red-200 text-red-800 px-3 py-2">
+                            Committed capacity ({audit.usedCapacity}) exceeds the plan ({audit.maxBranches}). Real branches are never touched automatically — the host needs to upgrade or close a branch themselves.
+                          </div>
+                        )}
+                        {audit.overQuotaMismatch && (
+                          <div className="mt-3 text-sm rounded-lg bg-orange-100 border border-orange-200 text-orange-800 px-3 py-2">
+                            Recorded over-quota is {audit.recordedOverQuota}, but should be {audit.expectedOverQuota} given the real branch count. This resolves itself the next time this tenant&apos;s capacity is reconciled (any branch delete/restore, or the daily job).
+                          </div>
+                        )}
+                        {audit.totalDrift !== 0 && (
+                          <div className="mt-3 text-sm rounded-lg bg-red-100 border border-red-200 text-red-800 px-3 py-2">
+                            Ledger drift of {audit.totalDrift > 0 ? '+' : ''}{audit.totalDrift}: the audit trail (capacity_events) and the actual reserved-slot counts below disagree. This is reported, not auto-repaired — see the per-organization breakdown for where.
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader><CardTitle className="text-base">Per-organization breakdown</CardTitle></CardHeader>
+                      <CardContent className="p-0">
+                        {!audit.listings.length ? (
+                          <p className="text-sm text-muted-foreground px-6 py-6">No organizations yet.</p>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left text-muted-foreground text-xs uppercase tracking-wide">
+                                <th className="font-medium px-6 py-2.5">Organization</th>
+                                <th className="font-medium px-4 py-2.5">Reserved slots</th>
+                                <th className="font-medium px-4 py-2.5">Ledger says</th>
+                                <th className="font-medium px-4 py-2.5">Drift</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {audit.listings.map((l) => (
+                                <tr key={l.listingId} className={`border-b last:border-0 ${l.drift !== 0 ? 'bg-red-50' : ''}`}>
+                                  <td className="px-6 py-2.5 font-medium">{l.title}</td>
+                                  <td className="px-4 py-2.5">{l.actualReservedSlots}</td>
+                                  <td className="px-4 py-2.5 text-muted-foreground">{l.ledgerReservedSlots}</td>
+                                  <td className="px-4 py-2.5">
+                                    {l.drift === 0 ? (
+                                      <span className="text-green-600">none</span>
+                                    ) : (
+                                      <span className="font-semibold text-red-600">{l.drift > 0 ? '+' : ''}{l.drift}</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                )
+              })()}
+            </div>
+          </TabsContent>
+
           {/* ── Invoices ── */}
           <TabsContent value="invoices" className="mt-6">
             <div className="space-y-4">
@@ -743,7 +887,12 @@ export default function TenantDetailPage() {
           <TabsContent value="branches" className="mt-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" /> Gym Branches</h3>
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" /> Gym Branches</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    &quot;Traveler&quot; is an admin-controlled visibility toggle for the Travelers discovery feed — not a request from the host. Hover a badge for details.
+                  </p>
+                </div>
                 {tenant.status === 'ACTIVE' && (
                   <Button size="sm" onClick={() => setBranchDialog({ open: true, mode: 'create' })}>
                     <Plus className="h-4 w-4 mr-2" /> Add Branch
@@ -755,7 +904,7 @@ export default function TenantDetailPage() {
                 <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Branch data is only available for active tenants.</CardContent></Card>
               ) : branchesLoading ? (
                 <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : !branchesData?.data?.branches?.length ? (
+              ) : !branchGroups.length ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <GitBranch className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -766,8 +915,17 @@ export default function TenantDetailPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-3">
-                  {branchesData.data.branches.map((branch) => (
+                <div className="space-y-6">
+                  {branchGroups.map(({ orgId, orgTitle, branches }) => (
+                  <div key={orgId}>
+                    {branchGroups.length > 1 && (
+                      <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                        <Building2 className="h-3.5 w-3.5" /> {orgTitle}
+                        <Badge variant="secondary" className="text-xs">{branches.length}</Badge>
+                      </h4>
+                    )}
+                    <div className="space-y-3">
+                  {branches.map((branch) => (
                     <Card key={branch.id}>
                       <CardContent className="p-4">
                         <div className="flex items-start gap-4">
@@ -778,7 +936,9 @@ export default function TenantDetailPage() {
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className="text-sm font-semibold">{branch.branchName}</p>
                               <StatusBadge status={branch.status} />
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              <span
+                                title="Admin-controlled visibility to the Travelers discovery feed — not a request from the host, and not tied to review/approval. Toggle it yourself for a branch you want featured there."
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-help ${
                                 (branch.travelerVisibilityStatus || 'pending') === 'active'
                                   ? 'bg-green-100 text-green-800 border border-green-200'
                                   : (branch.travelerVisibilityStatus || 'pending') === 'deactivated'
@@ -847,6 +1007,9 @@ export default function TenantDetailPage() {
                         </div>
                       </CardContent>
                     </Card>
+                  ))}
+                    </div>
+                  </div>
                   ))}
                 </div>
               )}

@@ -47,6 +47,26 @@ export interface Tenant {
   city?: City
   selectedPackage?: PlatformPackage
   gymListing?: GymListing
+  // True only for a synthesized row representing one PENDING/REJECTED
+  // additional organization awaiting its own approve/reject decision — see
+  // admin.service.js#listTenants. Never set for a real tenant.
+  isAdditionalOrganization?: boolean
+  // Every organization this tenant owns (excluding INACTIVE/deleted ones),
+  // with real active-branch counts — only populated on GET /admin/tenants/:id
+  // for a real (non-compound-id) tenant. This is what replaced one row per
+  // organization in the tenant list: the full picture now lives here,
+  // inside the one real tenant, instead of being spread across look-alike
+  // top-level rows.
+  organizations?: TenantOrganization[]
+}
+
+export interface TenantOrganization {
+  id: string
+  title: string
+  status: string
+  activeBranches: number
+  reservedSlots: number
+  createdAt: string
 }
 
 export interface TenantSubscription {

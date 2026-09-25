@@ -75,9 +75,40 @@ export interface UpdateInvoicePayload {
   paidAt?: string
 }
 
+// Mirrors subscription-quota.service.js#auditCapacity's return shape
+// exactly — read-only, reports drift, never repairs.
+export interface CapacityAuditListing {
+  listingId: string
+  title: string
+  actualReservedSlots: number
+  ledgerReservedSlots: number
+  drift: number
+}
+
+export interface CapacityAudit {
+  tenantId: string
+  businessName: string
+  maxBranches: number
+  activeBranches: number | null
+  usedCapacity: number | null
+  invariantHolds: boolean | null
+  recordedOverQuota: number
+  expectedOverQuota: number | null
+  overQuotaMismatch: boolean
+  listings: CapacityAuditListing[]
+  driftedListings: CapacityAuditListing[]
+  totalDrift: number
+  ok: boolean
+}
+
 export interface TenantBranch {
   id: string
   gymId: string
+  // Which organization this branch belongs to — used to group the flat
+  // branch list by organization on the tenant detail page instead of
+  // showing every branch across every organization as one undifferentiated
+  // pile.
+  gymListingId?: string
   branchName: string
   address: string | null
   cityId: number | null
@@ -278,6 +309,15 @@ export const adminApi = {
 
   getTenantBranches: async (id: string): Promise<ApiResponse<{ branches: TenantBranch[] }>> => {
     const { data } = await apiClient.get(`/admin/tenants/${id}/branches`)
+    return data
+  },
+
+  // Read-only integrity report — see subscription-quota.service.js#auditCapacity
+  // on the backend. Reports drift between GymListing.reservedSlots and the
+  // capacity_events ledger, and whether overQuotaCount matches real overage.
+  // Never repairs anything itself.
+  getTenantCapacityAudit: async (id: string): Promise<ApiResponse<{ audit: CapacityAudit }>> => {
+    const { data } = await apiClient.get(`/admin/tenants/${id}/capacity-audit`)
     return data
   },
 
