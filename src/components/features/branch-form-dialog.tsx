@@ -184,18 +184,15 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
             </div>
           </div>
 
-          {mode === 'edit' && (
-            <div>
-              <Label className="mb-2 block">Status</Label>
-              <Select value={form.status ?? 'ACTIVE'} onValueChange={(v: any) => setForm((p) => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* No status control here. Activating/deactivating a branch has to
+              settle billing capacity (credit or consume a slot, cascade member
+              subscriptions and staff, write a CapacityEvent), which this form
+              cannot do — editing a branch's details must never be able to
+              change whether it counts against the host's plan. Use the
+              Disable/Enable action on the branch row instead: it routes
+              through deleteBranch/restoreBranch, which do all of that. The
+              backend rejects a status change from here outright
+              (branch_status_immutable_here). */}
 
           <div>
             <Label className="mb-2 block">Facilities</Label>
