@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { authApi } from '@/lib/api/auth'
+import { GoogleSignInButton } from '@/components/features/google-sign-in-button'
+import { authApi, LoginResponse } from '@/lib/api/auth'
 import { useAuthStore } from '@/stores/auth.store'
 
 const loginSchema = z.object({
@@ -33,21 +34,42 @@ export default function LoginPage() {
     defaultValues: { email: '', password: '' },
   })
 
+  const onLoginSuccess = ({ user, accessToken, refreshToken }: LoginResponse) => {
+    setAuth(user, accessToken, refreshToken)
+    router.push('/dashboard')
+  }
+
   const onSubmit = async (values: LoginForm) => {
     setLoading(true)
     setError(null)
     try {
       const response = await authApi.login(values)
       if (response.success) {
-        const { user, accessToken, refreshToken } = response.data
-        setAuth(user, accessToken, refreshToken)
-        router.push('/dashboard')
+        onLoginSuccess(response.data)
       } else {
         setError(response.message || 'Login failed. Please try again.')
       }
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } }
       setError(axiosError?.response?.data?.message || 'Invalid email or password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onGoogleCredential = async (idToken: string) => {
+    setError(null)
+    setLoading(true)
+    try {
+      const response = await authApi.googleLogin(idToken)
+      if (response.success) {
+        onLoginSuccess(response.data)
+      } else {
+        setError(response.message || 'Google sign-in failed. Please try again.')
+      }
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { message?: string } } }
+      setError(axiosError?.response?.data?.message || 'Google sign-in failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -147,6 +169,20 @@ export default function LoginPage() {
               </Button>
             </form>
           </Form>
+
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-700" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-slate-800 px-2 text-slate-500">Or continue with</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton onCredential={onGoogleCredential} />
+          <p className="text-center text-xs text-slate-500 mt-3">
+            Staff accounts only — ask an admin to invite you first.
+          </p>
         </CardContent>
       </Card>
 

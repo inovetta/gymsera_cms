@@ -27,6 +27,15 @@ export const authApi = {
     return data
   },
 
+  // The staff-only route, not the public /auth/social/google the website
+  // uses — see auth.service.js#googleLogin's `staffOnly` mode. Never creates
+  // a new account; refuses any Google account not already linked to an
+  // existing GYM_HOST/BRANCH_MANAGER/PLATFORM_ADMIN user.
+  googleLogin: async (idToken: string): Promise<ApiResponse<LoginResponse>> => {
+    const { data } = await apiClient.post('/auth/social/google/staff', { idToken })
+    return data
+  },
+
   logout: async (): Promise<ApiResponse<null>> => {
     const { data } = await apiClient.post('/auth/logout')
     return data
