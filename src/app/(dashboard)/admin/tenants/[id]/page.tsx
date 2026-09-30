@@ -30,6 +30,7 @@ import { formatDate, getInitials, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { GymListingTab } from '@/components/features/gym-listing-tab'
 import { BranchFormDialog } from '@/components/features/branch-form-dialog'
+import { ProvisioningStatus } from '@/components/features/provisioning-status'
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
@@ -68,6 +69,13 @@ export default function TenantDetailPage() {
   const coverInputRef = useRef<HTMLInputElement>(null)
 
   const [approveDialog, setApproveDialog] = useState(false)
+  // One Idempotency-Key per approve/resume click (FLOW-02): a repeated request
+  // replays the first answer instead of starting a second provisioning.
+  const approveKeyRef = useRef<string>('')
+  const openApproveDialog = () => {
+    approveKeyRef.current = crypto.randomUUID()
+    setApproveDialog(true)
+  }
   const [rejectDialog, setRejectDialog] = useState(false)
   const [suspendDialog, setSuspendDialog] = useState(false)
   const [reactivateDialog, setReactivateDialog] = useState(false)
@@ -98,6 +106,8 @@ export default function TenantDetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['tenant', tenantId],
     queryFn: () => adminApi.getTenant(tenantId),
+    // While another run is provisioning, check its step every 10 s.
+    refetchInterval: (query) => (query.state.data?.data?.tenant?.provisioning?.inProgress ? 10_000 : false),
   })
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
@@ -183,10 +193,20 @@ export default function TenantDetailPage() {
   }
 
   const approveMutation = useMutation({
-    mutationFn: () => adminApi.approveTenant(tenantId),
-    onSuccess: () => { invalidate(); setApproveDialog(false); toast({ title: 'Tenant approved — database provisioned' }) },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to approve tenant', variant: 'destructive' }),
+    mutationFn: (idempotencyKey: string) => adminApi.approveTenant(tenantId, idempotencyKey),
+    onSuccess: (res) => {
+      invalidate()
+      setApproveDialog(false)
+      const p = res?.data?.provisioning
+      if (p?.inProgress) toast({ title: `Provisioning is already in progress (step ${p.step}/${p.totalSteps})` })
+      else toast({ title: 'Tenant approved — database provisioned' })
+    },
+    onError: (err: any) => {
+      invalidate() // show the step it stopped at, with Resume
+      toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to approve tenant', variant: 'destructive' })
+    },
   })
+  const resumeProvisioning = () => approveMutation.mutate(crypto.randomUUID())
 
   const rejectMutation = useMutation({
     mutationFn: () => adminApi.rejectTenant(tenantId, rejectReason),
@@ -438,13 +458,17 @@ export default function TenantDetailPage() {
                     <strong>Rejection reason:</strong> {tenant.rejectionReason}
                   </div>
                 )}
+                <ProvisioningStatus status={tenant.status} provisioning={tenant.provisioning}
+                  onResume={resumeProvisioning} resuming={approveMutation.isPending} />
               </div>
 
               <div className="flex flex-wrap gap-2 shrink-0">
-                {canApprove && (
-                  <Button onClick={() => setApproveDialog(true)} variant="success">
+                {/* An APPROVED tenant resumes from the provisioning panel; this
+                    button stays for one only if the API sent no provisioning state. */}
+                {canApprove && (tenant.status !== 'APPROVED' || !tenant.provisioning) && (
+                  <Button onClick={openApproveDialog} variant="success">
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    {tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Re-provision' : 'Approve'}
+                    {tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume provisioning' : 'Approve'}
                   </Button>
                 )}
                 {canReactivate && (
@@ -1108,14 +1132,14 @@ export default function TenantDetailPage() {
 
       {/* Approve */}
       <ConfirmDialog open={approveDialog} onOpenChange={setApproveDialog}
-        title={tenant.status === 'REJECTED' ? 'Re-approve Tenant' : tenant.status === 'APPROVED' ? 'Re-provision Tenant' : 'Approve Tenant'}
+        title={tenant.status === 'REJECTED' ? 'Re-approve Tenant' : tenant.status === 'APPROVED' ? 'Resume Provisioning' : 'Approve Tenant'}
         description={
-          tenant.status === 'REJECTED' ? `Re-approve "${tenant.businessName}"? This will override the previous rejection and queue database provisioning.`
-          : tenant.status === 'APPROVED' ? `Re-queue provisioning for "${tenant.businessName}"? This re-runs database setup which may have failed previously.`
+          tenant.status === 'REJECTED' ? `Re-approve "${tenant.businessName}"? This will override the previous rejection and provision the tenant.`
+          : tenant.status === 'APPROVED' ? `Resume provisioning for "${tenant.businessName}" from the last finished step?`
           : `Approve "${tenant.businessName}"? They will gain full platform access once provisioning completes.`
         }
-        confirmLabel={tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Re-provision' : 'Approve'} variant="default"
-        onConfirm={() => approveMutation.mutate()} loading={approveMutation.isPending} />
+        confirmLabel={tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume' : 'Approve'} variant="default"
+        onConfirm={() => approveMutation.mutate(approveKeyRef.current)} loading={approveMutation.isPending} />
 
       {/* Reactivate */}
       <ConfirmDialog open={reactivateDialog} onOpenChange={setReactivateDialog}

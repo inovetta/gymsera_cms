@@ -58,6 +58,28 @@ export interface Tenant {
   // inside the one real tenant, instead of being spread across look-alike
   // top-level rows.
   organizations?: TenantOrganization[]
+  // Resumable provisioning (FLOW-02), from GET /admin/tenants/:id and approve.
+  provisioning?: TenantProvisioning
+}
+
+// The six provisioning steps, in order (backend tenant-provisioning.service.js).
+export type ProvisioningState =
+  | 'REQUESTED'
+  | 'DB_CREATED'
+  | 'MODELS_SYNCED'
+  | 'LISTING_CREATED'
+  | 'BRANCH_CREATED'
+  | 'SUBSCRIPTION_LINKED'
+  | 'ACTIVE'
+
+export interface TenantProvisioning {
+  state: ProvisioningState | null // null: provisioned (or approved) before FLOW-02
+  step: number // finished steps, 0..totalSteps
+  totalSteps: number
+  inProgress: boolean // another run holds the lock right now
+  lockedUntil: string | null
+  lastError: string | null
+  canResume: boolean
 }
 
 export interface TenantOrganization {

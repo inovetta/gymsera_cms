@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { ApiResponse, Tenant, GymReview, PlatformStats } from '@/types'
+import { ApiResponse, Tenant, TenantProvisioning, GymReview, PlatformStats } from '@/types'
 
 export interface TenantSubscription {
   id: string
@@ -287,8 +287,16 @@ export const adminApi = {
     return data
   },
 
-  approveTenant: async (id: string): Promise<ApiResponse<Tenant>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/approve`)
+  // Approve, or Resume a provisioning that stopped (FLOW-02). One idempotency
+  // key per click: a repeated request replays the first answer. 202 = another
+  // run is provisioning this tenant (data.provisioning.inProgress).
+  approveTenant: async (
+    id: string,
+    idempotencyKey: string
+  ): Promise<ApiResponse<{ tenant: Tenant; provisioning: TenantProvisioning }>> => {
+    const { data } = await apiClient.post(`/admin/tenants/${id}/approve`, {}, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    })
     return data
   },
 
