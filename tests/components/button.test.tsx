@@ -22,3 +22,5 @@ describe('Button component', () => {
     expect(button).toBeDisabled();
   });
 });
+
+// CI verification only (no behaviour change): gives GitHub Actions a commit to run against main at 355b29f.
