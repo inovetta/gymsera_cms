@@ -238,6 +238,8 @@ export default function TenantsPage() {
                 <TabsTrigger value="ACTIVE">Active</TabsTrigger>
                 <TabsTrigger value="REJECTED">Rejected</TabsTrigger>
                 <TabsTrigger value="SUSPENDED">Suspended</TabsTrigger>
+                <TabsTrigger value="PENDING_DELETION">Pending deletion</TabsTrigger>
+                <TabsTrigger value="DELETED">Deleted</TabsTrigger>
               </TabsList>
             </Tabs>
           </CardHeader>

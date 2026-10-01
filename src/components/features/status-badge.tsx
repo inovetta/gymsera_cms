@@ -21,6 +21,8 @@ const statusLabels: Record<string, string> = {
   EXPIRED: 'Expired',
   REJECTED: 'Rejected',
   SUSPENDED: 'Suspended',
+  PENDING_DELETION: 'Pending Deletion',
+  DELETED: 'Deleted',
   FAILED: 'Failed',
   OVERDUE: 'Overdue',
   REFUNDED: 'Refunded',

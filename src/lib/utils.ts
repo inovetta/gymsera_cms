@@ -51,6 +51,8 @@ export function getStatusColor(status?: string | null): string {
     UNDER_REVIEW: 'warning',
     ISSUED: 'warning',
     FROZEN: 'warning',
+    PENDING_DELETION: 'warning',
+    DELETED: 'secondary',
     INACTIVE: 'secondary',
     CANCELLED: 'secondary',
     EXPIRED: 'secondary',
