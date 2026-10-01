@@ -523,4 +523,25 @@ export const adminApi = {
     const { data } = await apiClient.get(`/admin/branches/${branchId}/traveler-visibility/history`)
     return data
   },
+
+  getTenantKycDocuments: async (tenantId: string): Promise<ApiResponse<KycDocument[]>> => {
+    const { data } = await apiClient.get(`/tenants/${tenantId}/kyc-documents`)
+    return data
+  },
+
+  downloadKycDocumentBlob: async (streamUrl: string): Promise<Blob> => {
+    const { data } = await apiClient.get(streamUrl, { responseType: 'blob' })
+    return data
+  },
 }
+
+export interface KycDocument {
+  documentId: string
+  originalName: string
+  mimetype: string
+  size: number
+  documentType?: string
+  uploadedAt: string
+  streamUrl: string
+}
+
