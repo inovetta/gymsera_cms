@@ -70,6 +70,13 @@ export interface EnrollMemberPayload {
   startDate?: string
 }
 
+export interface DeleteBranchPayload {
+  password?: string
+  provider?: string
+  idToken?: string
+  confirmOrganizationDeletion?: boolean
+}
+
 export const gymApi = {
   getGymProfile: async (): Promise<ApiResponse<{ gym: Gym }>> => {
     const { data } = await apiClient.get('/gyms/profile')
@@ -119,8 +126,8 @@ export const gymApi = {
     return data
   },
 
-  deleteBranch: async (id: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/gyms/branches/${id}`)
+  deleteBranch: async (id: string, payload?: DeleteBranchPayload): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/gyms/branches/${id}`, { data: payload })
     return data
   },
 

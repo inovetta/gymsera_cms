@@ -35,7 +35,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isReauthError =
+      error.response?.data?.code === 'invalid_credentials' ||
+      error.response?.data?.code === 'reauth_required'
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isReauthError) {
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((token: string) => {
