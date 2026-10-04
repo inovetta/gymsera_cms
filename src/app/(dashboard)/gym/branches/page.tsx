@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
-import { ConfirmDialog } from '@/components/features/confirm-dialog'
+import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { EmptyState } from '@/components/features/empty-state'
 import { MapPicker } from '@/components/features/map-picker'
 import { Button } from '@/components/ui/button'
@@ -128,6 +128,7 @@ export default function BranchesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editBranch, setEditBranch] = useState<Branch | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<Branch | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [form, setForm] = useState<BranchFormState>(defaultForm())
   const [facilityInput, setFacilityInput] = useState('')
 
@@ -174,7 +175,8 @@ export default function BranchesPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => gymApi.deleteBranch(id),
+    mutationFn: ({ id, password }: { id: string; password?: string }) =>
+      gymApi.deleteBranch(id, { password }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
       queryClient.invalidateQueries({ queryKey: ['members'] })
@@ -183,9 +185,18 @@ export default function BranchesPage() {
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] })
       queryClient.invalidateQueries({ queryKey: ['staff'] })
       setDeactivateTarget(null)
+      setDeleteError(null)
       toast({ title: 'Branch deleted', description: 'Branch and associated data have been removed.' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to delete branch', variant: 'destructive' }),
+    onError: (err: any) => {
+      const serverMessage =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to delete branch'
+      setDeleteError(serverMessage)
+      toast({ title: 'Error', description: serverMessage, variant: 'destructive' })
+    },
   })
 
   const openCreate = () => {
@@ -193,6 +204,11 @@ export default function BranchesPage() {
     setForm(defaultForm())
     setFacilityInput('')
     setDialogOpen(true)
+  }
+
+  const handleOpenDelete = (branch: Branch) => {
+    setDeleteError(null)
+    setDeactivateTarget(branch)
   }
 
   const openEdit = (branch: Branch) => {
@@ -298,7 +314,7 @@ export default function BranchesPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {branches.map((branch) => (
-              <BranchCard key={branch.id} branch={branch} onEdit={openEdit} onDeactivate={setDeactivateTarget} />
+              <BranchCard key={branch.id} branch={branch} onEdit={openEdit} onDeactivate={handleOpenDelete} />
             ))}
           </div>
         )}
@@ -535,15 +551,22 @@ export default function BranchesPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
+      <DeleteBranchDialog
         open={!!deactivateTarget}
-        onOpenChange={(open) => !open && setDeactivateTarget(null)}
-        title="Delete Branch"
-        description={`Are you sure you want to delete "${deactivateTarget?.branchName}"? All related membership plans, staff assignments, and branch-specific data will be removed.`}
-        confirmLabel="Delete Branch"
-        variant="destructive"
-        onConfirm={() => deactivateTarget && deleteMutation.mutate(deactivateTarget.id)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeactivateTarget(null)
+            setDeleteError(null)
+          }
+        }}
+        branchName={deactivateTarget?.branchName}
+        onConfirm={(password) => {
+          if (deactivateTarget) {
+            deleteMutation.mutate({ id: deactivateTarget.id, password })
+          }
+        }}
         loading={deleteMutation.isPending}
+        error={deleteError}
       />
     </>
   )
