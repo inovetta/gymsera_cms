@@ -4,10 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { tenantsApi } from '@/lib/api/tenants'
 import { approvalsApi, APPROVALS_WAITING_KEY } from '@/lib/api/approvals'
-import { meApi } from '@/lib/api/me'
-import { activeOrganization, holdsPermission, PermissionScope } from '@/lib/access/menu'
+import { useGymAccess } from '@/hooks/use-gym-access'
+import { holdsPermission, PermissionScope } from '@/lib/access/menu'
 import {
   LayoutDashboard,
   Building2,
@@ -142,33 +141,11 @@ function NavLink({ item, collapsed, badge = 0 }: { item: NavItem; collapsed: boo
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { user, logout, isPlatformAdmin, isGymHost } = useAuth()
+  const { user, logout, isPlatformAdmin } = useAuth()
 
   // NEW-42: what the user may see comes from their effective permissions (the same
-  // GET /me/context the mobile app reads), not from the account role. A team
-  // member's account role stays MEMBER whatever they are in the gym.
-  const { data: contextData } = useQuery({
-    queryKey: ['me-context'],
-    queryFn: () => meApi.getContext(),
-    enabled: !!user && !isPlatformAdmin,
-    staleTime: 30_000,
-  })
-  const organization = activeOrganization(contextData?.data)
-  const ownsOrganization = !!organization?.isOwner
-
-  // An owner whose organization is not active yet (or is suspended) may hold every
-  // permission but must finish billing first. /tenants/me is an owner-only endpoint;
-  // the host flag is the same one it is guarded by, so a host still waiting for
-  // approval (no organization in the context yet) keeps the Settings pages.
-  const isTenantOwner = ownsOrganization || isGymHost
-  const { data: tenantData } = useQuery({
-    queryKey: ['my-tenant'],
-    queryFn: () => tenantsApi.getMyTenant(),
-    enabled: isTenantOwner,
-    staleTime: 30_000,
-  })
-  const isTenantActive = tenantData?.data?.tenant?.status === 'ACTIVE'
-  const gymPagesOpen = !!organization && (!ownsOrganization || isTenantActive)
+  // GET /me/context the mobile app reads), not from the account role.
+  const { organization, isTenantOwner, gymPagesOpen } = useGymAccess()
 
   const canSee = (item: NavItem) =>
     !item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch'))

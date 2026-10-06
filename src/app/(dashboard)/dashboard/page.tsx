@@ -23,27 +23,24 @@ import { reportsApi } from '@/lib/api/reports'
 import { gymApi } from '@/lib/api/gym'
 import { tenantsApi } from '@/lib/api/tenants'
 import { useAuth } from '@/hooks/use-auth'
+import { useGymAccess } from '@/hooks/use-gym-access'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { isPlatformAdmin, isGymHost, isBranchManager } = useAuth()
-  const isGymOwner = isGymHost || isBranchManager
+  const { isPlatformAdmin } = useAuth()
 
-  const { data: tenantData, isLoading: tenantLoading } = useQuery({
-    queryKey: ['my-tenant'],
-    queryFn: () => tenantsApi.getMyTenant(),
-    enabled: isGymOwner,
-    staleTime: 30_000,
-  })
-
-  const isTenantActive = isPlatformAdmin || tenantData?.data?.tenant?.status === 'ACTIVE'
+  // NEW-43: owners wait for an active organization; team members do not (they are
+  // not the owner, whatever their account role).
+  const { isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen } = useGymAccess()
+  const isTenantActive = isPlatformAdmin || gymPagesOpen
+  const tenantData = tenant
 
   useEffect(() => {
-    if (!tenantLoading && isGymOwner && tenantData && !isTenantActive) {
+    if (!tenantLoading && isTenantOwner && tenantData && !ownerTenantActive) {
       router.replace('/settings/billing')
     }
-  }, [tenantLoading, isGymOwner, tenantData, isTenantActive, router])
+  }, [tenantLoading, isTenantOwner, tenantData, ownerTenantActive, router])
 
   // Gym host dashboard (only runs when tenant is active)
   const { data: statsData, isLoading: statsLoading } = useQuery({

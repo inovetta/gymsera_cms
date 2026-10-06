@@ -2,33 +2,23 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { tenantsApi } from '@/lib/api/tenants'
-import { useAuth } from '@/hooks/use-auth'
+import { useGymAccess } from '@/hooks/use-gym-access'
 
 export default function GymLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { isPlatformAdmin, isGymHost, isBranchManager } = useAuth()
-  const isGymOwner = isGymHost || isBranchManager
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['my-tenant'],
-    queryFn: () => tenantsApi.getMyTenant(),
-    enabled: isGymOwner,
-    staleTime: 30_000,
-  })
-
-  const tenant = data?.data?.tenant
-  const isActive = isPlatformAdmin || tenant?.status === 'ACTIVE'
+  // NEW-43: only an organization's owner is held back by its billing status. A team
+  // member is not an owner, whatever their account role says.
+  const { isTenantOwner, tenant, tenantLoading, isTenantActive } = useGymAccess()
+  const isActive = isTenantActive
 
   useEffect(() => {
-    if (!isLoading && isGymOwner && tenant && !isActive) {
+    if (!tenantLoading && isTenantOwner && tenant && !isActive) {
       router.replace('/settings/billing')
     }
-  }, [isLoading, isGymOwner, tenant, isActive, router])
+  }, [tenantLoading, isTenantOwner, tenant, isActive, router])
 
-  if (isLoading && isGymOwner) {
+  if (tenantLoading) {
     return (
       <div className="flex flex-1 items-center justify-center h-full">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -36,7 +26,7 @@ export default function GymLayout({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (isGymOwner && tenant && !isActive) {
+  if (isTenantOwner && tenant && !isActive) {
     return null
   }
 
