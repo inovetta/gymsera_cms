@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { gymApi } from '@/lib/api/gym'
 import { approvalsApi } from '@/lib/api/approvals'
 import { tenantsApi } from '@/lib/api/tenants'
+import { meApi } from '@/lib/api/me'
 import { ok } from '../fixtures/team'
+import { ownerContext } from '../fixtures/context'
 
 const redirect = vi.fn()
 
@@ -44,6 +46,8 @@ describe('/gym/staff is retired (UX-12)', () => {
   it('the sidebar links to Team & access and no longer to Staff', async () => {
     vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
     vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
+    // The menu reads the signed-in user's permissions from GET /me/context (NEW-42).
+    vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
     const { Sidebar } = await import('@/components/layout/sidebar')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(

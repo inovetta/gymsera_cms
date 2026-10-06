@@ -6,6 +6,8 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tenantsApi } from '@/lib/api/tenants'
 import { approvalsApi, APPROVALS_WAITING_KEY } from '@/lib/api/approvals'
+import { meApi } from '@/lib/api/me'
+import { activeOrganization, holdsPermission, PermissionScope } from '@/lib/access/menu'
 import {
   LayoutDashboard,
   Building2,
@@ -44,14 +46,21 @@ interface NavItem {
   title: string
   href: string
   icon: React.ComponentType<{ className?: string }>
+  /**
+   * The permission that opens this gym page, and where it must be held: across
+   * the organization ('org') or at one branch at least ('branch'). The keys are
+   * the backend's (constants/permissions.js); the menu never reads the account role.
+   */
+  permission?: string
+  scope?: PermissionScope
 }
 
 interface NavSection {
   title: string
   items: NavItem[]
   adminOnly?: boolean
-  gymOwnerOnly?: boolean
-  requiresActive?: boolean
+  /** Account pages of the organization's owner (business profile, GymsEra plan). */
+  ownerOnly?: boolean
 }
 
 const navSections: NavSection[] = [
@@ -63,26 +72,25 @@ const navSections: NavSection[] = [
   },
   {
     title: 'Gym Management',
-    gymOwnerOnly: true,
-    requiresActive: true,
     items: [
-      { title: 'Gym Profile', href: '/gym/profile', icon: Building2 },
-      { title: 'Branches', href: '/gym/branches', icon: GitBranch },
-      { title: 'Plans', href: '/gym/plans', icon: CreditCard },
-      { title: 'Members', href: '/gym/members', icon: Users },
-      { title: 'Team & access', href: '/gym/team', icon: UserCog },
-      { title: 'Approvals', href: '/gym/approvals', icon: ClipboardCheck },
-      { title: 'Subscriptions', href: '/gym/subscriptions', icon: Layers },
-      { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck },
-      { title: 'Payments', href: '/gym/payments', icon: Receipt },
-      { title: 'Invoices', href: '/gym/invoices', icon: Receipt },
-      { title: 'Trainers', href: '/gym/trainers', icon: Dumbbell },
-      { title: 'Reports', href: '/gym/reports', icon: BarChart3 },
+      { title: 'Gym Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
+      { title: 'Branches', href: '/gym/branches', icon: GitBranch, permission: 'branch.settings', scope: 'org' },
+      { title: 'Plans', href: '/gym/plans', icon: CreditCard, permission: 'plans.view', scope: 'branch' },
+      { title: 'Members', href: '/gym/members', icon: Users, permission: 'members.view', scope: 'branch' },
+      // The /team and /approvals endpoints resolve org-wide grants only.
+      { title: 'Team & access', href: '/gym/team', icon: UserCog, permission: 'team.view', scope: 'org' },
+      { title: 'Approvals', href: '/gym/approvals', icon: ClipboardCheck, permission: 'approvals.view', scope: 'org' },
+      { title: 'Subscriptions', href: '/gym/subscriptions', icon: Layers, permission: 'subscriptions.view', scope: 'branch' },
+      { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck, permission: 'checkins.view', scope: 'branch' },
+      { title: 'Payments', href: '/gym/payments', icon: Receipt, permission: 'payments.view', scope: 'branch' },
+      { title: 'Invoices', href: '/gym/invoices', icon: Receipt, permission: 'invoices.view', scope: 'branch' },
+      { title: 'Trainers', href: '/gym/trainers', icon: Dumbbell, permission: 'schedule.trainer.assign', scope: 'branch' },
+      { title: 'Reports', href: '/gym/reports', icon: BarChart3, permission: 'dashboard.revenue.view', scope: 'branch' },
     ],
   },
   {
     title: 'Settings',
-    gymOwnerOnly: true,
+    ownerOnly: true,
     items: [
       { title: 'Business Profile', href: '/settings/profile', icon: Settings },
       { title: 'Subscription & Billing', href: '/settings/billing', icon: Layers },
@@ -134,23 +142,44 @@ function NavLink({ item, collapsed, badge = 0 }: { item: NavItem; collapsed: boo
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { user, logout, isPlatformAdmin, isGymHost, isBranchManager } = useAuth()
-  const isGymOwnerRole = isGymHost || isBranchManager
+  const { user, logout, isPlatformAdmin, isGymHost } = useAuth()
 
+  // NEW-42: what the user may see comes from their effective permissions (the same
+  // GET /me/context the mobile app reads), not from the account role. A team
+  // member's account role stays MEMBER whatever they are in the gym.
+  const { data: contextData } = useQuery({
+    queryKey: ['me-context'],
+    queryFn: () => meApi.getContext(),
+    enabled: !!user && !isPlatformAdmin,
+    staleTime: 30_000,
+  })
+  const organization = activeOrganization(contextData?.data)
+  const ownsOrganization = !!organization?.isOwner
+
+  // An owner whose organization is not active yet (or is suspended) may hold every
+  // permission but must finish billing first. /tenants/me is an owner-only endpoint;
+  // the host flag is the same one it is guarded by, so a host still waiting for
+  // approval (no organization in the context yet) keeps the Settings pages.
+  const isTenantOwner = ownsOrganization || isGymHost
   const { data: tenantData } = useQuery({
     queryKey: ['my-tenant'],
     queryFn: () => tenantsApi.getMyTenant(),
-    enabled: isGymOwnerRole,
+    enabled: isTenantOwner,
     staleTime: 30_000,
   })
   const isTenantActive = tenantData?.data?.tenant?.status === 'ACTIVE'
+  const gymPagesOpen = !!organization && (!ownsOrganization || isTenantActive)
+
+  const canSee = (item: NavItem) =>
+    !item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch'))
+  const canSeeApprovals = gymPagesOpen && holdsPermission(organization, 'approvals.view', 'org')
 
   // Requests waiting on this user, from the same list the Approvals page shows.
   // Someone who may not see the inbox gets a 403 here, and simply no badge.
   const { data: waitingData } = useQuery({
     queryKey: APPROVALS_WAITING_KEY,
     queryFn: () => approvalsApi.list('PENDING'),
-    enabled: isGymOwnerRole && isTenantActive,
+    enabled: canSeeApprovals,
     retry: false,
     refetchInterval: 60_000,
   })
@@ -200,8 +229,9 @@ export function Sidebar() {
         <nav className="space-y-6">
           {navSections.map((section) => {
             if (section.adminOnly && !isPlatformAdmin) return null
-            if (section.gymOwnerOnly && !isGymOwnerRole) return null
-            if (section.requiresActive && !isTenantActive) return null
+            if (section.ownerOnly && !isTenantOwner) return null
+            const items = section.items.filter(canSee)
+            if (items.length === 0) return null
             return (
               <div key={section.title}>
                 {!collapsed && (
@@ -210,7 +240,7 @@ export function Sidebar() {
                   </p>
                 )}
                 <div className="space-y-1">
-                  {section.items.map((item) => (
+                  {items.map((item) => (
                     <NavLink
                       key={item.href}
                       item={item}
