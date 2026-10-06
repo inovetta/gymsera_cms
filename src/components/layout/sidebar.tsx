@@ -70,7 +70,7 @@ const navSections: NavSection[] = [
       { title: 'Branches', href: '/gym/branches', icon: GitBranch },
       { title: 'Plans', href: '/gym/plans', icon: CreditCard },
       { title: 'Members', href: '/gym/members', icon: Users },
-      { title: 'Staff', href: '/gym/staff', icon: UserCog },
+      { title: 'Team & access', href: '/gym/team', icon: UserCog },
       { title: 'Approvals', href: '/gym/approvals', icon: ClipboardCheck },
       { title: 'Subscriptions', href: '/gym/subscriptions', icon: Layers },
       { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck },

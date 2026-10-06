@@ -1,16 +1,6 @@
 import apiClient from './client'
 import { ApiResponse, Gym, Branch, GymStaff, User, MemberSubscription } from '@/types'
 
-export interface CreateStaffPayload {
-  fullName: string
-  email: string
-  phone?: string
-  password?: string
-  designation?: string
-  branchIds?: string[]
-  assignToAllBranches?: boolean
-}
-
 export interface UpdateGymProfilePayload {
   name?: string
   description?: string
@@ -54,11 +44,6 @@ export interface UpdateBranchPayload {
   latitude?: number
   longitude?: number
   status?: string
-}
-
-export interface AddStaffPayload {
-  email: string
-  designation: string
 }
 
 export interface EnrollMemberPayload {
@@ -136,16 +121,6 @@ export const gymApi = {
     return data
   },
 
-  addStaff: async (branchId: string, payload: AddStaffPayload): Promise<ApiResponse<{ staffMember: GymStaff }>> => {
-    const { data } = await apiClient.post(`/gyms/branches/${branchId}/staff`, payload)
-    return data
-  },
-
-  removeStaff: async (branchId: string, staffId: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/gyms/branches/${branchId}/staff/${staffId}`)
-    return data
-  },
-
   uploadGymImages: async (files: File[]): Promise<ApiResponse<{ gym: Gym; uploadedUrls: string[] }>> => {
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
@@ -186,23 +161,6 @@ export const gymApi = {
 
   enrollMember: async (payload: EnrollMemberPayload): Promise<ApiResponse<{ user: User; subscription: MemberSubscription; userCreated: boolean }>> => {
     const { data } = await apiClient.post('/gyms/members/enroll', payload)
-    return data
-  },
-
-  // ── Gym-wide staff management ─────────────────────────────────────────────
-
-  listAllStaff: async (): Promise<ApiResponse<{ staff: GymStaff[] }>> => {
-    const { data } = await apiClient.get('/gyms/staff')
-    return data
-  },
-
-  createStaff: async (payload: CreateStaffPayload): Promise<ApiResponse<{ user: User; assignedBranches: number; tempPassword?: string }>> => {
-    const { data } = await apiClient.post('/gyms/staff', payload)
-    return data
-  },
-
-  removeStaffUser: async (userId: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/gyms/staff/${userId}`)
     return data
   },
 }
