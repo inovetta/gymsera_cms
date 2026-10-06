@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tenantsApi } from '@/lib/api/tenants'
+import { approvalsApi, APPROVALS_WAITING_KEY } from '@/lib/api/approvals'
 import {
   LayoutDashboard,
   Building2,
@@ -29,6 +30,7 @@ import {
   Settings,
   Layers,
   UserCog,
+  ClipboardCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
@@ -68,7 +70,8 @@ const navSections: NavSection[] = [
       { title: 'Branches', href: '/gym/branches', icon: GitBranch },
       { title: 'Plans', href: '/gym/plans', icon: CreditCard },
       { title: 'Members', href: '/gym/members', icon: Users },
-      { title: 'Staff', href: '/gym/staff', icon: UserCog },
+      { title: 'Team & access', href: '/gym/team', icon: UserCog },
+      { title: 'Approvals', href: '/gym/approvals', icon: ClipboardCheck },
       { title: 'Subscriptions', href: '/gym/subscriptions', icon: Layers },
       { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck },
       { title: 'Payments', href: '/gym/payments', icon: Receipt },
@@ -99,7 +102,7 @@ const navSections: NavSection[] = [
   },
 ]
 
-function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function NavLink({ item, collapsed, badge = 0 }: { item: NavItem; collapsed: boolean; badge?: number }) {
   const pathname = usePathname()
   const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
   const Icon = item.icon
@@ -116,6 +119,14 @@ function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
     >
       <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : '')} />
       {!collapsed && <span className="truncate">{item.title}</span>}
+      {badge > 0 && (
+        <span
+          className="ml-auto rounded-full bg-primary px-1.5 text-[11px] font-bold leading-5 text-primary-foreground"
+          aria-label={`${badge} waiting`}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -133,6 +144,17 @@ export function Sidebar() {
     staleTime: 30_000,
   })
   const isTenantActive = tenantData?.data?.tenant?.status === 'ACTIVE'
+
+  // Requests waiting on this user, from the same list the Approvals page shows.
+  // Someone who may not see the inbox gets a 403 here, and simply no badge.
+  const { data: waitingData } = useQuery({
+    queryKey: APPROVALS_WAITING_KEY,
+    queryFn: () => approvalsApi.list('PENDING'),
+    enabled: isGymOwnerRole && isTenantActive,
+    retry: false,
+    refetchInterval: 60_000,
+  })
+  const waitingCount = waitingData?.data?.length ?? 0
 
   const handleLogout = async () => {
     try {
@@ -189,7 +211,12 @@ export function Sidebar() {
                 )}
                 <div className="space-y-1">
                   {section.items.map((item) => (
-                    <NavLink key={item.href} item={item} collapsed={collapsed} />
+                    <NavLink
+                      key={item.href}
+                      item={item}
+                      collapsed={collapsed}
+                      badge={item.href === '/gym/approvals' ? waitingCount : 0}
+                    />
                   ))}
                 </div>
               </div>
