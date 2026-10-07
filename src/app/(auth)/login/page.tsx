@@ -13,6 +13,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { GoogleSignInButton } from '@/components/features/google-sign-in-button'
 import { authApi, LoginResponse } from '@/lib/api/auth'
+import { meApi } from '@/lib/api/me'
+import { hasPortalAccess, isLegacyPortalRole, PORTAL_REFUSAL } from '@/lib/access/portal'
 import { useAuthStore } from '@/stores/auth.store'
 
 const loginSchema = z.object({
@@ -28,14 +30,33 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const logout = useAuthStore((s) => s.logout)
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   })
 
-  const onLoginSuccess = ({ user, accessToken, refreshToken }: LoginResponse) => {
+  // NEW-43: the portal is for anyone who holds a gym permission or owns an
+  // organization. A team member's account role is MEMBER, so the role cannot be
+  // the gate; the same GET /me/context the menu reads is. Legacy staff roles
+  // (platform admin, host, branch manager) go straight in as before.
+  const onLoginSuccess = async ({ user, accessToken, refreshToken }: LoginResponse) => {
     setAuth(user, accessToken, refreshToken)
+    if (!isLegacyPortalRole(user.role)) {
+      try {
+        const context = await meApi.getContext()
+        if (!hasPortalAccess(context.data, user.role)) {
+          logout()
+          setError(PORTAL_REFUSAL)
+          return
+        }
+      } catch {
+        logout()
+        setError('We could not check your access. Please try again.')
+        return
+      }
+    }
     router.push('/dashboard')
   }
 
@@ -45,7 +66,7 @@ export default function LoginPage() {
     try {
       const response = await authApi.login(values)
       if (response.success) {
-        onLoginSuccess(response.data)
+        await onLoginSuccess(response.data)
       } else {
         setError(response.message || 'Login failed. Please try again.')
       }
@@ -63,7 +84,7 @@ export default function LoginPage() {
     try {
       const response = await authApi.googleLogin(idToken)
       if (response.success) {
-        onLoginSuccess(response.data)
+        await onLoginSuccess(response.data)
       } else {
         setError(response.message || 'Google sign-in failed. Please try again.')
       }

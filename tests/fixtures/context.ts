@@ -76,3 +76,25 @@ export const ownerContext = context([
 
 /** A gym member with no team role anywhere. */
 export const plainMemberContext = context([])
+
+const DESK_KEYS = [
+  'dashboard.view', 'members.view', 'members.create', 'checkins.view', 'schedule.view',
+  'subscriptions.view', 'subscriptions.create', 'payments.view', 'payments.record', 'invoices.view', 'plans.view',
+]
+
+/**
+ * A Front Desk clerk: assigned to one branch, account role MEMBER. No org-wide
+ * grants (a branch-scoped assignment resolves none); view-level keys at the branch.
+ */
+export const frontDeskContext = context([
+  {
+    tenantId: 'tenant-1',
+    name: 'Iron Gym',
+    isOwner: false,
+    role: { key: 'DESK', name: 'Front Desk', level: 20 },
+    scopeType: 'BRANCH',
+    orgPermissions: [],
+    branches: [{ id: 'branch-1', name: 'Uptown', permissions: DESK_KEYS }],
+    pendingApprovals: 0,
+  },
+])
