@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
+import { CapacityBanner } from '@/components/features/capacity-banner'
 import { EmptyState } from '@/components/features/empty-state'
 import { MapPicker } from '@/components/features/map-picker'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ import { gymApi } from '@/lib/api/gym'
 import { citiesApi } from '@/lib/api/cities'
 import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
+import { useGymAccess } from '@/hooks/use-gym-access'
 
 const COMMON_FACILITIES = [
   'AC', 'Wi-Fi', 'Parking', 'Lockers', 'Showers', 'Pool', 'Sauna', 'Café',
@@ -125,6 +127,8 @@ function BranchCard({ branch, onEdit, onDeactivate }: { branch: Branch; onEdit: 
 export default function BranchesPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  // The host console routes (capacity, add, delete, restore) are the owner's.
+  const { isTenantOwner } = useGymAccess()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editBranch, setEditBranch] = useState<Branch | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<Branch | null>(null)
@@ -299,6 +303,12 @@ export default function BranchesPage() {
             </Button>
           }
         />
+
+        {isTenantOwner && (
+          <div className="mb-6">
+            <CapacityBanner />
+          </div>
+        )}
 
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
