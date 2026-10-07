@@ -6,6 +6,22 @@ import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { gymApi } from '@/lib/api/gym'
 import { citiesApi } from '@/lib/api/cities'
+import { hostApi } from '@/lib/api/host'
+import { meApi } from '@/lib/api/me'
+import { tenantsApi } from '@/lib/api/tenants'
+import { ownerContext } from '../fixtures/context'
+
+// Prompt 3B: deleting a branch is the owner's action and goes to the same endpoint the
+// mobile app uses, DELETE /host/branches/:id. The page is rendered as the owner.
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({
+    user: { id: 'user-owner', fullName: 'Hira Khan', role: 'GYM_HOST' },
+    logout: vi.fn(),
+    isPlatformAdmin: false,
+    isGymHost: true,
+    isBranchManager: false,
+  }),
+}))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -173,7 +189,13 @@ describe('BranchesPage branch delete flow (NEW-35)', () => {
         },
       },
     }
-    const deleteBranchSpy = vi.spyOn(gymApi, 'deleteBranch').mockRejectedValue(error401)
+    vi.spyOn(meApi, 'getContext').mockResolvedValue({ success: true, message: 'ok', data: ownerContext } as never)
+    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue({ success: true, message: 'ok', data: { tenant: { status: 'ACTIVE' }, subscription: null } } as never)
+    vi.spyOn(hostApi, 'getListings').mockResolvedValue({ success: true, message: 'ok', data: [{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }] } as never)
+    vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue({ success: true, message: 'ok', data: { branches } } as never)
+    vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null } } as never)
+    vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 } } as never)
+    const deleteBranchSpy = vi.spyOn(hostApi, 'deleteBranch').mockRejectedValue(error401)
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
