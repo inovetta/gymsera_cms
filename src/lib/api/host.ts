@@ -107,4 +107,24 @@ export const hostApi = {
     const { data } = await apiClient.post('/host/branches', payload)
     return data
   },
+
+  /**
+   * DELETE /host/branches/:id. Needs the owner's credentials again (re-auth: `password`, or a
+   * social `provider` + `idToken`). The server answers 401 when they are wrong and 409
+   * `last_branch_in_organization` when this is the organization's last branch; send again with
+   * `confirmOrganizationDeletion: true` once the owner has confirmed.
+   */
+  deleteBranch: async (
+    branchId: string,
+    body: { password?: string; provider?: string; idToken?: string; confirmOrganizationDeletion?: boolean }
+  ): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/host/branches/${branchId}`, { data: body })
+    return data
+  },
+
+  /** POST /host/branches/:id/restore — uses one unit of capacity again (403 when there is none). */
+  restoreBranch: async (branchId: string): Promise<ApiResponse<{ branch?: HostBranch }>> => {
+    const { data } = await apiClient.post(`/host/branches/${branchId}/restore`)
+    return data
+  },
 }

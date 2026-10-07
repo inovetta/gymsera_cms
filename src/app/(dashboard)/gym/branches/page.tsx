@@ -11,10 +11,13 @@ import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { CapacityBanner } from '@/components/features/capacity-banner'
 import { OrganizationStrip } from '@/components/features/organization-strip'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
+import { LastBranchDialog } from '@/components/features/last-branch-dialog'
+import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { hostApi, CreateHostBranchPayload } from '@/lib/api/host'
 import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { classifyBranchError } from '@/lib/branches/errors'
+import { resolveApiError } from '@/lib/api/error-copy'
 import { EmptyState } from '@/components/features/empty-state'
 import { MapPicker } from '@/components/features/map-picker'
 import { Button } from '@/components/ui/button'
@@ -62,7 +65,7 @@ const defaultForm = (): BranchFormState => ({
   initialPlanDuration: 'MONTHLY',
 })
 
-function BranchCard({ branch, onEdit, onDeactivate }: { branch: Branch; onEdit: (b: Branch) => void; onDeactivate: (b: Branch) => void }) {
+function BranchCard({ branch, onEdit, onDeactivate, canDelete }: { branch: Branch; onEdit: (b: Branch) => void; onDeactivate: (b: Branch) => void; canDelete: boolean }) {
   const router = useRouter()
   const facilities = Array.isArray(branch.facilities)
     ? branch.facilities
@@ -84,12 +87,14 @@ function BranchCard({ branch, onEdit, onDeactivate }: { branch: Branch; onEdit: 
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(branch) }}>Edit Branch</DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={(e) => { e.stopPropagation(); onDeactivate(branch) }}
-              >
-                Deactivate
-              </DropdownMenuItem>
+              {canDelete && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onDeactivate(branch) }}
+                >
+                  Deactivate
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -145,6 +150,10 @@ export default function BranchesPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [limitBlock, setLimitBlock] = useState<{ message: string; isOverQuota: boolean } | null>(null)
   const [lastCreate, setLastCreate] = useState<CreateHostBranchPayload | null>(null)
+  const [lastBranchPrompt, setLastBranchPrompt] = useState<{ id: string; branchName: string; password?: string; organizationName: string | null } | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<Branch | null>(null)
+  const [restoreLimit, setRestoreLimit] = useState<{ message: string; isOverQuota: boolean } | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
 
   // The owner works in the host console: the organizations strip and each organization's
   // branches (the mobile Gyms tab). Anyone else gets the branches they have a grant at.
@@ -166,6 +175,16 @@ export default function BranchesPage() {
     enabled: isTenantOwner ? !!listingId : true,
   })
   const branchesData = branchesQuery.data
+  // Deleted (INACTIVE) branches of the selected organization, for "restore a deleted branch".
+  const deletedQuery = useQuery({
+    queryKey: ['branches', `deleted:${listingId ?? 'none'}`],
+    queryFn: () => hostApi.getListingBranches(listingId as string, true),
+    enabled: isTenantOwner && !!listingId,
+  })
+  const deletedBranches = ((deletedQuery.data?.data?.branches ?? []) as unknown as Branch[]).filter(
+    (b) => b.status?.toUpperCase() === 'INACTIVE'
+  )
+
   const isLoading = isTenantOwner ? listingsQuery.isLoading || branchesQuery.isLoading : branchesQuery.isLoading
 
   const { data: citiesData } = useQuery({
@@ -219,28 +238,72 @@ export default function BranchesPage() {
     onError: () => toast({ title: 'Error', description: 'Failed to update branch', variant: 'destructive' }),
   })
 
+  // Delete = DELETE /host/branches/:id with the owner's credentials (re-auth). The server
+  // answers 401 for wrong credentials and 409 `last_branch_in_organization` when this is the
+  // organization's last branch; we ask first, then send again with the confirmation.
   const deleteMutation = useMutation({
-    mutationFn: ({ id, password }: { id: string; password?: string }) =>
-      gymApi.deleteBranch(id, { password }),
+    mutationFn: ({ id, password, confirmOrganizationDeletion }: { id: string; branchName: string; password?: string; confirmOrganizationDeletion?: boolean }) =>
+      hostApi.deleteBranch(id, {
+        ...(password ? { password } : {}),
+        ...(confirmOrganizationDeletion ? { confirmOrganizationDeletion: true } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
       queryClient.invalidateQueries({ queryKey: ['members'] })
       queryClient.invalidateQueries({ queryKey: ['plans'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['subscriptions'] })
       queryClient.invalidateQueries({ queryKey: ['staff'] })
+      invalidateBranchCapacity(queryClient)
       setDeactivateTarget(null)
+      setLastBranchPrompt(null)
       setDeleteError(null)
       toast({ title: 'Branch deleted', description: 'Branch and associated data have been removed.' })
     },
-    onError: (err: any) => {
+    onError: (err: any, vars) => {
+      if (err?.response?.status === 409 && err?.response?.data?.code === 'last_branch_in_organization') {
+        setDeactivateTarget(null)
+        setLastBranchPrompt({
+          id: vars.id,
+          branchName: vars.branchName,
+          password: vars.password,
+          organizationName: err?.response?.data?.data?.organizationName ?? null,
+        })
+        return
+      }
       const serverMessage =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
-        err?.message ||
-        'Failed to delete branch'
+        resolveApiError(err).message
+      setLastBranchPrompt(null)
       setDeleteError(serverMessage)
       toast({ title: 'Error', description: serverMessage, variant: 'destructive' })
+    },
+  })
+
+  // Restore = POST /host/branches/:id/restore; it uses one unit of capacity again (403 when none).
+  const restoreMutation = useMutation({
+    mutationFn: (branch: Branch) => hostApi.restoreBranch(branch.id),
+    onSuccess: (_res, branch) => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      invalidateBranchCapacity(queryClient)
+      setRestoreTarget(null)
+      setRestoreLimit(null)
+      setRestoreError(null)
+      toast({ title: `Branch "${branch.branchName}" restored.` })
+    },
+    onError: (err) => {
+      const block = classifyBranchError(err)
+      if (block.kind === 'limit' || block.kind === 'over_quota') {
+        setRestoreLimit({ message: block.message, isOverQuota: block.kind === 'over_quota' })
+      } else {
+        setRestoreLimit(null)
+        setRestoreError(block.message)
+        setRestoreTarget(null)
+      }
     },
   })
 
@@ -385,11 +448,40 @@ export default function BranchesPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {branches.map((branch) => (
-              <BranchCard key={branch.id} branch={branch} onEdit={openEdit} onDeactivate={handleOpenDelete} />
+              <BranchCard key={branch.id} branch={branch} onEdit={openEdit} onDeactivate={handleOpenDelete} canDelete={isTenantOwner} />
             ))}
           </div>
         )}
       </div>
+
+      {isTenantOwner && deletedBranches.length > 0 && (
+        <div className="px-6 pb-6">
+          <h3 className="mb-3 text-base font-semibold">Deleted branches</h3>
+          {restoreError && (
+            <Alert variant="destructive" className="mb-3" data-testid="restore-error">
+              <AlertDescription>{restoreError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-2">
+            {deletedBranches.map((b) => (
+              <div key={b.id} className="flex items-center justify-between rounded-lg border bg-card p-3">
+                <div>
+                  <p className="font-medium">{b.branchName}</p>
+                  <p className="text-xs text-muted-foreground">{b.address}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`Restore ${b.branchName}`}
+                  onClick={() => { setRestoreError(null); setRestoreTarget(b) }}
+                >
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -638,6 +730,45 @@ export default function BranchesPage() {
         onClose={() => setLimitBlock(null)}
       />
 
+      <ConfirmDialog
+        open={!!restoreTarget && !restoreLimit}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+        title="Restore Branch?"
+        description={`"${restoreTarget?.branchName ?? ''}" will reopen with its profile, photos, reviews and history intact. It uses one unit of your branch capacity again. Members and staff are not automatically restored — you'll need to re-add them.`}
+        confirmLabel="Restore"
+        variant="default"
+        loading={restoreMutation.isPending}
+        onConfirm={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
+      />
+
+      <BranchLimitDialog
+        open={!!restoreLimit}
+        branchName={restoreTarget?.branchName ?? ''}
+        message={restoreLimit?.message ?? ''}
+        isOverQuota={!!restoreLimit?.isOverQuota}
+        loading={restoreMutation.isPending}
+        onTryAgain={() => restoreTarget && restoreMutation.mutate(restoreTarget)}
+        onClose={() => { setRestoreLimit(null); setRestoreTarget(null) }}
+      />
+
+      <LastBranchDialog
+        open={!!lastBranchPrompt}
+        branchName={lastBranchPrompt?.branchName ?? ''}
+        organizationName={lastBranchPrompt?.organizationName}
+        actionLabel="Delete anyway"
+        loading={deleteMutation.isPending}
+        onCancel={() => setLastBranchPrompt(null)}
+        onConfirm={() =>
+          lastBranchPrompt &&
+          deleteMutation.mutate({
+            id: lastBranchPrompt.id,
+            branchName: lastBranchPrompt.branchName,
+            password: lastBranchPrompt.password,
+            confirmOrganizationDeletion: true,
+          })
+        }
+      />
+
       <DeleteBranchDialog
         open={!!deactivateTarget}
         onOpenChange={(open) => {
@@ -649,7 +780,7 @@ export default function BranchesPage() {
         branchName={deactivateTarget?.branchName}
         onConfirm={(password) => {
           if (deactivateTarget) {
-            deleteMutation.mutate({ id: deactivateTarget.id, password })
+            deleteMutation.mutate({ id: deactivateTarget.id, branchName: deactivateTarget.branchName, password })
           }
         }}
         loading={deleteMutation.isPending}

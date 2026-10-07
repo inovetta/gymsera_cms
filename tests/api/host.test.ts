@@ -44,3 +44,22 @@ describe('hostApi — branches', () => {
     })
   })
 })
+
+describe('hostApi — delete and restore', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('deletes with the credentials in the body and restores on the /host routes', async () => {
+    const del = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: { success: true, data: null } } as never)
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true, data: {} } } as never)
+
+    await hostApi.deleteBranch('b1', { password: 'placeholder-pass' })
+    await hostApi.deleteBranch('b1', { password: 'placeholder-pass', confirmOrganizationDeletion: true })
+    await hostApi.restoreBranch('b2')
+
+    expect(del).toHaveBeenNthCalledWith(1, '/host/branches/b1', { data: { password: 'placeholder-pass' } })
+    expect(del).toHaveBeenNthCalledWith(2, '/host/branches/b1', {
+      data: { password: 'placeholder-pass', confirmOrganizationDeletion: true },
+    })
+    expect(post).toHaveBeenCalledWith('/host/branches/b2/restore')
+  })
+})
