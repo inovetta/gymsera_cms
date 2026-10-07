@@ -145,7 +145,7 @@ export function Sidebar() {
 
   // NEW-42: what the user may see comes from their effective permissions (the same
   // GET /me/context the mobile app reads), not from the account role.
-  const { organization, isTenantOwner, gymPagesOpen } = useGymAccess()
+  const { organization, isTenantOwner, gymPagesOpen, roleLabel } = useGymAccess()
 
   const canSee = (item: NavItem) =>
     !item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch'))
@@ -244,7 +244,7 @@ export function Sidebar() {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.fullName}</p>
-              <p className="text-xs text-sidebar-foreground/50 truncate">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-xs text-sidebar-foreground/50 truncate">{roleLabel}</p>
             </div>
           )}
           {!collapsed && (

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/hooks/use-auth'
+import { useGymAccess } from '@/hooks/use-gym-access'
 import { getInitials } from '@/lib/utils'
 import { authApi } from '@/lib/api/auth'
 import { notificationsApi, Notification } from '@/lib/api/notifications'
@@ -26,6 +27,7 @@ interface HeaderProps {
 
 export function Header({ title, description }: HeaderProps) {
   const { user, logout } = useAuth()
+  const { roleLabel } = useGymAccess()
   const { theme, setTheme } = useTheme()
   const router = useRouter()
 
@@ -201,7 +203,7 @@ export function Header({ title, description }: HeaderProps) {
               </Avatar>
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium leading-none">{user?.fullName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{user?.role?.replace('_', ' ')}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{roleLabel}</p>
               </div>
             </button>
           </DropdownMenuTrigger>

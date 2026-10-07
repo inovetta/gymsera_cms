@@ -26,7 +26,8 @@ import { reportsApi } from '@/lib/api/reports'
 import { MemberSubscription, AttendanceLog, GymStaff, Payment, BranchReport } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { useAuth } from '@/hooks/use-auth'
+import { useGymAccess } from '@/hooks/use-gym-access'
+import { holdsAtBranch } from '@/lib/access/menu'
 
 function StatCard({ title, value, subtitle, icon: Icon, colorClass = 'text-primary' }: {
   title: string
@@ -70,8 +71,12 @@ export default function BranchDetailPage() {
   const router = useRouter()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const { isGymHost } = useAuth()
+  const { organization } = useGymAccess()
   const branchId = params.id as string
+  // NEW-45g: payment actions follow the permissions held at THIS branch (the server asks
+  // payments.record to collect or reject and payments.verify to approve), not the account role.
+  const canRecord = holdsAtBranch(organization, branchId, 'payments.record')
+  const canVerify = holdsAtBranch(organization, branchId, 'payments.verify')
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
 
@@ -245,25 +250,27 @@ export default function BranchDetailPage() {
         }
         return (
           <div className="flex items-center gap-1">
-            {row.status === 'PENDING' && (
+            {canRecord && row.status === 'PENDING' && (
               <Button size="icon-sm" variant="ghost" className="text-blue-600 hover:bg-blue-50"
                 onClick={(e) => { e.stopPropagation(); paymentActionMutation.mutate({ id: row.id, action: 'collect' }) }}
                 title="Mark as Collected">
                 <Inbox className="h-4 w-4" />
               </Button>
             )}
-            {isGymHost && (
+            {canVerify && (
               <Button size="icon-sm" variant="ghost" className="text-success hover:bg-success/10"
                 onClick={(e) => { e.stopPropagation(); paymentActionMutation.mutate({ id: row.id, action: 'verify' }) }}
                 title="Final Approval">
                 <ShieldCheck className="h-4 w-4" />
               </Button>
             )}
-            <Button size="icon-sm" variant="ghost" className="text-destructive hover:bg-destructive/10"
-              onClick={(e) => { e.stopPropagation(); paymentActionMutation.mutate({ id: row.id, action: 'reject' }) }}
-              title="Reject">
-              <XCircle className="h-4 w-4" />
-            </Button>
+            {canRecord && (
+              <Button size="icon-sm" variant="ghost" className="text-destructive hover:bg-destructive/10"
+                onClick={(e) => { e.stopPropagation(); paymentActionMutation.mutate({ id: row.id, action: 'reject' }) }}
+                title="Reject">
+                <XCircle className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         )
       },

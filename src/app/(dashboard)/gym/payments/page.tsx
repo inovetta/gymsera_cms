@@ -26,6 +26,8 @@ import { Payment } from '@/types'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
+import { useGymAccess } from '@/hooks/use-gym-access'
+import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
 
 const paymentSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -62,24 +64,44 @@ export default function PaymentsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { isGymHost } = useAuth()
+  const { organization } = useGymAccess()
+  // NEW-45g: what a person may do with payments comes from their permissions, not the
+  // account role. The server enforces the same keys per branch (payments.controller.js).
+  const can = (key: string) => holdsPermission(organization, key, 'branch')
+  const canRecord = can('payments.record')
+  const canVerify = can('payments.verify')
+  const recordsDirectly = can('payments.record.direct')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [recordOpen, setRecordOpen] = useState(false)
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['payments', statusFilter, page],
-    queryFn: () => paymentsApi.getPayments({
-      status: statusFilter !== 'all' ? statusFilter : undefined,
-      page,
-      limit: 20,
-    }),
-  })
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
     queryFn: () => gymApi.getBranches(),
   })
   const branches = branchesData?.data?.branches ?? []
+
+  // The list needs a branch unless the caller is the owner (the server answers 400
+  // otherwise). A team member picks among the branches where they may view payments;
+  // the owner may leave it on "all branches".
+  const listsAll = !!organization?.isOwner || isGymHost
+  const viewBranches = branches.filter((b) => holdsAtBranch(organization, b.id, 'payments.view'))
+  const branchOptions = listsAll ? branches : viewBranches
+  const [branchChoice, setBranchChoice] = useState('')
+  const chosen = branchOptions.find((b) => b.id === branchChoice)?.id
+  const branchId = chosen ?? (listsAll ? undefined : viewBranches[0]?.id)
+  const canList = listsAll || !!branchId
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['payments', statusFilter, page, branchId ?? 'all'],
+    queryFn: () => paymentsApi.getPayments({
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      ...(branchId ? { branchId } : {}),
+      page,
+      limit: 20,
+    }),
+    enabled: canList && !!organization,
+  })
 
   const form = useForm<PaymentForm>({
     resolver: zodResolver(paymentSchema),
@@ -183,8 +205,8 @@ export default function PaymentsPage() {
 
         return (
           <div className="flex items-center gap-1">
-            {/* Staff collect — available when PENDING, for both roles */}
-            {row.status === 'PENDING' && (
+            {/* Collect — payments.record, when PENDING */}
+            {canRecord && row.status === 'PENDING' && (
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -196,8 +218,8 @@ export default function PaymentsPage() {
               </Button>
             )}
 
-            {/* Tenant final approve — GYM_HOST only, works on PENDING or STAFF_COLLECTED */}
-            {isGymHost && (
+            {/* Final approve — payments.verify, works on PENDING or STAFF_COLLECTED */}
+            {canVerify && (
               <Button
                 size="icon-sm"
                 variant="ghost"
@@ -212,7 +234,8 @@ export default function PaymentsPage() {
               </Button>
             )}
 
-            {/* Reject — both roles */}
+            {/* Reject — payments.record (the same key the server asks for) */}
+            {canRecord && (
             <Button
               size="icon-sm"
               variant="ghost"
@@ -222,6 +245,7 @@ export default function PaymentsPage() {
             >
               <XCircle className="h-4 w-4" />
             </Button>
+            )}
           </div>
         )
       },
@@ -235,10 +259,12 @@ export default function PaymentsPage() {
         <PageHeader
           title="Payments"
           action={
-            <Button onClick={() => setRecordOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Record Payment
-            </Button>
+            canRecord ? (
+              <Button onClick={() => setRecordOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Record Payment
+              </Button>
+            ) : undefined
           }
         />
 
@@ -247,14 +273,31 @@ export default function PaymentsPage() {
           <p className="font-medium text-primary mb-1">2-Step Payment Verification</p>
           <div className="text-muted-foreground space-y-0.5">
             <p><span className="font-medium text-blue-600">Step 1 (Staff):</span> Click <Inbox className="inline h-3.5 w-3.5 mx-0.5" /> to mark payment as collected after receiving cash/proof.</p>
-            {isGymHost && (
+            {canVerify && (
               <p><span className="font-medium text-green-600">Step 2 (You):</span> Click <ShieldCheck className="inline h-3.5 w-3.5 mx-0.5" /> to give final approval — this activates the member&apos;s subscription.</p>
             )}
-            {!isGymHost && (
-              <p><span className="font-medium">Step 2 (Gym Host):</span> The gym owner will give final approval to activate subscriptions.</p>
+            {!canVerify && (
+              <p><span className="font-medium">Step 2 (Approver):</span> Someone with approval rights will give final approval to activate subscriptions.</p>
             )}
           </div>
         </div>
+
+        {branchOptions.length > 1 && (
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <label htmlFor="payments-branch" className="font-medium">Branch</label>
+            <select
+              id="payments-branch"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={branchId ?? ''}
+              onChange={(e) => { setBranchChoice(e.target.value); setPage(1) }}
+            >
+              {listsAll && <option value="">All branches</option>}
+              {branchOptions.map((b) => (
+                <option key={b.id} value={b.id}>{b.branchName}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <Card>
           <CardHeader className="pb-0">
@@ -388,14 +431,14 @@ export default function PaymentsPage() {
                 )}
               />
 
-              {isGymHost && (
+              {recordsDirectly && (
                 <p className="text-xs text-muted-foreground bg-green-50 border border-green-200 rounded p-2">
-                  As gym host, your payments are automatically approved and subscriptions activated immediately.
+                  Your payments are automatically approved and subscriptions activated immediately.
                 </p>
               )}
-              {!isGymHost && (
+              {!recordsDirectly && (
                 <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded p-2">
-                  This payment will go to the collect box. Mark it as collected after receiving cash, then the gym host will give final approval.
+                  This payment will go to the collect box. Mark it as collected after receiving cash, then someone with approval rights will give final approval.
                 </p>
               )}
 

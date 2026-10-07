@@ -98,3 +98,12 @@ export const frontDeskContext = context([
     pendingApprovals: 0,
   },
 ])
+
+/** The same context with extra permission keys added at every branch. */
+export const withPermissions = (source: MyContext, extra: string[]): MyContext => ({
+  ...source,
+  organizations: source.organizations.map((o) => ({
+    ...o,
+    branches: o.branches.map((b) => ({ ...b, permissions: [...b.permissions, ...extra] })),
+  })),
+})

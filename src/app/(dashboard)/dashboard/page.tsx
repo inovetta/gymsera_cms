@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { Users, Activity, DollarSign, CalendarCheck, TrendingUp, Building2, Clock, ShieldOff } from 'lucide-react'
 import {
   LineChart,
@@ -24,6 +24,7 @@ import { gymApi } from '@/lib/api/gym'
 import { tenantsApi } from '@/lib/api/tenants'
 import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
+import { holdsPermission } from '@/lib/access/menu'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
 
 export default function DashboardPage() {
@@ -32,7 +33,7 @@ export default function DashboardPage() {
 
   // NEW-43: owners wait for an active organization; team members do not (they are
   // not the owner, whatever their account role).
-  const { isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen } = useGymAccess()
+  const { organization, isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen } = useGymAccess()
   const isTenantActive = isPlatformAdmin || gymPagesOpen
   const tenantData = tenant
 
@@ -42,23 +43,44 @@ export default function DashboardPage() {
     }
   }, [tenantLoading, isTenantOwner, tenantData, ownerTenantActive, router])
 
-  // Gym host dashboard (only runs when tenant is active)
+  // NEW-45f: what the dashboard shows follows the user's permissions. Takings need
+  // dashboard.revenue.view; the server adds up only the branches it is held at.
+  const gymDashboard = !isPlatformAdmin && isTenantActive
+  const canSeeRevenue = gymDashboard && holdsPermission(organization, 'dashboard.revenue.view', 'branch')
+  const canSeeCounts = gymDashboard && holdsPermission(organization, 'dashboard.view', 'branch')
+  const canSeeMembers = gymDashboard && holdsPermission(organization, 'members.view', 'branch')
+
+  // Gym host dashboard (only runs when tenant is active and revenue is held)
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => reportsApi.getDashboardStats(),
-    enabled: !isPlatformAdmin && isTenantActive,
+    enabled: canSeeRevenue,
   })
 
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
     queryKey: ['yearly-revenue'],
     queryFn: () => reportsApi.getYearlyRevenue(),
-    enabled: !isPlatformAdmin && isTenantActive,
+    enabled: canSeeRevenue,
+  })
+
+  // Without revenue, the member and check-in counts come from the per-branch dashboard
+  // (GET /host/branches/:id/dashboard, the route the mobile team workspace uses), asked
+  // only for the branches where dashboard.view is held. Revenue fields are never read.
+  const countBranches = (organization?.branches ?? []).filter(
+    (b) => b.permissions.includes('*') || b.permissions.includes('dashboard.view')
+  )
+  const branchCountQueries = useQueries({
+    queries: countBranches.map((b) => ({
+      queryKey: ['branch-dashboard-counts', b.id],
+      queryFn: () => reportsApi.getBranchDashboard(b.id),
+      enabled: canSeeCounts && !canSeeRevenue,
+    })),
   })
 
   const { data: membersData, isLoading: membersLoading } = useQuery({
     queryKey: ['recent-members'],
     queryFn: () => gymApi.getMembers({ limit: 5, page: 1 }),
-    enabled: !isPlatformAdmin && isTenantActive,
+    enabled: canSeeMembers,
   })
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
@@ -76,12 +98,22 @@ export default function DashboardPage() {
 
   // API returns nested shape: { members, attendance, revenue, plans, branches }
   const rawStats = statsData?.data as any
-  const stats = rawStats ? {
-    totalMembers:        rawStats.members?.active ?? 0,
-    activeSubscriptions: rawStats.members?.active ?? 0,
-    monthlyRevenue:      rawStats.revenue?.thisMonth ?? 0,
-    todayAttendance:     rawStats.attendance?.checkInsToday ?? 0,
-  } : null
+  const branchCountData = branchCountQueries.map((q) => q.data?.data)
+  const countsFromBranches = branchCountQueries.length > 0 && branchCountQueries.every((q) => q.isSuccess)
+  const stats = canSeeRevenue
+    ? rawStats ? {
+        totalMembers:        rawStats.members?.active ?? 0,
+        activeSubscriptions: rawStats.members?.active ?? 0,
+        monthlyRevenue:      rawStats.revenue?.thisMonth ?? 0,
+        todayAttendance:     rawStats.attendance?.checkInsToday ?? 0,
+      } : null
+    : countsFromBranches ? {
+        totalMembers:        branchCountData.reduce((n, d) => n + (d?.activeMembers ?? 0), 0),
+        activeSubscriptions: branchCountData.reduce((n, d) => n + (d?.activeMembers ?? 0), 0),
+        monthlyRevenue:      0,
+        todayAttendance:     branchCountData.reduce((n, d) => n + (d?.todaysCheckins ?? 0), 0),
+      } : null
+  const countsLoading = canSeeRevenue ? statsLoading : branchCountQueries.some((q) => q.isLoading)
   const revenueChartData = revenueData?.data?.data ?? []
   const platform = platformData?.data
 
@@ -159,14 +191,14 @@ export default function DashboardPage() {
       <Header title="Dashboard" description="Welcome to your GymsEra management portal" />
       <div className="p-6 space-y-6 animate-fade-in">
         {/* Stats cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={canSeeRevenue ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>
           <StatsCard
             title="Active Members"
             value={stats?.totalMembers?.toLocaleString() ?? '0'}
             icon={Users}
             iconColor="text-blue-500"
             iconBg="bg-blue-500/10"
-            loading={statsLoading}
+            loading={countsLoading}
           />
           <StatsCard
             title="Active Subscriptions"
@@ -174,28 +206,31 @@ export default function DashboardPage() {
             icon={Activity}
             iconColor="text-green-500"
             iconBg="bg-green-500/10"
-            loading={statsLoading}
+            loading={countsLoading}
           />
-          <StatsCard
-            title="Monthly Revenue"
-            value={statsLoading ? '—' : formatCurrency(Number(stats?.monthlyRevenue ?? 0))}
-            icon={DollarSign}
-            iconColor="text-purple-500"
-            iconBg="bg-purple-500/10"
-            loading={statsLoading}
-          />
+          {canSeeRevenue && (
+            <StatsCard
+              title="Monthly Revenue"
+              value={countsLoading ? '—' : formatCurrency(Number(stats?.monthlyRevenue ?? 0))}
+              icon={DollarSign}
+              iconColor="text-purple-500"
+              iconBg="bg-purple-500/10"
+              loading={countsLoading}
+            />
+          )}
           <StatsCard
             title="Today's Attendance"
             value={stats?.todayAttendance?.toLocaleString() ?? '0'}
             icon={CalendarCheck}
             iconColor="text-orange-500"
             iconBg="bg-orange-500/10"
-            loading={statsLoading}
+            loading={countsLoading}
           />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Revenue Chart */}
+          {/* Revenue Chart — only for someone who holds dashboard.revenue.view */}
+          {canSeeRevenue && (
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -237,9 +272,10 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Branch Overview */}
-          <Card>
+          <Card className={canSeeRevenue ? undefined : 'lg:col-span-3'}>
             <CardHeader>
               <CardTitle>Branches</CardTitle>
               <CardDescription>Active gym locations</CardDescription>
@@ -281,7 +317,8 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Recent Members */}
+        {/* Recent Members — members.view */}
+        {canSeeMembers && (
         <Card>
           <CardHeader>
             <CardTitle>Recent Members</CardTitle>
@@ -328,6 +365,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </>
   )

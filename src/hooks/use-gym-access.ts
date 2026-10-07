@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { tenantsApi } from '@/lib/api/tenants'
 import { meApi } from '@/lib/api/me'
-import { activeOrganization } from '@/lib/access/menu'
+import { activeOrganization, roleLabel } from '@/lib/access/menu'
 import { hasPortalAccess } from '@/lib/access/portal'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -46,6 +46,8 @@ export function useGymAccess() {
     tenant,
     tenantLoading: tenantQuery.isLoading && isTenantOwner,
     isTenantActive,
+    /** The team role (or "Owner") to show next to the user's name; falls back to the account role. */
+    roleLabel: roleLabel(organization, user?.role),
     /** Gym pages are open: the user has a team role or owns an active organization. */
     gymPagesOpen: !!organization && (!ownsOrganization || isTenantActive),
   }
