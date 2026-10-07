@@ -70,6 +70,17 @@ export interface CreateHostBranchPayload {
   packages: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
 }
 
+export interface CreateListingPayload {
+  gymName: string
+  gymDescription: string
+  genderType: string
+  branchSource: 'new' | 'reserve' | 'none'
+  packages?: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
+  cityId?: number
+  areaId?: number
+  address?: string
+}
+
 export const hostApi = {
   getBranchQuota: async (organizationId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
@@ -127,4 +138,44 @@ export const hostApi = {
     const { data } = await apiClient.post(`/host/branches/${branchId}/restore`)
     return data
   },
+
+  /** GET /host/branches — every branch of the owner, across organizations (for "move an existing branch"). */
+  getAllBranches: async (): Promise<ApiResponse<{ branches: HostBranch[] }>> => {
+    const { data } = await apiClient.get('/host/branches')
+    return data
+  },
+
+  /**
+   * POST /host/listings (mobile: createListing → POST /host/organizations, the same route).
+   * `branchSource`: 'new' builds a first branch now (needs `packages`), 'reserve' earmarks a slot,
+   * 'none' makes a bare organization to move an existing branch into.
+   */
+  createListing: async (body: CreateListingPayload): Promise<ApiResponse<HostListing>> => {
+    const { data } = await apiClient.post('/host/listings', body)
+    return data
+  },
+
+  /** POST /host/branches/:id/move. 409 `last_branch_in_organization` until confirmed. */
+  moveBranch: async (
+    branchId: string,
+    targetListingId: string,
+    confirmOrganizationDeletion = false
+  ): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/host/branches/${branchId}/move`, {
+      targetListingId,
+      ...(confirmOrganizationDeletion ? { confirmOrganizationDeletion: true } : {}),
+    })
+    return data
+  },
+
+  /**
+   * DELETE /host/listings/:id with no body: the server lets the owner remove an organization
+   * they have just created and that holds no branch (NEW-38 rollback exemption). Used only to
+   * undo a half-finished "move an existing branch" when the owner backs out.
+   */
+  deleteListing: async (listingId: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/host/listings/${listingId}`)
+    return data
+  },
 }
+

@@ -58,6 +58,7 @@ beforeEach(() => {
   vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
   vi.spyOn(hostApi, 'getListingBranches').mockImplementation((async (_id: string, includeInactive?: boolean) =>
     ok({ branches: includeInactive ? [live, deleted] : [live] })) as never)
+  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
   getQuota = vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota) as never)
   vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [live] }) as never)
   deleteBranch = vi.spyOn(hostApi, 'deleteBranch').mockResolvedValue(ok(null) as never)

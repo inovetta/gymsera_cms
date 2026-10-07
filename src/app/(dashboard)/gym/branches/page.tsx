@@ -13,6 +13,7 @@ import { OrganizationStrip } from '@/components/features/organization-strip'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { LastBranchDialog } from '@/components/features/last-branch-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
+import { NewOrganizationDialog } from '@/components/features/new-organization-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { hostApi, CreateHostBranchPayload } from '@/lib/api/host'
 import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
@@ -154,9 +155,28 @@ export default function BranchesPage() {
   const [restoreTarget, setRestoreTarget] = useState<Branch | null>(null)
   const [restoreLimit, setRestoreLimit] = useState<{ message: string; isOverQuota: boolean } | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [newOrgOpen, setNewOrgOpen] = useState(false)
 
   // The owner works in the host console: the organizations strip and each organization's
   // branches (the mobile Gyms tab). Anyone else gets the branches they have a grant at.
+  // Organization limit and the sequential-approval gate (mobile listings_overview_screen.dart).
+  const orgQuotaQuery = useQuery({
+    queryKey: ['organization-quota'],
+    queryFn: () => hostApi.getOrganizationQuota(),
+    enabled: isTenantOwner,
+    retry: false,
+  })
+  const orgQuota = orgQuotaQuery.data?.data
+  const canCreateOrganization = orgQuota?.canCreateNext ?? true
+  const blockingStatus = orgQuota?.blockingListingStatus ?? null
+  const orgBlockMessage = canCreateOrganization
+    ? null
+    : blockingStatus === 'DRAFT'
+      ? 'Complete and submit your current organization before adding another.'
+      : blockingStatus
+        ? 'Your current organization must be approved before you can add another.'
+        : 'You have reached the organization limit of your plan.'
+
   const listingsQuery = useQuery({
     queryKey: ['host-listings'],
     queryFn: () => hostApi.getListings(),
@@ -416,13 +436,22 @@ export default function BranchesPage() {
           description={`${branches.length} branch${branches.length !== 1 ? 'es' : ''} total`}
           action={
             isTenantOwner ? (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Branch
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" disabled={!canCreateOrganization} onClick={() => setNewOrgOpen(true)}>
+                  New Organization
+                </Button>
+                <Button onClick={openCreate}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Branch
+                </Button>
+              </div>
             ) : undefined
           }
         />
+
+        {isTenantOwner && orgBlockMessage && (
+          <p className="-mt-3 mb-4 text-right text-xs text-muted-foreground">{orgBlockMessage}</p>
+        )}
 
         {isTenantOwner && (
           <OrganizationStrip listings={activeListings} selectedId={listingId} onSelect={setSelectedListingId} />
@@ -719,6 +748,12 @@ export default function BranchesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewOrganizationDialog
+        open={newOrgOpen}
+        onOpenChange={setNewOrgOpen}
+        onCreated={(id) => id && setSelectedListingId(id)}
+      />
 
       <BranchLimitDialog
         open={!!limitBlock}

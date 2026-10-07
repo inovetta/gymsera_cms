@@ -42,6 +42,7 @@ beforeEach(() => {
   vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
+  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(
     ok({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0 }) as never
   )

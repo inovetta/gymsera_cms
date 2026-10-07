@@ -193,6 +193,7 @@ describe('BranchesPage branch delete flow (NEW-35)', () => {
     vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue({ success: true, message: 'ok', data: { tenant: { status: 'ACTIVE' }, subscription: null } } as never)
     vi.spyOn(hostApi, 'getListings').mockResolvedValue({ success: true, message: 'ok', data: [{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }] } as never)
     vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue({ success: true, message: 'ok', data: { branches } } as never)
+    vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null } } as never)
     vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 } } as never)
     const deleteBranchSpy = vi.spyOn(hostApi, 'deleteBranch').mockRejectedValue(error401)
 

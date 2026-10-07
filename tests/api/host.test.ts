@@ -63,3 +63,25 @@ describe('hostApi — delete and restore', () => {
     expect(post).toHaveBeenCalledWith('/host/branches/b2/restore')
   })
 })
+
+describe('hostApi — new organization', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('creates an organization, moves a branch into it and undoes it on the /host routes', async () => {
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { success: true, data: {} } } as never)
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true, data: {} } } as never)
+    const del = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: { success: true, data: null } } as never)
+
+    await hostApi.getAllBranches()
+    await hostApi.createListing({ gymName: 'Fit Hub', gymDescription: 'd', genderType: 'MIXED', branchSource: 'none' })
+    await hostApi.moveBranch('b1', 'listing-2')
+    await hostApi.moveBranch('b1', 'listing-2', true)
+    await hostApi.deleteListing('listing-2')
+
+    expect(get).toHaveBeenCalledWith('/host/branches')
+    expect(post).toHaveBeenNthCalledWith(1, '/host/listings', { gymName: 'Fit Hub', gymDescription: 'd', genderType: 'MIXED', branchSource: 'none' })
+    expect(post).toHaveBeenNthCalledWith(2, '/host/branches/b1/move', { targetListingId: 'listing-2' })
+    expect(post).toHaveBeenNthCalledWith(3, '/host/branches/b1/move', { targetListingId: 'listing-2', confirmOrganizationDeletion: true })
+    expect(del).toHaveBeenCalledWith('/host/listings/listing-2')
+  })
+})

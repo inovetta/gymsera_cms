@@ -69,6 +69,7 @@ beforeEach(() => {
   vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok(LISTINGS) as never)
   vi.spyOn(hostApi, 'getListingBranches').mockImplementation((async (id: string) =>
     ok({ branches: id === 'listing-1' ? [branch('b1', 'Uptown', 'listing-1')] : [branch('b2', 'Downtown', 'listing-2')] })) as never)
+  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
   getQuota = vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota()) as never)
   vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [branch('b9', 'Legacy', 'listing-1')] }) as never)
   createBranch = vi.spyOn(hostApi, 'createBranch').mockResolvedValue(ok({ branch: branch('b3', 'New One', 'listing-1') }) as never)
