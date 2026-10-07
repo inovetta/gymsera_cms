@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { tenantsApi } from '@/lib/api/tenants'
 import { meApi } from '@/lib/api/me'
 import { activeOrganization, roleLabel } from '@/lib/access/menu'
+import { useSelectedOrgStore } from '@/stores/selected-org.store'
 import { hasPortalAccess } from '@/lib/access/portal'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -20,7 +21,8 @@ export function useGymAccess() {
     staleTime: 30_000,
   })
   const context = contextQuery.data?.data
-  const organization = activeOrganization(context)
+  const selectedTenantId = useSelectedOrgStore((s) => s.tenantId)
+  const organization = activeOrganization(context, selectedTenantId)
   const ownsOrganization = !!organization?.isOwner
 
   // /tenants/me is owner-only. A host still waiting for approval has no
@@ -38,6 +40,8 @@ export function useGymAccess() {
   return {
     context,
     organization,
+    /** Every organization the person works in (the switcher lists these). */
+    organizations: context?.organizations ?? [],
     contextLoading: !!user && !isPlatformAdmin && contextQuery.isLoading,
     contextFailed: contextQuery.isError,
     portalAllowed: isPlatformAdmin || hasPortalAccess(context, user?.role),

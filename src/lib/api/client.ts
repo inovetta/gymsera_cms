@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
+import { useSelectedOrgStore } from '@/stores/selected-org.store'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
@@ -8,7 +9,16 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 15000,
 })
 
+// Calls that must not carry an organization: /me/context is what lists them, and /auth/* is
+// about the account, not a gym.
+const isOrganizationFree = (url?: string) => !!url && (url.startsWith('/me/context') || url.startsWith('/auth/'))
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // The organization chosen in the switcher, sent the way the mobile team workspace does.
+  const tenantId = useSelectedOrgStore.getState().tenantId
+  if (tenantId && !isOrganizationFree(config.url)) {
+    config.headers.set('X-Tenant-Id', tenantId)
+  }
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('gymsera_access_token')
     if (token) {

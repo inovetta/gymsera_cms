@@ -1,4 +1,5 @@
 import apiClient from './client'
+import { useSelectedOrgStore } from '@/stores/selected-org.store'
 import { ApiResponse } from '@/types'
 
 /**
@@ -38,6 +39,9 @@ export interface MyContext {
 export const meApi = {
   getContext: async (): Promise<ApiResponse<MyContext>> => {
     const { data } = await apiClient.get('/me/context')
+    // Before anything else uses the answer: keep the remembered organization only if it is
+    // still one of theirs, so a stale id is never sent to the server.
+    useSelectedOrgStore.getState().reconcile((data?.data?.organizations ?? []).map((o: OrgMembership) => o.tenantId))
     return data
   },
 }

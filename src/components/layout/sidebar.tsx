@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { approvalsApi, APPROVALS_WAITING_KEY } from '@/lib/api/approvals'
 import { useGymAccess } from '@/hooks/use-gym-access'
+import { OrganizationSwitcher } from '@/components/layout/organization-switcher'
 import { holdsPermission, PermissionScope } from '@/lib/access/menu'
 import {
   LayoutDashboard,
@@ -200,6 +201,8 @@ export function Sidebar() {
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4 rotate-90" />}
         </button>
       </div>
+
+      <OrganizationSwitcher collapsed={collapsed} />
 
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">

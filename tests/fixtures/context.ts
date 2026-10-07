@@ -107,3 +107,16 @@ export const withPermissions = (source: MyContext, extra: string[]): MyContext =
     branches: o.branches.map((b) => ({ ...b, permissions: [...b.permissions, ...extra] })),
   })),
 })
+
+/**
+ * A person who works in two gyms: Org Admin at "Iron Gym" (the more senior role, so what
+ * the server picks by default) and Front Desk at "Fit Hub".
+ */
+export const twoOrgContext: MyContext = {
+  ...orgAdminContext,
+  needsContextSwitcher: true,
+  organizations: [
+    { ...orgAdminContext.organizations[0], tenantId: 'tenant-a', name: 'Iron Gym' },
+    { ...frontDeskContext.organizations[0], tenantId: 'tenant-b', name: 'Fit Hub' },
+  ],
+}
