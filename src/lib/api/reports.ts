@@ -19,6 +19,16 @@ export interface MonthlyReport {
   attendanceByDay: { day: string; count: number }[]
 }
 
+export interface BranchDashboard {
+  todaysCheckins: number
+  activeMembers: number
+  newSubs?: number
+  monthlyRevenue: number | null
+  grossRevenue?: number | null
+  totalExpenses?: number | null
+  netProfit?: number | null
+}
+
 export const reportsApi = {
   getDashboardStats: async (): Promise<ApiResponse<DashboardStats>> => {
     const { data } = await apiClient.get('/reports/dashboard')
@@ -50,6 +60,13 @@ export const reportsApi = {
 
   getWeeklyAttendance: async (): Promise<ApiResponse<{ data: { day: string; date: string; count: number }[] }>> => {
     const { data } = await apiClient.get('/reports/weekly-attendance')
+    return data
+  },
+
+  // GET /host/branches/:id/dashboard — the endpoint the mobile team workspace uses. Needs only
+  // dashboard.view; the revenue fields come back null unless dashboard.revenue.view is held.
+  getBranchDashboard: async (branchId: string): Promise<ApiResponse<BranchDashboard>> => {
+    const { data } = await apiClient.get(`/host/branches/${branchId}/dashboard`)
     return data
   },
 
