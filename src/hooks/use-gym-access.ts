@@ -42,13 +42,13 @@ export function useGymAccess() {
     organization,
     /** Every organization the person works in (the switcher lists these). */
     organizations: context?.organizations ?? [],
-    contextLoading: !!user && !isPlatformAdmin && contextQuery.isLoading,
+    contextLoading: !!user && !isPlatformAdmin && (contextQuery.isLoading || contextQuery.isFetching),
     contextFailed: contextQuery.isError,
     portalAllowed: isPlatformAdmin || hasPortalAccess(context, user?.role),
     ownsOrganization,
     isTenantOwner,
     tenant,
-    tenantLoading: tenantQuery.isLoading && isTenantOwner,
+    tenantLoading: (tenantQuery.isLoading || tenantQuery.isFetching) && isTenantOwner,
     isTenantActive,
     /** The team role (or "Owner") to show next to the user's name; falls back to the account role. */
     roleLabel: roleLabel(organization, user?.role),

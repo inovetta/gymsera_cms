@@ -40,6 +40,7 @@ import { getInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { authApi } from '@/lib/api/auth'
 
 interface NavItem {
@@ -146,7 +147,8 @@ export function Sidebar() {
 
   // NEW-42: what the user may see comes from their effective permissions (the same
   // GET /me/context the mobile app reads), not from the account role.
-  const { organization, isTenantOwner, gymPagesOpen, roleLabel } = useGymAccess()
+  const { organization, isTenantOwner, gymPagesOpen, roleLabel, contextLoading, tenantLoading } = useGymAccess()
+  const isAccessLoading = contextLoading || tenantLoading
 
   const canSee = (item: NavItem) =>
     !item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch'))
@@ -210,6 +212,34 @@ export function Sidebar() {
           {navSections.map((section) => {
             if (section.adminOnly && !isPlatformAdmin) return null
             if (section.ownerOnly && !isTenantOwner) return null
+
+            // NEW-46c: after switching organization, do not treat in-flight queries
+            // as "no permissions"; show skeleton menu items until tenant and context have loaded.
+            const hasGatedItems = section.items.some((i) => !!i.permission)
+            if (isAccessLoading && hasGatedItems) {
+              return (
+                <div key={section.title}>
+                  {!collapsed && (
+                    <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                      {section.title}
+                    </p>
+                  )}
+                  <div className="space-y-1" data-testid="nav-skeletons">
+                    {section.items.map((item) => (
+                      <div
+                        key={item.href}
+                        data-testid="nav-skeleton-item"
+                        className="flex items-center gap-3 rounded-md px-3 py-2.5"
+                      >
+                        <Skeleton className="h-4 w-4 shrink-0 rounded bg-sidebar-foreground/10" />
+                        {!collapsed && <Skeleton className="h-4 w-28 bg-sidebar-foreground/10" />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
             const items = section.items.filter(canSee)
             if (items.length === 0) return null
             return (
