@@ -6,6 +6,8 @@ import { MapPin } from 'lucide-react'
 interface MapPickerProps {
   latitude?: number | null
   longitude?: number | null
+  cityName?: string | null
+  cityCoordinates?: [number, number] | null
   onChange: (lat: number, lng: number) => void
   className?: string
 }
@@ -14,7 +16,32 @@ interface MapPickerProps {
 const DEFAULT_CENTER: [number, number] = [31.5204, 74.3587]
 const DEFAULT_ZOOM = 13
 
-export function MapPicker({ latitude, longitude, onChange, className }: MapPickerProps) {
+export const KNOWN_CITY_COORDINATES: Record<string, [number, number]> = {
+  karachi: [24.8607, 67.0011],
+  lahore: [31.5204, 74.3587],
+  islamabad: [33.6844, 73.0479],
+  rawalpindi: [33.5651, 73.0169],
+  faisalabad: [31.4504, 73.1350],
+  peshawar: [34.0151, 71.5249],
+  multan: [30.1575, 71.5249],
+  quetta: [30.1798, 66.9750],
+  gujranwala: [32.1877, 74.1945],
+  sialkot: [32.4945, 74.5229],
+  hyderabad: [25.3960, 68.3578],
+}
+
+export function getCityCoordinates(cityName?: string | null): [number, number] | null {
+  if (!cityName) return null
+  const normalized = cityName.trim().toLowerCase()
+  for (const [key, coords] of Object.entries(KNOWN_CITY_COORDINATES)) {
+    if (normalized.includes(key)) {
+      return coords
+    }
+  }
+  return null
+}
+
+export function MapPicker({ latitude, longitude, cityName, cityCoordinates, onChange, className }: MapPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const markerRef = useRef<import('leaflet').Marker | null>(null)
@@ -34,10 +61,11 @@ export function MapPicker({ latitude, longitude, onChange, className }: MapPicke
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       })
 
+      const resolvedCityCoords = cityCoordinates ?? getCityCoordinates(cityName)
       const center: [number, number] =
         latitude != null && longitude != null
           ? [latitude, longitude]
-          : DEFAULT_CENTER
+          : (resolvedCityCoords ?? DEFAULT_CENTER)
 
       const map = L.map(containerRef.current!, {
         center,
@@ -92,6 +120,18 @@ export function MapPicker({ latitude, longitude, onChange, className }: MapPicke
     markerRef.current.setLatLng([latitude, longitude])
     mapRef.current?.panTo([latitude, longitude])
   }, [latitude, longitude])
+
+  // Sync map center when city changes and no explicit lat/lng coordinates were set
+  useEffect(() => {
+    if (!mapRef.current) return
+    const resolvedCityCoords = cityCoordinates ?? getCityCoordinates(cityName)
+    if (!resolvedCityCoords) return
+
+    if (latitude == null || longitude == null) {
+      mapRef.current.setView(resolvedCityCoords, mapRef.current.getZoom() ?? DEFAULT_ZOOM)
+      markerRef.current?.setLatLng(resolvedCityCoords)
+    }
+  }, [cityName, cityCoordinates, latitude, longitude])
 
   return (
     <div className={className}>

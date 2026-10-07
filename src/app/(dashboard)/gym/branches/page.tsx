@@ -605,6 +605,7 @@ export default function BranchesPage() {
               <MapPicker
                 latitude={form.latitude ?? null}
                 longitude={form.longitude ?? null}
+                cityName={cities.find((c: any) => c.id === form.cityId)?.name}
                 onChange={(lat, lng) => setForm(p => ({ ...p, latitude: lat, longitude: lng }))}
               />
               <div className="grid grid-cols-2 gap-3 mt-2">
