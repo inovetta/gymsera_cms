@@ -21,3 +21,26 @@ describe('hostApi — the endpoints the mobile host console calls (Prompt 3B)', 
     ])
   })
 })
+
+describe('hostApi — branches', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('lists an organization’s branches and creates a branch on the /host routes', async () => {
+    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { success: true, data: {} } } as never)
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true, data: {} } } as never)
+
+    await hostApi.getListingBranches('listing-1')
+    await hostApi.getListingBranches('listing-1', true)
+    await hostApi.createBranch({ branchName: 'Uptown', gymListingId: 'listing-1', packages: [{ name: 'Monthly', price: 5000 }] })
+
+    expect(get.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+      ['/host/listings/listing-1/branches', { params: undefined }],
+      ['/host/listings/listing-1/branches', { params: { includeInactive: 'true' } }],
+    ])
+    expect(post).toHaveBeenCalledWith('/host/branches', {
+      branchName: 'Uptown',
+      gymListingId: 'listing-1',
+      packages: [{ name: 'Monthly', price: 5000 }],
+    })
+  })
+})

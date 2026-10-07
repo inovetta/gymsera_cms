@@ -42,6 +42,34 @@ export interface HostListing {
   reservedSlots?: number
 }
 
+export interface HostBranch {
+  id: string
+  branchName: string
+  status: string
+  address?: string
+  phone?: string
+  openingTime?: string
+  closingTime?: string
+  gymListingId?: string | null
+  [key: string]: unknown
+}
+
+/** POST /host/branches — the body the mobile wizard sends (createBranch in gyms_repository.dart). */
+export interface CreateHostBranchPayload {
+  branchName: string
+  gymListingId?: string
+  address?: string
+  cityId?: number
+  areaId?: number
+  latitude?: number
+  longitude?: number
+  phone?: string
+  openingTime?: string
+  closingTime?: string
+  facilitiesJson?: string[]
+  packages: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
+}
+
 export const hostApi = {
   getBranchQuota: async (organizationId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
@@ -57,6 +85,26 @@ export const hostApi = {
 
   getListings: async (): Promise<ApiResponse<HostListing[]>> => {
     const { data } = await apiClient.get('/host/listings')
+    return data
+  },
+
+  /** GET /host/listings/:id/branches — one organization's branches. */
+  getListingBranches: async (
+    listingId: string,
+    includeInactive = false
+  ): Promise<ApiResponse<{ branches: HostBranch[] }>> => {
+    const { data } = await apiClient.get(`/host/listings/${listingId}/branches`, {
+      params: includeInactive ? { includeInactive: 'true' } : undefined,
+    })
+    return data
+  },
+
+  /**
+   * POST /host/branches. Capacity is not checked first: the server answers 403
+   * `branch_limit_reached` / `account_over_quota` when the plan has no room.
+   */
+  createBranch: async (payload: CreateHostBranchPayload): Promise<ApiResponse<{ branch: HostBranch }>> => {
+    const { data } = await apiClient.post('/host/branches', payload)
     return data
   },
 }

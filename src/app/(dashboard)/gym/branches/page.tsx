@@ -9,6 +9,12 @@ import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { CapacityBanner } from '@/components/features/capacity-banner'
+import { OrganizationStrip } from '@/components/features/organization-strip'
+import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { hostApi, CreateHostBranchPayload } from '@/lib/api/host'
+import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
+import { classifyBranchError } from '@/lib/branches/errors'
 import { EmptyState } from '@/components/features/empty-state'
 import { MapPicker } from '@/components/features/map-picker'
 import { Button } from '@/components/ui/button'
@@ -135,11 +141,32 @@ export default function BranchesPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [form, setForm] = useState<BranchFormState>(defaultForm())
   const [facilityInput, setFacilityInput] = useState('')
+  const [selectedListingId, setSelectedListingId] = useState<string | undefined>()
+  const [formError, setFormError] = useState<string | null>(null)
+  const [limitBlock, setLimitBlock] = useState<{ message: string; isOverQuota: boolean } | null>(null)
+  const [lastCreate, setLastCreate] = useState<CreateHostBranchPayload | null>(null)
 
-  const { data: branchesData, isLoading } = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
+  // The owner works in the host console: the organizations strip and each organization's
+  // branches (the mobile Gyms tab). Anyone else gets the branches they have a grant at.
+  const listingsQuery = useQuery({
+    queryKey: ['host-listings'],
+    queryFn: () => hostApi.getListings(),
+    enabled: isTenantOwner,
   })
+  const activeListings = (listingsQuery.data?.data ?? []).filter((l) => l.status?.toUpperCase() === 'ACTIVE')
+  const listingId =
+    activeListings.find((l) => l.id === selectedListingId)?.id ?? activeListings[0]?.id
+
+  const branchesQuery = useQuery({
+    queryKey: ['branches', isTenantOwner ? `listing:${listingId ?? 'none'}` : 'scoped'],
+    queryFn: async (): Promise<{ data?: { branches?: Branch[] } }> =>
+      (isTenantOwner ? await hostApi.getListingBranches(listingId as string) : await gymApi.getBranches()) as unknown as {
+        data?: { branches?: Branch[] }
+      },
+    enabled: isTenantOwner ? !!listingId : true,
+  })
+  const branchesData = branchesQuery.data
+  const isLoading = isTenantOwner ? listingsQuery.isLoading || branchesQuery.isLoading : branchesQuery.isLoading
 
   const { data: citiesData } = useQuery({
     queryKey: ['cities'],
@@ -155,15 +182,29 @@ export default function BranchesPage() {
   const cities = (citiesData?.data as any) ?? []
   const areas = areasData?.data?.areas ?? []
 
+  // Attempt first: capacity is never checked before sending. The server's 403 is what opens
+  // the upsell (mobile add_branch_screen.dart `_createBranchRequest` / `_buyCapacityForThisBranch`).
   const createMutation = useMutation({
-    mutationFn: (payload: BranchFormState) => gymApi.createBranch(payload as any),
+    mutationFn: (payload: CreateHostBranchPayload) => hostApi.createBranch(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
+      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
+      invalidateBranchCapacity(queryClient)
       setDialogOpen(false)
+      setLimitBlock(null)
+      setFormError(null)
       setForm(defaultForm())
       toast({ title: 'Branch created', description: 'New branch has been added successfully' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to create branch', variant: 'destructive' }),
+    onError: (err) => {
+      const block = classifyBranchError(err)
+      if (block.kind === 'limit' || block.kind === 'over_quota') {
+        setLimitBlock({ message: block.message, isOverQuota: block.kind === 'over_quota' })
+      } else {
+        setFormError(block.message)
+      }
+    },
   })
 
   const updateMutation = useMutation({
@@ -204,6 +245,7 @@ export default function BranchesPage() {
   })
 
   const openCreate = () => {
+    setFormError(null)
     setEditBranch(null)
     setForm(defaultForm())
     setFacilityInput('')
@@ -269,19 +311,32 @@ export default function BranchesPage() {
         toast({ title: 'Initial membership plan required', description: 'Every branch must have at least 1 membership plan.', variant: 'destructive' })
         return
       }
-      (payload as any).packages = [
-        {
-          name: form.initialPlanName.trim(),
-          price: Number(form.initialPlanPrice),
-          durationType: form.initialPlanDuration || 'MONTHLY',
-          durationValue: form.initialPlanDuration === 'YEARLY' ? 12 : (form.initialPlanDuration === 'QUARTERLY' ? 3 : 1),
-          description: 'Standard access to branch facilities',
-        }
-      ]
-      delete (payload as any).initialPlanName
-      delete (payload as any).initialPlanPrice
-      delete (payload as any).initialPlanDuration
-      createMutation.mutate(payload)
+      // The body the mobile wizard sends to POST /host/branches, for the selected organization.
+      const hostPayload: CreateHostBranchPayload = {
+        branchName: form.branchName.trim(),
+        ...(listingId ? { gymListingId: listingId } : {}),
+        address: form.address.trim(),
+        cityId: form.cityId,
+        ...(form.areaId ? { areaId: form.areaId } : {}),
+        ...(form.phone ? { phone: form.phone } : {}),
+        openingTime: form.openingTime,
+        closingTime: form.closingTime,
+        facilitiesJson: form.facilities,
+        ...(form.latitude ? { latitude: form.latitude } : {}),
+        ...(form.longitude ? { longitude: form.longitude } : {}),
+        packages: [
+          {
+            name: form.initialPlanName.trim(),
+            price: Number(form.initialPlanPrice),
+            durationType: form.initialPlanDuration || 'MONTHLY',
+            durationValue: form.initialPlanDuration === 'YEARLY' ? 12 : (form.initialPlanDuration === 'QUARTERLY' ? 3 : 1),
+            description: 'Standard access to branch facilities',
+          },
+        ],
+      }
+      setFormError(null)
+      setLastCreate(hostPayload)
+      createMutation.mutate(hostPayload)
     }
   }
 
@@ -297,12 +352,18 @@ export default function BranchesPage() {
           title="Branches"
           description={`${branches.length} branch${branches.length !== 1 ? 'es' : ''} total`}
           action={
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Branch
-            </Button>
+            isTenantOwner ? (
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Branch
+              </Button>
+            ) : undefined
           }
         />
+
+        {isTenantOwner && (
+          <OrganizationStrip listings={activeListings} selectedId={listingId} onSelect={setSelectedListingId} />
+        )}
 
         {isTenantOwner && (
           <div className="mb-6">
@@ -319,7 +380,7 @@ export default function BranchesPage() {
             icon={MapPin}
             title="No branches yet"
             description="Add your first gym branch to get started"
-            action={<Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Branch</Button>}
+            action={isTenantOwner ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Branch</Button> : undefined}
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -548,6 +609,12 @@ export default function BranchesPage() {
             )}
           </div>
 
+          {formError && (
+            <Alert variant="destructive" data-testid="branch-form-error">
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
@@ -560,6 +627,16 @@ export default function BranchesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BranchLimitDialog
+        open={!!limitBlock}
+        branchName={form.branchName.trim()}
+        message={limitBlock?.message ?? ''}
+        isOverQuota={!!limitBlock?.isOverQuota}
+        loading={createMutation.isPending}
+        onTryAgain={() => lastCreate && createMutation.mutate(lastCreate)}
+        onClose={() => setLimitBlock(null)}
+      />
 
       <DeleteBranchDialog
         open={!!deactivateTarget}
