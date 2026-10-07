@@ -67,8 +67,20 @@ describe('CapacityBanner — mobile _TenantCapacityBanner (Prompt 3B)', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows nothing when the plan has no branches or the quota cannot be read', async () => {
+  it('with no subscription (maxBranches 0) shows 0 branch capacity notice and links to billing (NEW-46b)', async () => {
     vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota({ maxBranches: 0 })) as never)
+    mount(<CapacityBanner />)
+
+    expect(
+      await screen.findByText(
+        'No active subscription (0 branch capacity). Subscribe in the GymsEra app to add and manage branches.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/settings/billing')
+  })
+
+  it('shows nothing when quota cannot be read', async () => {
+    vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(null) as never)
     const { container } = mount(<CapacityBanner />)
     await waitFor(() => expect(hostApi.getBranchQuota).toHaveBeenCalled())
     expect(container.querySelector('[data-testid="capacity-banner"]')).toBeNull()

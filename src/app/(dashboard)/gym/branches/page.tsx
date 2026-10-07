@@ -182,9 +182,11 @@ export default function BranchesPage() {
     queryFn: () => hostApi.getListings(),
     enabled: isTenantOwner,
   })
-  const activeListings = (listingsQuery.data?.data ?? []).filter((l) => l.status?.toUpperCase() === 'ACTIVE')
+  const rawListings = listingsQuery.data?.data ?? []
+  const activeListings = rawListings.filter((l) => l.status?.toUpperCase() === 'ACTIVE')
+  const displayListings = activeListings.length > 0 ? activeListings : rawListings
   const listingId =
-    activeListings.find((l) => l.id === selectedListingId)?.id ?? activeListings[0]?.id
+    displayListings.find((l) => l.id === selectedListingId)?.id ?? displayListings[0]?.id
 
   const branchesQuery = useQuery({
     queryKey: ['branches', isTenantOwner ? `listing:${listingId ?? 'none'}` : 'scoped'],
@@ -454,7 +456,7 @@ export default function BranchesPage() {
         )}
 
         {isTenantOwner && (
-          <OrganizationStrip listings={activeListings} selectedId={listingId} onSelect={setSelectedListingId} />
+          <OrganizationStrip listings={displayListings} selectedId={listingId} onSelect={setSelectedListingId} />
         )}
 
         {isTenantOwner && (

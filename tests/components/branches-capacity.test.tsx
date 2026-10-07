@@ -66,4 +66,16 @@ describe('Branches page — capacity banner (Prompt 3B)', () => {
     expect(hostApi.getBranchQuota).not.toHaveBeenCalled()
     expect(screen.queryByText(/branches used/)).not.toBeInTheDocument()
   })
+
+  it('Organization strip: falls back to all listings when none is ACTIVE (NEW-46b)', async () => {
+    vi.spyOn(hostApi, 'getListings').mockResolvedValue(
+      ok([{ id: 'org-savesto', name: 'Savesto Gym', status: 'PENDING' }]) as never
+    )
+    const getBranchesSpy = vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [] }) as never)
+
+    render_(ownerContext)
+
+    expect(await screen.findByText('Savesto Gym')).toBeInTheDocument()
+    expect(getBranchesSpy).toHaveBeenCalledWith('org-savesto')
+  })
 })
