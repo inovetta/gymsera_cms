@@ -26,8 +26,9 @@ export function useGymAccess() {
   const ownsOrganization = !!organization?.isOwner
 
   // /tenants/me is owner-only. A host still waiting for approval has no
-  // organization in the context yet, so the host flag keeps them in.
-  const isTenantOwner = ownsOrganization || isGymHost
+  // organization in the context yet, so the host flag keeps them in (NEW-46d).
+  const hasNoOrganizations = (context?.organizations?.length ?? 0) === 0
+  const isTenantOwner = ownsOrganization || (isGymHost && hasNoOrganizations)
   const tenantQuery = useQuery({
     queryKey: ['my-tenant'],
     queryFn: () => tenantsApi.getMyTenant(),
