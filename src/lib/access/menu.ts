@@ -21,6 +21,22 @@ export const holdsPermission = (org: OrgMembership | null, key: string, scope: P
   return scope === 'branch' && org.branches.some((b) => holds(b.permissions, key))
 }
 
+/** Held at this one branch (or organization-wide)? For pages that act on a single branch. */
+export const holdsAtBranch = (org: OrgMembership | null, branchId: string, key: string): boolean => {
+  if (!org) return false
+  if (org.isOwner || holds(org.orgPermissions, key)) return true
+  return org.branches.some((b) => b.id === branchId && holds(b.permissions, key))
+}
+
+/**
+ * What to call the signed-in user: their team role in the organization, not the
+ * account role (`users.role`), which is MEMBER for every team member (NEW-45).
+ */
+export const roleLabel = (org: OrgMembership | null, accountRole?: string | null): string => {
+  if (org) return org.isOwner ? 'Owner' : org.role.name
+  return (accountRole ?? '').replace('_', ' ')
+}
+
 /**
  * The organization the CMS is acting in. The CMS sends no organization selector
  * yet, so the server uses the user's most senior membership; pick the same one.
