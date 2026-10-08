@@ -43,7 +43,14 @@ describe('Sidebar Loading State (NEW-46c)', () => {
       resolveTenant = resolve
     })
 
-    vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(twoOrgContext) as never)
+    const twoOrgOwnerContext = {
+      ...twoOrgContext,
+      organizations: [
+        { ...twoOrgContext.organizations[0], tenantId: 'tenant-a', isOwner: true },
+        { ...twoOrgContext.organizations[1], tenantId: 'tenant-b', isOwner: true },
+      ],
+    }
+    vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(twoOrgOwnerContext) as never)
     // Initially loaded tenant
     vi.spyOn(tenantsApi, 'getMyTenant').mockImplementationOnce(() =>
       Promise.resolve(ok({ tenant: { id: 'tenant-a', status: 'ACTIVE' } }) as never)
