@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { adminApi } from '@/lib/api/admin'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { packagesApi } from '@/lib/api/packages'
 import { Tenant } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
@@ -124,7 +124,7 @@ export default function TenantsPage() {
     onError: () => toast({ title: 'Sync failed', variant: 'destructive' }),
   })
 
-  const cities = citiesData?.data ?? []
+  const cities = parseCities(citiesData?.data)
   const packages = packagesData?.data?.filter((p) => p.status === 'ACTIVE') ?? []
 
   const columns: Column<Tenant>[] = [

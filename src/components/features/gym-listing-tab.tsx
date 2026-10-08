@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { adminApi, GymListingDetail, UpdateGymListingPayload, CreateGymListingPayload } from '@/lib/api/admin'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { useToast } from '@/hooks/use-toast'
 import { StatusBadge } from './status-badge'
 
@@ -73,7 +73,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
   })
 
   const listing: GymListingDetail | undefined = data?.data?.gymListing
-  const cities = Array.isArray(citiesData?.data) ? (citiesData.data as any[]) : []
+  const cities = parseCities(citiesData?.data)
   const selectedCity = cities.find((c: any) => c.id === (editing ? form.cityId : listing?.cityId))
   const areas: any[] = selectedCity?.areas ?? []
 

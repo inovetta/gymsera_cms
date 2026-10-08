@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { gymApi } from '@/lib/api/gym'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { useGymAccess } from '@/hooks/use-gym-access'
@@ -220,7 +220,7 @@ export default function BranchesPage() {
     enabled: form.cityId > 0,
   })
 
-  const cities = (citiesData?.data as any) ?? []
+  const cities = parseCities(citiesData?.data)
   const areas = areasData?.data?.areas ?? []
 
   // Attempt first: capacity is never checked before sending. The server's 403 is what opens

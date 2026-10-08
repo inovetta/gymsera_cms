@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { City, Area } from '@/types'
 import { useToast } from '@/hooks/use-toast'
@@ -334,7 +334,7 @@ export default function CitiesPage() {
     onError: () => toast({ title: 'Error', description: 'Failed to add city', variant: 'destructive' }),
   })
 
-  const cities = data?.data ?? []
+  const cities = parseCities(data?.data)
 
   return (
     <>

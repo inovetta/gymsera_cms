@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { adminApi, TenantSubscription, PlatformInvoice, AssignSubscriptionPayload, CreateInvoicePayload, TenantBranch, CreateTenantBranchPayload, UpdateTenantBranchPayload, KycDocument } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { formatDate, getInitials, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
@@ -198,7 +198,7 @@ export default function TenantDetailPage() {
 
   const tenant = data?.data?.tenant
   const packages = Array.isArray(packagesData?.data) ? (packagesData.data as any[]) : []
-  const cities = Array.isArray(citiesData?.data) ? (citiesData.data as any[]) : []
+  const cities = parseCities(citiesData?.data)
 
   // Branches grouped by organization — a host can genuinely run several
   // (see tenant.organizations, from GET /admin/tenants/:id), and a flat
