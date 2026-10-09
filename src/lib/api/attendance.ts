@@ -11,10 +11,12 @@ export interface GetAttendanceParams {
   endDate?: string
 }
 
+/** POST /attendance/check-in: the server validator (attendance.validator.js `manual`) requires all three ids. */
 export interface ManualCheckInPayload {
-  userId?: string
-  email?: string
+  userId: string
+  subscriptionId: string
   branchId: string
+  notes?: string
 }
 
 export interface AttendanceReport {

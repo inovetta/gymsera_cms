@@ -177,5 +177,16 @@ export const hostApi = {
     const { data } = await apiClient.delete(`/host/listings/${listingId}`)
     return data
   },
-}
 
+  /**
+   * GET /host/branches/:branchId/members/lookup?email= (host.controller.js lookupBranchMember).
+   * `exists` is true only when the person holds an ACTIVE, PENDING or FROZEN subscription at this branch.
+   */
+  lookupBranchMember: async (
+    branchId: string,
+    email: string
+  ): Promise<ApiResponse<{ exists: boolean; user?: { id: string; fullName: string; email: string } }>> => {
+    const { data } = await apiClient.get(`/host/branches/${branchId}/members/lookup`, { params: { email } })
+    return data
+  },
+}
