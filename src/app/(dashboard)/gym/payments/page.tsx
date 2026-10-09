@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { paymentsApi } from '@/lib/api/payments'
+import { lookupBranchMemberByEmail } from '@/lib/members/lookup'
 import { gymApi } from '@/lib/api/gym'
 import { Payment } from '@/types'
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
@@ -29,16 +30,24 @@ import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
 
+// NEW-57: the staff member types the member's email; the member lookup turns it into the userId
+// the server wants. The server needs a branch for every payment recorded this way, and the lookup
+// is per branch, so the branch is required here too.
 const paymentSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
+  email: z.string().trim().min(1, 'Member email is required').email('Enter a valid email address'),
   paymentFor: z.enum(['MEMBERSHIP', 'TRAINER', 'PRODUCT', 'OTHER']),
   amount: z.coerce.number().min(1, 'Amount must be greater than 0'),
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET', 'ONLINE', 'POS']),
-  branchId: z.string().optional(),
+  branchId: z.string().min(1, 'Choose a branch'),
   notes: z.string().optional(),
 })
 
 type PaymentForm = z.infer<typeof paymentSchema>
+
+/** Thrown by the record mutation when the lookup finds nobody with that email at the branch. */
+class MemberNotFoundError extends Error {}
+/** The lookup call itself failed (no members.view at the branch, offline); nothing was recorded. */
+class MemberLookupFailedError extends Error {}
 
 const STATUS_TABS = [
   { value: 'all',            label: 'All' },
@@ -105,18 +114,45 @@ export default function PaymentsPage() {
 
   const form = useForm<PaymentForm>({
     resolver: zodResolver(paymentSchema),
-    defaultValues: { userId: '', paymentFor: 'MEMBERSHIP', amount: 0, method: 'CASH', notes: '' },
+    defaultValues: { email: '', paymentFor: 'MEMBERSHIP', amount: 0, method: 'CASH', branchId: '', notes: '' },
   })
 
+  const openRecord = () => {
+    // Start on the branch the list is showing (or the only branch) so staff rarely have to pick.
+    form.reset({ ...form.getValues(), branchId: branchId ?? (branches.length === 1 ? branches[0].id : '') })
+    setRecordOpen(true)
+  }
+
   const recordMutation = useMutation({
-    mutationFn: (payload: PaymentForm) => paymentsApi.recordPayment(payload),
+    mutationFn: async ({ email, ...payment }: PaymentForm) => {
+      let member
+      try {
+        member = await lookupBranchMemberByEmail(payment.branchId, email)
+      } catch (error) {
+        const e = error as { response?: { status?: number; data?: { message?: string } } }
+        throw new MemberLookupFailedError(
+          e.response?.data?.message ||
+            (e.response?.status === 403
+              ? 'You do not have permission to look up members at this branch.'
+              : 'Could not look up the member. Check your connection and try again.')
+        )
+      }
+      if (member.kind === 'not_found') throw new MemberNotFoundError(member.message)
+      return paymentsApi.recordPayment({ ...payment, userId: member.userId })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] })
       setRecordOpen(false)
       form.reset()
       toast({ title: 'Payment recorded successfully' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to record payment', variant: 'destructive' }),
+    onError: (error) => {
+      if (error instanceof MemberNotFoundError || error instanceof MemberLookupFailedError) {
+        form.setError('email', { type: 'server', message: error.message })
+        return
+      }
+      toast({ title: 'Error', description: 'Failed to record payment', variant: 'destructive' })
+    },
   })
 
   const actionMutation = useMutation({
@@ -260,7 +296,7 @@ export default function PaymentsPage() {
           title="Payments"
           action={
             canRecord ? (
-              <Button onClick={() => setRecordOpen(true)}>
+              <Button onClick={openRecord}>
                 <Plus className="h-4 w-4 mr-2" />
                 Record Payment
               </Button>
@@ -334,11 +370,11 @@ export default function PaymentsPage() {
             <form onSubmit={form.handleSubmit((v) => recordMutation.mutate(v))} className="space-y-4">
               <FormField
                 control={form.control}
-                name="userId"
+                name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>User ID *</FormLabel>
-                    <FormControl><Input placeholder="Member user ID (UUID)" {...field} /></FormControl>
+                    <FormLabel>Member email *</FormLabel>
+                    <FormControl><Input type="text" inputMode="email" autoComplete="off" placeholder="member@example.com" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -369,7 +405,7 @@ export default function PaymentsPage() {
                   name="branchId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Branch</FormLabel>
+                      <FormLabel>Branch *</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value ?? ''}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger></FormControl>
                         <SelectContent>
