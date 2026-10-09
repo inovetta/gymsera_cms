@@ -21,6 +21,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { attendanceApi } from '@/lib/api/attendance'
+import { resolveManualCheckIn, describeCheckInError, CheckInOption } from '@/lib/attendance/manual-checkin'
+import { useGymAccess } from '@/hooks/use-gym-access'
+import { useAuth } from '@/hooks/use-auth'
+import { holdsAtBranch } from '@/lib/access/menu'
 import { reportsApi } from '@/lib/api/reports'
 import { gymApi } from '@/lib/api/gym'
 import { AttendanceLog } from '@/types'
@@ -28,7 +32,7 @@ import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
 const checkInSchema = z.object({
-  email: z.string().email('Valid email required').optional().or(z.literal('')),
+  email: z.string().min(1, 'Member email is required').email('Valid email required'),
   branchId: z.string().min(1, 'Branch is required'),
 })
 
@@ -37,6 +41,8 @@ type CheckInForm = z.infer<typeof checkInSchema>
 export default function AttendancePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const { isGymHost } = useAuth()
+  const { organization } = useGymAccess()
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [dateFilter, setDateFilter] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [page, setPage] = useState(1)
@@ -66,19 +72,59 @@ export default function AttendancePage() {
     defaultValues: { email: '', branchId: '' },
   })
 
+  // The branches this person may check members in at: the owner (and a legacy host) any branch,
+  // a team member only where they hold checkins.manual.create. The server still decides.
+  const branches = branchesData?.data?.branches ?? []
+  const branchOptions = (organization?.isOwner || isGymHost)
+    ? branches
+    : branches.filter((b) => holdsAtBranch(organization, b.id, 'checkins.manual.create'))
+
+  const [checkInError, setCheckInError] = useState<string | null>(null)
+  // Set when the member has several valid subscriptions here and the staff member must pick one.
+  const [choice, setChoice] = useState<{ userId: string; memberName: string; options: CheckInOption[] } | null>(null)
+  const [subscriptionId, setSubscriptionId] = useState('')
+
+  const closeCheckIn = (open: boolean) => {
+    setCheckInOpen(open)
+    if (!open) { setCheckInError(null); setChoice(null); setSubscriptionId('') }
+  }
+
   const checkInMutation = useMutation({
-    mutationFn: (payload: CheckInForm) => attendanceApi.manualCheckIn({
-      email: payload.email || undefined,
-      branchId: payload.branchId,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] })
-      queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
-      setCheckInOpen(false)
-      form.reset()
-      toast({ title: 'Check-in recorded successfully' })
+    mutationFn: async (payload: CheckInForm): Promise<{ ok: true } | { ok: false; message: string }> => {
+      let target: { userId: string; subscriptionId: string }
+      if (choice && subscriptionId) {
+        target = { userId: choice.userId, subscriptionId }
+      } else {
+        try {
+          const found = await resolveManualCheckIn(payload.branchId, payload.email)
+          if (found.kind === 'no_member' || found.kind === 'no_subscription') return { ok: false, message: found.message }
+          if (found.kind === 'choose') {
+            setChoice({ userId: found.userId, memberName: found.memberName, options: found.options })
+            return { ok: false, message: `${found.memberName} has more than one active subscription here. Choose which one to use.` }
+          }
+          target = { userId: found.userId, subscriptionId: found.subscriptionId }
+        } catch (error) {
+          return { ok: false, message: describeCheckInError(error, 'lookup') }
+        }
+      }
+      try {
+        await attendanceApi.manualCheckIn({ ...target, branchId: payload.branchId })
+        return { ok: true }
+      } catch (error) {
+        return { ok: false, message: describeCheckInError(error, 'check-in') }
+      }
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to record check-in', variant: 'destructive' }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        queryClient.invalidateQueries({ queryKey: ['attendance'] })
+        queryClient.invalidateQueries({ queryKey: ['attendance-today'] })
+        closeCheckIn(false)
+        form.reset()
+        toast({ title: 'Check-in recorded successfully' })
+        return
+      }
+      setCheckInError(result.message)
+    },
   })
 
   const columns: Column<AttendanceLog>[] = [
@@ -214,7 +260,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Manual Check-in Dialog */}
-      <Dialog open={checkInOpen} onOpenChange={setCheckInOpen}>
+      <Dialog open={checkInOpen} onOpenChange={closeCheckIn}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Manual Check-in</DialogTitle>
@@ -226,9 +272,14 @@ export default function AttendancePage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Member Email</FormLabel>
+                    <FormLabel>Member Email *</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="member@example.com" {...field} />
+                      <Input
+                        type="email"
+                        placeholder="member@example.com"
+                        {...field}
+                        onChange={(e) => { field.onChange(e); setChoice(null); setSubscriptionId(''); setCheckInError(null) }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -244,9 +295,10 @@ export default function AttendancePage() {
                       <select
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         {...field}
+                        onChange={(e) => { field.onChange(e); setChoice(null); setSubscriptionId(''); setCheckInError(null) }}
                       >
                         <option value="">Select branch</option>
-                        {branchesData?.data?.branches?.map((b) => (
+                        {branchOptions.map((b) => (
                           <option key={b.id} value={b.id}>{b.branchName}</option>
                         ))}
                       </select>
@@ -255,9 +307,33 @@ export default function AttendancePage() {
                   </FormItem>
                 )}
               />
+              {branchesData && branchOptions.length === 0 && (
+                <p className="text-sm text-muted-foreground">You cannot check members in at any branch.</p>
+              )}
+              {choice && (
+                <div className="space-y-2">
+                  <label htmlFor="checkin-subscription" className="text-sm font-medium">Subscription *</label>
+                  <select
+                    id="checkin-subscription"
+                    value={subscriptionId}
+                    onChange={(e) => { setSubscriptionId(e.target.value); setCheckInError(null) }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">Choose a subscription</option>
+                    {choice.options.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.planName} — ends {o.endDate}{o.remainingVisits !== null ? `, ${o.remainingVisits} visits left` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {checkInError && (
+                <p role="alert" className="text-sm text-destructive">{checkInError}</p>
+              )}
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setCheckInOpen(false)}>Cancel</Button>
-                <Button type="submit" loading={checkInMutation.isPending}>Record Check-in</Button>
+                <Button type="button" variant="outline" onClick={() => closeCheckIn(false)}>Cancel</Button>
+                <Button type="submit" loading={checkInMutation.isPending} disabled={!!choice && !subscriptionId}>Record Check-in</Button>
               </DialogFooter>
             </form>
           </Form>
