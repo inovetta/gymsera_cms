@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { tenantsApi } from '@/lib/api/tenants'
-import { hostBillingApi } from '@/lib/api/host-billing'
+import { hostBillingApi, CatalogPlan } from '@/lib/api/host-billing'
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { PlatformPackage, TenantSubscription } from '@/types'
@@ -83,7 +83,12 @@ export default function BillingPage() {
   const tenant = tenantData?.data?.tenant
   const sub = subData?.data
   const quota = quotaData?.data
-  const catalog = catalogData?.data?.plans ?? []
+  const rawCatalog = catalogData?.data
+  const catalog: CatalogPlan[] = Array.isArray(rawCatalog)
+    ? rawCatalog
+    : (rawCatalog && typeof rawCatalog === 'object' && 'plans' in rawCatalog && Array.isArray((rawCatalog as { plans: unknown }).plans)
+      ? (rawCatalog as { plans: CatalogPlan[] }).plans
+      : [])
   const packages = Array.isArray(packagesData?.data) ? packagesData.data : []
 
   // host.controller.js#upgradeSubscription's own guard, mirrored here: the

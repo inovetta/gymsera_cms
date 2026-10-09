@@ -26,8 +26,9 @@ export function useGymAccess() {
   const ownsOrganization = !!organization?.isOwner
 
   // /tenants/me is owner-only. A host still waiting for approval has no
-  // organization in the context yet, so the host flag keeps them in.
-  const isTenantOwner = ownsOrganization || isGymHost
+  // organization in the context yet, so the host flag keeps them in (NEW-46d).
+  const hasNoOrganizations = (context?.organizations?.length ?? 0) === 0
+  const isTenantOwner = ownsOrganization || (isGymHost && hasNoOrganizations)
   const tenantQuery = useQuery({
     queryKey: ['my-tenant'],
     queryFn: () => tenantsApi.getMyTenant(),
@@ -42,13 +43,13 @@ export function useGymAccess() {
     organization,
     /** Every organization the person works in (the switcher lists these). */
     organizations: context?.organizations ?? [],
-    contextLoading: !!user && !isPlatformAdmin && contextQuery.isLoading,
+    contextLoading: !!user && !isPlatformAdmin && (contextQuery.isLoading || contextQuery.isFetching),
     contextFailed: contextQuery.isError,
     portalAllowed: isPlatformAdmin || hasPortalAccess(context, user?.role),
     ownsOrganization,
     isTenantOwner,
     tenant,
-    tenantLoading: tenantQuery.isLoading && isTenantOwner,
+    tenantLoading: (tenantQuery.isLoading || tenantQuery.isFetching) && isTenantOwner,
     isTenantActive,
     /** The team role (or "Owner") to show next to the user's name; falls back to the account role. */
     roleLabel: roleLabel(organization, user?.role),

@@ -7,7 +7,8 @@ import { meApi, MyContext } from '@/lib/api/me'
 import { approvalsApi } from '@/lib/api/approvals'
 import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
-import { branchManagerContext, orgAdminContext, ownerContext, plainMemberContext } from '../fixtures/context'
+import { branchManagerContext, orgAdminContext, ownerContext, plainMemberContext, twoOrgContext } from '../fixtures/context'
+import { useSelectedOrgStore } from '@/stores/selected-org.store'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
@@ -148,5 +149,25 @@ describe('Sidebar — menu follows effective permissions, not the account role (
       </QueryClientProvider>
     )
     expect(await menu()).toEqual(['Dashboard'])
+  })
+
+  it('A GYM_HOST who owns gym A and is Branch Manager at gym B does not see Settings while B is selected (NEW-46d)', async () => {
+    accountRole = 'GYM_HOST'
+    getMyTenant.mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+    const hostDualContext: MyContext = {
+      ...twoOrgContext,
+      user: { id: 'user-1', fullName: 'Host User', platformRole: 'GYM_HOST', isHost: true },
+      organizations: [
+        { ...ownerContext.organizations[0], tenantId: 'tenant-a', name: 'Owned Gym A', isOwner: true },
+        { ...branchManagerContext.organizations[0], tenantId: 'tenant-b', name: 'Managed Gym B', isOwner: false },
+      ],
+    }
+
+    useSelectedOrgStore.setState({ tenantId: 'tenant-b' })
+    renderSidebar(hostDualContext)
+
+    const titles = await menu()
+    expect(titles).not.toContain('Business Profile')
+    expect(titles).not.toContain('Subscription & Billing')
   })
 })

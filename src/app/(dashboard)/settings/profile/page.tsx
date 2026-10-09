@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/features/status-badge'
 import { tenantsApi } from '@/lib/api/tenants'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { useToast } from '@/hooks/use-toast'
 import { formatDate } from '@/lib/utils'
 
@@ -48,7 +48,7 @@ export default function BusinessProfilePage() {
   })
 
   const tenant = tenantData?.data?.tenant
-  const cities = Array.isArray(citiesData?.data) ? citiesData.data : []
+  const cities = parseCities(citiesData?.data)
 
   useEffect(() => {
     if (tenant) {

@@ -22,9 +22,20 @@ export interface UpdateAreaPayload {
   imageUrl?: string | null
 }
 
+export const parseCities = (raw: unknown): City[] => {
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === 'object' && 'cities' in raw && Array.isArray((raw as any).cities)) {
+    return (raw as any).cities
+  }
+  return []
+}
+
 export const citiesApi = {
   getCities: async (): Promise<ApiResponse<City[]>> => {
     const { data } = await apiClient.get('/cities')
+    if (data) {
+      data.data = parseCities(data.data)
+    }
     return data
   },
 

@@ -13,7 +13,23 @@ import { cn } from '@/lib/utils'
 export function CapacityBanner() {
   const { data } = useBranchQuota()
   const quota = data?.data
-  if (!quota || quota.maxBranches <= 0) return null
+  if (!quota) return null
+
+  if (quota.maxBranches <= 0) {
+    return (
+      <div className="space-y-3" data-testid="capacity-banner">
+        <Link
+          href="/settings/billing"
+          className="flex items-center gap-3 rounded-lg px-4 py-3 bg-primary/10 transition-colors hover:opacity-90"
+        >
+          <Ticket className="h-5 w-5 text-primary shrink-0" />
+          <span className="text-sm font-medium text-primary">
+            No active subscription (0 branch capacity). Subscribe in the GymsEra app to add and manage branches.
+          </span>
+        </Link>
+      </div>
+    )
+  }
 
   const { maxBranches, activeBranches, buildableBranches, overQuotaCount } = quota
   const atLimit = buildableBranches <= 0

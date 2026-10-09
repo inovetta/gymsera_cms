@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { gymApi } from '@/lib/api/gym'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { useGymAccess } from '@/hooks/use-gym-access'
@@ -182,9 +182,11 @@ export default function BranchesPage() {
     queryFn: () => hostApi.getListings(),
     enabled: isTenantOwner,
   })
-  const activeListings = (listingsQuery.data?.data ?? []).filter((l) => l.status?.toUpperCase() === 'ACTIVE')
+  const rawListings = listingsQuery.data?.data ?? []
+  const activeListings = rawListings.filter((l) => l.status?.toUpperCase() === 'ACTIVE')
+  const displayListings = activeListings.length > 0 ? activeListings : rawListings
   const listingId =
-    activeListings.find((l) => l.id === selectedListingId)?.id ?? activeListings[0]?.id
+    displayListings.find((l) => l.id === selectedListingId)?.id ?? displayListings[0]?.id
 
   const branchesQuery = useQuery({
     queryKey: ['branches', isTenantOwner ? `listing:${listingId ?? 'none'}` : 'scoped'],
@@ -218,7 +220,7 @@ export default function BranchesPage() {
     enabled: form.cityId > 0,
   })
 
-  const cities = (citiesData?.data as any) ?? []
+  const cities = parseCities(citiesData?.data)
   const areas = areasData?.data?.areas ?? []
 
   // Attempt first: capacity is never checked before sending. The server's 403 is what opens
@@ -454,7 +456,7 @@ export default function BranchesPage() {
         )}
 
         {isTenantOwner && (
-          <OrganizationStrip listings={activeListings} selectedId={listingId} onSelect={setSelectedListingId} />
+          <OrganizationStrip listings={displayListings} selectedId={listingId} onSelect={setSelectedListingId} />
         )}
 
         {isTenantOwner && (
@@ -603,6 +605,7 @@ export default function BranchesPage() {
               <MapPicker
                 latitude={form.latitude ?? null}
                 longitude={form.longitude ?? null}
+                cityName={cities.find((c: any) => c.id === form.cityId)?.name}
                 onChange={(lat, lng) => setForm(p => ({ ...p, latitude: lat, longitude: lng }))}
               />
               <div className="grid grid-cols-2 gap-3 mt-2">

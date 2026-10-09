@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 
 interface OrganizationStripProps {
-  listings: Array<{ id: string; title: string }>
+  listings: Array<{ id: string; title?: string; name?: string }>
   selectedId?: string
   onSelect: (id: string) => void
 }
@@ -32,7 +32,7 @@ export function OrganizationStrip({ listings, selectedId, onSelect }: Organizati
               selected ? 'border-primary font-bold text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {org.title}
+            {org.title || org.name}
           </button>
         )
       })}

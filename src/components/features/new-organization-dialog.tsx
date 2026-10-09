@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { LastBranchDialog } from '@/components/features/last-branch-dialog'
 import { useBranchQuota, invalidateBranchCapacity } from '@/hooks/use-branch-quota'
-import { citiesApi } from '@/lib/api/cities'
+import { citiesApi, parseCities } from '@/lib/api/cities'
 import { hostApi, CreateListingPayload, HostBranch, HostListing } from '@/lib/api/host'
 import { classifyBranchError } from '@/lib/branches/errors'
 import { cn } from '@/lib/utils'
@@ -65,7 +65,7 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
   const canMove = activeListings.length > 1 && movable.length > 0
 
   const citiesQuery = useQuery({ queryKey: ['cities'], queryFn: () => citiesApi.getCities(), enabled: open && step === 'build' })
-  const cities = ((citiesQuery.data?.data as unknown as Array<{ id: number; name: string }>) ?? [])
+  const cities = parseCities(citiesQuery.data?.data)
 
   React.useEffect(() => {
     if (!open) return

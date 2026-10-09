@@ -33,7 +33,7 @@ export const hostBillingApi = {
   // GET /billing/plans — the real branch-count catalog, shown here as
   // reference pricing only (purchasing itself happens in the mobile app for
   // IOS/ANDROID; there is no web checkout yet).
-  getCatalog: async (): Promise<ApiResponse<{ plans: CatalogPlan[] }>> => {
+  getCatalog: async (): Promise<ApiResponse<{ plans: CatalogPlan[] } | CatalogPlan[]>> => {
     const { data } = await apiClient.get('/billing/plans')
     return data
   },
