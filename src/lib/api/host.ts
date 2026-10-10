@@ -81,6 +81,20 @@ export interface CreateListingPayload {
   address?: string
 }
 
+/** One subscription a check-in would accept, as the member lookup returns it (NEW-56). */
+export interface LookupSubscription {
+  id: string
+  planName: string | null
+  endDate: string
+  remainingVisits: number | null
+}
+
+export interface BranchMemberLookup {
+  exists: boolean
+  user?: { id: string; fullName: string; email: string }
+  subscriptions?: LookupSubscription[]
+}
+
 export const hostApi = {
   getBranchQuota: async (organizationId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
@@ -181,11 +195,13 @@ export const hostApi = {
   /**
    * GET /host/branches/:branchId/members/lookup?email= (host.controller.js lookupBranchMember).
    * `exists` is true only when the person holds an ACTIVE, PENDING or FROZEN subscription at this branch.
+   * NEW-56: `subscriptions` lists their ACTIVE subscriptions at this branch that a check-in would
+   * accept. Older servers omit it.
    */
   lookupBranchMember: async (
     branchId: string,
     email: string
-  ): Promise<ApiResponse<{ exists: boolean; user?: { id: string; fullName: string; email: string } }>> => {
+  ): Promise<ApiResponse<BranchMemberLookup>> => {
     const { data } = await apiClient.get(`/host/branches/${branchId}/members/lookup`, { params: { email } })
     return data
   },

@@ -93,7 +93,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('Manual check-in (NEW-55)', () => {
-  it('looks the member up at the chosen branch and posts userId, subscriptionId and branchId', async () => {
+  it('looks the member up at the chosen branch and posts userId, subscriptionId and branchId (server without lookup subscriptions: old call)', async () => {
     renderPage()
     await submit()
 
@@ -210,5 +210,63 @@ describe('Manual check-in (NEW-55)', () => {
 
     await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Downtown' })).toBeInTheDocument())
     expect(within(dialog).getByRole('option', { name: 'Uptown' })).toBeInTheDocument()
+  })
+})
+
+describe('Manual check-in uses the subscriptions from the member lookup (NEW-57)', () => {
+  const lookupWith = (subscriptions: unknown) =>
+    ok({ exists: true, user: { id: USER_ID, fullName: 'Ali Raza', email: 'ali@example.test' }, subscriptions }) as never
+  const item = (id: string, over: Record<string, unknown> = {}) =>
+    ({ id, planName: `Plan ${id.slice(0, 2)}`, endDate: future, remainingVisits: null, ...over })
+
+  it('posts the subscription id from the lookup and never calls /subscriptions/staff', async () => {
+    lookup.mockResolvedValue(lookupWith([item(SUB_B)]))
+    renderPage()
+    await submit()
+
+    await waitFor(() => expect(manualCheckIn).toHaveBeenCalledWith({ userId: USER_ID, subscriptionId: SUB_B, branchId: BRANCH_1 }))
+    expect(getStaffSubscriptions).not.toHaveBeenCalled()
+  })
+
+  it('keeps the picker when the lookup returns several, and posts the chosen one', async () => {
+    lookup.mockResolvedValue(lookupWith([item(SUB_A), item(SUB_B, { remainingVisits: 4 })]))
+    renderPage()
+    const dialog = await submit()
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('more than one active subscription')
+    expect(manualCheckIn).not.toHaveBeenCalled()
+    fireEvent.change(within(dialog).getByLabelText(/subscription/i), { target: { value: SUB_B } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /record check-in/i }))
+
+    await waitFor(() => expect(manualCheckIn).toHaveBeenCalledWith({ userId: USER_ID, subscriptionId: SUB_B, branchId: BRANCH_1 }))
+    expect(getStaffSubscriptions).not.toHaveBeenCalled()
+  })
+
+  it('an empty list from the lookup means no active subscription (no fallback call)', async () => {
+    lookup.mockResolvedValue(lookupWith([]))
+    renderPage()
+    const dialog = await submit()
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ali Raza has no active subscription at this branch.')
+    expect(getStaffSubscriptions).not.toHaveBeenCalled()
+    expect(manualCheckIn).not.toHaveBeenCalled()
+  })
+
+  it('falls back to /subscriptions/staff when the lookup omits the field', async () => {
+    lookup.mockResolvedValue(lookupWith(undefined))
+    renderPage()
+    await submit()
+
+    await waitFor(() => expect(manualCheckIn).toHaveBeenCalledWith({ userId: USER_ID, subscriptionId: SUB_A, branchId: BRANCH_1 }))
+    expect(getStaffSubscriptions).toHaveBeenCalledTimes(1)
+  })
+
+  it('still says the member was not found when the lookup finds nobody', async () => {
+    lookup.mockResolvedValue(ok({ exists: false, subscriptions: [] }) as never)
+    renderPage()
+    const dialog = await submit('nobody@example.test')
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('No member with the email nobody@example.test was found at this branch.')
+    expect(getStaffSubscriptions).not.toHaveBeenCalled()
   })
 })

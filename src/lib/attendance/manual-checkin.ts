@@ -1,12 +1,14 @@
-import { hostApi } from '@/lib/api/host'
+import { lookupBranchMemberByEmail } from '@/lib/members/lookup'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
 import type { MemberSubscription } from '@/types'
 
 /**
  * Manual check-in (NEW-55). The server wants userId + subscriptionId + branchId
  * (attendance.validator.js `manual`), so the staff member types an email and the CMS finds the
- * rest at the selected branch: the member (host lookup route), then their subscriptions
- * (GET /subscriptions/staff). Capacity and validity are still decided by the server.
+ * rest at the selected branch: the member and, since NEW-56, their check-in-valid subscriptions
+ * both come from the host lookup route. A server that omits `subscriptions` gets the old second
+ * call (GET /subscriptions/staff), which needs subscriptions.view. Capacity and validity are still
+ * decided by the server.
  */
 
 /** A staff-list subscription trimmed to what the picker shows. */
@@ -39,26 +41,33 @@ const toOption = (s: MemberSubscription): CheckInOption => ({
 })
 
 export async function resolveManualCheckIn(branchId: string, email: string): Promise<CheckInResolution> {
-  const cleanEmail = email.trim().toLowerCase()
+  const member = await lookupBranchMemberByEmail(branchId, email)
+  if (member.kind === 'not_found') return { kind: 'no_member', message: member.message }
+  const { userId, fullName: memberName } = member
 
-  const lookup = (await hostApi.lookupBranchMember(branchId, cleanEmail)).data
-  if (!lookup?.exists || !lookup.user) {
-    return { kind: 'no_member', message: `No member with the email ${cleanEmail} was found at this branch.` }
+  let valid: CheckInOption[]
+  const fromLookup = member.lookup.subscriptions
+  if (Array.isArray(fromLookup)) {
+    // Already filtered by the server with the check-in rules.
+    valid = fromLookup.map((s) => ({
+      id: s.id,
+      planName: s.planName ?? 'Membership',
+      endDate: s.endDate,
+      remainingVisits: s.remainingVisits ?? null,
+    }))
+  } else {
+    const subs = (
+      await subscriptionsApi.getStaffSubscriptions({ branchId, userId, status: 'ACTIVE', limit: 100 })
+    ).data?.subscriptions ?? []
+    const today = todayUtc()
+    valid = subs.filter((s) => s.userId === userId && s.branchId === branchId && validToday(s, today)).map(toOption)
   }
-  const { id: userId, fullName } = lookup.user
-  const memberName = fullName || cleanEmail
-
-  const subs = (
-    await subscriptionsApi.getStaffSubscriptions({ branchId, userId, status: 'ACTIVE', limit: 100 })
-  ).data?.subscriptions ?? []
-  const today = todayUtc()
-  const valid = subs.filter((s) => s.userId === userId && s.branchId === branchId && validToday(s, today))
 
   if (valid.length === 0) {
     return { kind: 'no_subscription', message: `${memberName} has no active subscription at this branch.` }
   }
   if (valid.length === 1) return { kind: 'ready', userId, subscriptionId: valid[0].id, memberName }
-  return { kind: 'choose', userId, memberName, options: valid.map(toOption) }
+  return { kind: 'choose', userId, memberName, options: valid }
 }
 
 interface ApiErrorShape {
