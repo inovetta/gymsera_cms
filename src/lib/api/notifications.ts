@@ -17,8 +17,18 @@ export interface Notification {
   updatedAt: string
 }
 
+/** What GET /notifications puts in `pagination` (notifications.service.js#listNotifications). */
+export interface NotificationPagination {
+  totalItems: number
+  currentPage: number
+  totalPages: number
+  limit: number
+}
+
 export const notificationsApi = {
-  getNotifications: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<{ notifications: Notification[] }>> => {
+  getNotifications: async (params?: { page?: number; limit?: number }): Promise<
+    Omit<ApiResponse<{ notifications: Notification[] }>, 'pagination'> & { pagination?: NotificationPagination }
+  > => {
     const { data } = await apiClient.get('/notifications', { params })
     return data
   },
