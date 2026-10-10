@@ -434,7 +434,8 @@ export default function PayoutsPage() {
 
       {/* Edit bank details */}
       <Dialog open={bankOpen && !reauthOpen} onOpenChange={setBankOpen}>
-        <DialogContent>
+        {/* Eight fields: scroll inside the dialog so Continue is never below the viewport. */}
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bank details</DialogTitle>
             <DialogDescription>
