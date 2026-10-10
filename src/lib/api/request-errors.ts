@@ -36,13 +36,20 @@ const GENERIC_CODES = new Set(['forbidden', 'conflict', 'not_found', 'validation
  * a known code that has no message, then the page's own specific fallback. Never a bare
  * "Failed to …"; a call that never reached the server says so.
  */
-export function describeRequestError(error: unknown, fallback: string): string {
+export function describeRequestError(
+  error: unknown,
+  fallback: string,
+  /** Specific copy for a status the page knows how to explain (e.g. 403), used when the server sent no message. */
+  byStatus: Partial<Record<number, string>> = {}
+): string {
   const server = serverMessage(error)
   if (server) return server
   const err = error as ApiErrorShape
   if (!err?.response) {
     return 'Could not reach the server. Check your connection and try again.'
   }
+  const status = err.response.status
+  if (status !== undefined && byStatus[status]) return byStatus[status] as string
   const resolved = resolveApiError(error)
   if (resolved.code && !GENERIC_CODES.has(resolved.code) && resolved.message) return resolved.message
   return fallback
