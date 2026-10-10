@@ -82,8 +82,10 @@ describe('Record Payment finds the member by email (NEW-57)', () => {
 
     await waitFor(() => expect(recordPayment).toHaveBeenCalledTimes(1))
     expect(lookup).toHaveBeenCalledWith('branch-1', 'ali@example.test')
+    // The second argument is the Idempotency-Key the money endpoint requires.
     expect(recordPayment).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: MEMBER_ID, branchId: 'branch-1', amount: 3000, method: 'CASH', paymentFor: 'MEMBERSHIP' })
+      expect.objectContaining({ userId: MEMBER_ID, branchId: 'branch-1', amount: 3000, method: 'CASH', paymentFor: 'MEMBERSHIP' }),
+      expect.any(String)
     )
     expect(recordPayment.mock.calls[0][0]).not.toHaveProperty('email')
   })

@@ -1,4 +1,6 @@
+import type { AxiosResponse } from 'axios'
 import apiClient from './client'
+import { idempotencyHeaders } from './idempotency'
 import { ApiResponse, Payment, Invoice } from '@/types'
 
 export interface GetPaymentsParams {
@@ -21,12 +23,22 @@ export interface RecordPaymentPayload {
   referenceEntityId?: string
   branchId?: string
   notes?: string
+  /** The shift the money was taken in (PAY-06); the server keeps up to 20 characters. */
+  shift?: string
 }
 
 export interface PaymentActionPayload {
   action: 'collect' | 'verify' | 'reject'
   notes?: string
   rejectedReason?: string
+  /** The shift a collection belongs to (PAY-06). */
+  shift?: string
+}
+
+export interface RefundPayload {
+  /** Major units with at most two decimals; leave out to refund what is left of the payment. */
+  amount?: number
+  reason: string
 }
 
 export const paymentsApi = {
@@ -40,10 +52,24 @@ export const paymentsApi = {
     return data
   },
 
-  recordPayment: async (payload: RecordPaymentPayload): Promise<ApiResponse<{ payment: Payment; invoice: Invoice | null }>> => {
-    const { data } = await apiClient.post('/payments', payload)
+  /**
+   * POST /payments needs an Idempotency-Key (400 `idempotency_key_required` without it:
+   * gymsera_be/src/routes/payments.routes.js:98-101). One key per user intent.
+   */
+  recordPayment: async (
+    payload: RecordPaymentPayload,
+    idempotencyKey: string
+  ): Promise<ApiResponse<{ payment: Payment; invoice: Invoice | null }>> => {
+    const { data } = await apiClient.post('/payments', payload, { headers: idempotencyHeaders(idempotencyKey) })
     return data
   },
+
+  /**
+   * POST /payments/:id/refund. Answers 200 when the refund ran and **202** when it went to the
+   * approval inbox, so the whole response is returned: read the status with `readApprovalOutcome`.
+   */
+  refundPayment: async (id: string, payload: RefundPayload, idempotencyKey: string): Promise<AxiosResponse> =>
+    apiClient.post(`/payments/${id}/refund`, payload, { headers: idempotencyHeaders(idempotencyKey) }),
 
   /** Unified action: collect (staff step 1), verify (tenant final), or reject */
   paymentAction: async (id: string, payload: PaymentActionPayload): Promise<ApiResponse<{ payment: Payment }>> => {

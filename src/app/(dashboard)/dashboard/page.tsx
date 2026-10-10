@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueries } from '@tanstack/react-query'
-import { Users, Activity, DollarSign, CalendarCheck, TrendingUp, Building2, Clock, ShieldOff } from 'lucide-react'
+import { Users, Activity, DollarSign, CalendarCheck, TrendingUp, Building2, Clock, ShieldOff, AlertCircle } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -17,6 +17,8 @@ import { Header } from '@/components/layout/header'
 import { StatsCard } from '@/components/features/stats-card'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StatusBadge } from '@/components/features/status-badge'
 import { reportsApi } from '@/lib/api/reports'
@@ -25,7 +27,9 @@ import { tenantsApi } from '@/lib/api/tenants'
 import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { holdsPermission } from '@/lib/access/menu'
-import { formatCurrency, formatDate, getInitials } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
+import { formatMoney } from '@/lib/money'
+import { describeRequestError } from '@/lib/api/request-errors'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -33,7 +37,7 @@ export default function DashboardPage() {
 
   // NEW-43: owners wait for an active organization; team members do not (they are
   // not the owner, whatever their account role).
-  const { organization, isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen } = useGymAccess()
+  const { organization, isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen, contextLoading } = useGymAccess()
   const isTenantActive = isPlatformAdmin || gymPagesOpen
   const tenantData = tenant
 
@@ -51,13 +55,13 @@ export default function DashboardPage() {
   const canSeeMembers = gymDashboard && holdsPermission(organization, 'members.view', 'branch')
 
   // Gym host dashboard (only runs when tenant is active and revenue is held)
-  const { data: statsData, isLoading: statsLoading } = useQuery({
+  const { data: statsData, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => reportsApi.getDashboardStats(),
     enabled: canSeeRevenue,
   })
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useQuery({
     queryKey: ['yearly-revenue'],
     queryFn: () => reportsApi.getYearlyRevenue(),
     enabled: canSeeRevenue,
@@ -100,20 +104,29 @@ export default function DashboardPage() {
   const rawStats = statsData?.data as any
   const branchCountData = branchCountQueries.map((q) => q.data?.data)
   const countsFromBranches = branchCountQueries.length > 0 && branchCountQueries.every((q) => q.isSuccess)
+  // `null` means "not known": the cards then show a dash and, after a failure, the reason,
+  // never a zero that would read as "nobody checked in".
   const stats = canSeeRevenue
     ? rawStats ? {
-        totalMembers:        rawStats.members?.active ?? 0,
-        activeSubscriptions: rawStats.members?.active ?? 0,
-        monthlyRevenue:      rawStats.revenue?.thisMonth ?? 0,
-        todayAttendance:     rawStats.attendance?.checkInsToday ?? 0,
+        totalMembers:        rawStats.members?.active as number | undefined,
+        activeSubscriptions: rawStats.members?.active as number | undefined,
+        monthlyRevenue:      rawStats.revenue?.thisMonth as number | undefined,
+        todayAttendance:     rawStats.attendance?.checkInsToday as number | undefined,
       } : null
     : countsFromBranches ? {
         totalMembers:        branchCountData.reduce((n, d) => n + (d?.activeMembers ?? 0), 0),
         activeSubscriptions: branchCountData.reduce((n, d) => n + (d?.activeMembers ?? 0), 0),
-        monthlyRevenue:      0,
+        monthlyRevenue:      undefined,
         todayAttendance:     branchCountData.reduce((n, d) => n + (d?.todaysCheckins ?? 0), 0),
       } : null
   const countsLoading = canSeeRevenue ? statsLoading : branchCountQueries.some((q) => q.isLoading)
+  const countsError = canSeeRevenue ? statsError : branchCountQueries.find((q) => q.error)?.error
+  const refetchCounts = () => (canSeeRevenue ? refetchStats() : branchCountQueries.forEach((q) => q.refetch()))
+  const showCounts = canSeeRevenue || canSeeCounts
+  // Until the context (and, for an owner, the organization's status) has arrived the page does
+  // not know what the person may see: skeletons, not a flash of the wrong cards.
+  const accessPending = !isPlatformAdmin && ((!organization && contextLoading) || tenantLoading)
+  const count = (n: number | undefined) => (n === undefined ? '—' : n.toLocaleString())
   const revenueChartData = revenueData?.data?.data ?? []
   const platform = platformData?.data
 
@@ -186,15 +199,53 @@ export default function DashboardPage() {
     )
   }
 
+  if (accessPending) {
+    return (
+      <>
+        <Header title="Dashboard" description="Welcome to your GymsEra management portal" />
+        <div className="p-6 space-y-6" aria-busy="true" data-testid="dashboard-loading">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <StatsCard key={i} title="" value="" icon={Users} loading />
+            ))}
+          </div>
+          <Skeleton className="h-[280px] w-full" />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <Header title="Dashboard" description="Welcome to your GymsEra management portal" />
       <div className="p-6 space-y-6 animate-fade-in">
-        {/* Stats cards */}
+        {countsError && (
+          <Alert variant="destructive" role="alert">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>The dashboard figures did not load</AlertTitle>
+            <AlertDescription className="flex items-center justify-between gap-4">
+              <span>{describeRequestError(countsError, 'Could not load the dashboard figures. Try again.')}</span>
+              <Button size="sm" variant="outline" onClick={() => refetchCounts()}>Try again</Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!showCounts && (
+          <Alert role="status" data-testid="dashboard-no-figures">
+            <ShieldOff className="h-4 w-4" />
+            <AlertTitle>No dashboard figures for your role</AlertTitle>
+            <AlertDescription>
+              Your role does not include &quot;View dashboard&quot; here. Ask the owner of this organization if you need it.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stats cards: only the ones this person may see; revenue is hidden, never shown as zero. */}
+        {showCounts && (
         <div className={canSeeRevenue ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'}>
           <StatsCard
             title="Active Members"
-            value={stats?.totalMembers?.toLocaleString() ?? '0'}
+            value={count(stats?.totalMembers)}
             icon={Users}
             iconColor="text-blue-500"
             iconBg="bg-blue-500/10"
@@ -202,7 +253,7 @@ export default function DashboardPage() {
           />
           <StatsCard
             title="Active Subscriptions"
-            value={stats?.activeSubscriptions?.toLocaleString() ?? '0'}
+            value={count(stats?.activeSubscriptions)}
             icon={Activity}
             iconColor="text-green-500"
             iconBg="bg-green-500/10"
@@ -211,7 +262,7 @@ export default function DashboardPage() {
           {canSeeRevenue && (
             <StatsCard
               title="Monthly Revenue"
-              value={countsLoading ? '—' : formatCurrency(Number(stats?.monthlyRevenue ?? 0))}
+              value={formatMoney(stats?.monthlyRevenue)}
               icon={DollarSign}
               iconColor="text-purple-500"
               iconBg="bg-purple-500/10"
@@ -220,13 +271,14 @@ export default function DashboardPage() {
           )}
           <StatsCard
             title="Today's Attendance"
-            value={stats?.todayAttendance?.toLocaleString() ?? '0'}
+            value={count(stats?.todayAttendance)}
             icon={CalendarCheck}
             iconColor="text-orange-500"
             iconBg="bg-orange-500/10"
             loading={countsLoading}
           />
         </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Revenue Chart — only for someone who holds dashboard.revenue.view */}
@@ -242,6 +294,12 @@ export default function DashboardPage() {
             <CardContent>
               {revenueLoading ? (
                 <Skeleton className="h-[280px] w-full" />
+              ) : revenueError ? (
+                <p className="text-sm text-destructive text-center py-12" role="alert">
+                  {describeRequestError(revenueError, 'Could not load the revenue chart. Try again.')}
+                </p>
+              ) : revenueChartData.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-12">No revenue recorded this year yet.</p>
               ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={revenueChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -252,7 +310,7 @@ export default function DashboardPage() {
                     tickFormatter={(v) => `${v / 1000}k`}
                   />
                   <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                    formatter={(value: number) => [formatMoney(value), 'Revenue']}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',

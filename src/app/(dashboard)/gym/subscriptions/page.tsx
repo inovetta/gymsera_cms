@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -21,6 +21,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
 import { paymentsApi } from '@/lib/api/payments'
+import { newIdempotencyKey } from '@/lib/api/idempotency'
 import { MemberSubscription, Payment, Invoice } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -99,6 +100,8 @@ export default function SubscriptionsPage() {
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
   })
 
+  // POST /payments needs an Idempotency-Key. Same key for a retry of this request; a new one once it succeeded.
+  const recordKey = useRef(newIdempotencyKey())
   const recordPaymentMutation = useMutation({
     mutationFn: (values: RecordPaymentForm) => {
       const sub = detailData?.data?.subscription ?? selectedSub!
@@ -113,9 +116,10 @@ export default function SubscriptionsPage() {
         method: values.method,
         amount: totalAmount,
         notes: values.notes || undefined,
-      })
+      }, recordKey.current)
     },
     onSuccess: () => {
+      recordKey.current = newIdempotencyKey()
       invalidate()
       setRecordPaymentOpen(false)
       recordPaymentForm.reset()

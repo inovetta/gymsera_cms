@@ -2,7 +2,7 @@ export type UserRole = 'MEMBER' | 'TRAINER' | 'BRANCH_MANAGER' | 'GYM_HOST' | 'P
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_DELETION' | 'DELETED'
 export type TenantStatus = 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'ACTIVE' | 'PENDING_DELETION' | 'DELETED'
 export type SubscriptionStatus = 'PENDING' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED'
-export type PaymentStatus = 'PENDING' | 'STAFF_COLLECTED' | 'COMPLETED' | 'FAILED' | 'REFUNDED'
+export type PaymentStatus = 'PENDING' | 'STAFF_COLLECTED' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'EXPIRED'
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'WALLET' | 'ONLINE' | 'POS'
 export type InvoiceStatus = 'ISSUED' | 'PAID' | 'CANCELLED' | 'OVERDUE'
 export type PlanDurationType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
@@ -156,6 +156,10 @@ export interface Gym {
   address?: string
   latitude?: number | string
   longitude?: number | string
+  /** Payout bank details; only sent to someone holding payouts.bank.manage (NEW-45). */
+  paymentDetailsJson?: Record<string, unknown> | null
+  /** Only on the PATCH /gyms/profile reply; GET /gyms/profile does not carry it. */
+  paymentDetailsUpdatedAt?: string | null
 }
 
 export interface GymListing {

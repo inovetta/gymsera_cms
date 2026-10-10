@@ -6,17 +6,16 @@ export interface PlatformStats {
   members: { totalActive: number; addedThisMonth: number }
 }
 
+/**
+ * GET /reports/monthly (gymsera_be reports.service.js#monthlyBreakdown). Per-day rows only: the
+ * server sends no totals, no member counts and no plan breakdown, and it does not take a
+ * branch (so it is organization-wide). Numbers from SUM() arrive as strings.
+ */
 export interface MonthlyReport {
-  year: number
-  month: number
-  totalRevenue: number
-  totalMembers: number
-  newMembers: number
-  activeSubscriptions: number
-  totalAttendance: number
-  revenueByDay: { date: string; amount: number }[]
-  membershipBreakdown: { planName: string; count: number }[]
-  attendanceByDay: { day: string; count: number }[]
+  period: { year: number; month: number }
+  revenueByDay: { day: string; totalRevenue: string | number; count: string | number }[]
+  subscriptionsByDay: { day: string; count: string | number }[]
+  checkInsByDay: { day: string; count: string | number }[]
 }
 
 export interface BranchDashboard {

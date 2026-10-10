@@ -37,7 +37,7 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const GYM_PAGES = [
   'Gym Profile', 'Branches', 'Plans', 'Members', 'Team & access', 'Approvals',
-  'Subscriptions', 'Attendance', 'Payments', 'Invoices', 'Trainers', 'Reports',
+  'Subscriptions', 'Attendance', 'Payments', 'Invoices', 'Ledger', 'Payouts', 'Trainers', 'Reports',
 ]
 
 let getContext: ReturnType<typeof vi.spyOn>
@@ -78,7 +78,8 @@ describe('Sidebar — menu follows effective permissions, not the account role (
 
     const titles = await menu()
     expect(titles).toEqual(expect.arrayContaining(['Team & access', 'Approvals', 'Branches']))
-    expect(titles).toEqual(['Dashboard', ...GYM_PAGES])
+    // The Org Admin preset in the fixture holds no ledger or payout keys, so no Ledger or Payouts entry.
+    expect(titles).toEqual(['Dashboard', ...GYM_PAGES.filter((t) => t !== 'Ledger' && t !== 'Payouts')])
     // Owner-only account pages stay hidden, and the owner-only tenant endpoint is not called.
     expect(titles).not.toContain('Subscription & Billing')
     expect(getContext).toHaveBeenCalledTimes(1)
