@@ -1,7 +1,19 @@
 import apiClient from './client'
 import { ApiResponse, Gym, Branch, GymStaff, User, MemberSubscription } from '@/types'
 
-export interface UpdateGymProfilePayload {
+/**
+ * What the server accepts to confirm a sensitive change (`assertReauth`): the password, or a
+ * fresh Google ID token with `provider: 'GOOGLE'`.
+ */
+export interface ReauthFields {
+  password?: string
+  provider?: 'GOOGLE'
+  idToken?: string
+}
+
+export interface UpdateGymProfilePayload extends ReauthFields {
+  /** Payout bank details (SEC-13): needs payouts.bank.manage AND a re-auth credential. */
+  paymentDetailsJson?: Record<string, unknown>
   name?: string
   description?: string
   genderType?: string

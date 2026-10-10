@@ -156,6 +156,10 @@ export interface Gym {
   address?: string
   latitude?: number | string
   longitude?: number | string
+  /** Payout bank details; only sent to someone holding payouts.bank.manage (NEW-45). */
+  paymentDetailsJson?: Record<string, unknown> | null
+  /** Only on the PATCH /gyms/profile reply; GET /gyms/profile does not carry it. */
+  paymentDetailsUpdatedAt?: string | null
 }
 
 export interface GymListing {
