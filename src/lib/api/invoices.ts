@@ -6,9 +6,11 @@ export interface GetInvoicesParams {
   limit?: number
   status?: string
   userId?: string
-  startDate?: string
-  endDate?: string
-  invoiceType?: string
+  /** Required for a team member: without it the server lists only the caller's own invoices. */
+  branchId?: string
+  /** YYYY-MM-DD, on the issue date. (The list reads `from`/`to`, not startDate/endDate.) */
+  from?: string
+  to?: string
 }
 
 export const invoicesApi = {

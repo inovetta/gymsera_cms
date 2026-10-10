@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, CheckCircle, XCircle, Inbox, ShieldCheck, AlertCircle } from 'lucide-react'
+import { Plus, CheckCircle, XCircle, Inbox, ShieldCheck, AlertCircle, Undo2 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { DataTable, Column } from '@/components/features/data-table'
@@ -21,7 +21,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { NoAccess } from '@/components/features/no-access'
+import { SubmittedForApprovalNotice } from '@/components/features/approvals/submitted-for-approval-notice'
 import { paymentsApi } from '@/lib/api/payments'
+import { ApprovalOutcome, readApprovalOutcome } from '@/lib/api/approvals'
 import { lookupBranchMemberByEmail } from '@/lib/members/lookup'
 import { gymApi } from '@/lib/api/gym'
 import { Payment } from '@/types'
@@ -33,6 +35,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
+import { tierAt } from '@/lib/access/tier'
 
 // NEW-57: the staff member types the member's email; the member lookup turns it into the userId
 // the server wants. The server needs a branch for every payment recorded this way, and the lookup
@@ -116,6 +119,13 @@ export default function PaymentsPage() {
   const [rejectTarget, setRejectTarget] = useState<Payment | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  // Refund (PAY-07): goes through the approval engine, so it may answer 202.
+  const [refundTarget, setRefundTarget] = useState<Payment | null>(null)
+  const [refundPartial, setRefundPartial] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+  const [refundError, setRefundError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<ApprovalOutcome | null>(null)
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -237,6 +247,50 @@ export default function PaymentsPage() {
     },
   })
 
+  const refundKey = useRef<{ fingerprint: string; key: string } | null>(null)
+  const refundMutation = useMutation({
+    mutationFn: ({ payment, minor, reason }: { payment: Payment; minor: number | null; reason: string }) => {
+      const body = { reason, ...(minor !== null ? { amount: toApiAmount(minor) } : {}) }
+      const fingerprint = JSON.stringify({ id: payment.id, ...body })
+      if (!refundKey.current || refundKey.current.fingerprint !== fingerprint) {
+        refundKey.current = { fingerprint, key: newIdempotencyKey() }
+      }
+      return paymentsApi.refundPayment(payment.id, body, refundKey.current.key)
+    },
+    onSuccess: (response) => {
+      refundKey.current = null
+      setRefundTarget(null)
+      setRefundError(null)
+      const outcome = readApprovalOutcome(response)
+      if (outcome.pending) {
+        // 202: nothing was refunded. It is waiting in the approval inbox.
+        setNotice({ ...outcome, summary: outcome.summary ?? 'The refund' })
+      } else {
+        setNotice(null)
+        toast({ title: 'Refund issued' })
+      }
+      queryClient.invalidateQueries({ queryKey: ['payments'] })
+    },
+    onError: (error) =>
+      setRefundError(describeRequestError(error, 'The refund was not issued. Reload the list and try again.', {
+        403: 'You do not have permission to refund payments at this branch.',
+      })),
+  })
+
+  const submitRefund = () => {
+    if (!refundTarget) return
+    let minor: number | null = null
+    if (refundPartial) {
+      minor = parseAmountInput(refundAmount)
+      if (minor === null || minor <= 0) {
+        setRefundError('Enter the amount to refund, greater than 0 and with at most two decimals.')
+        return
+      }
+    }
+    setRefundError(null)
+    refundMutation.mutate({ payment: refundTarget, minor, reason: refundReason.trim() })
+  }
+
   const columns: Column<Payment>[] = [
     {
       key: 'user',
@@ -305,7 +359,26 @@ export default function PaymentsPage() {
       key: 'actions',
       header: 'Actions',
       cell: (row) => {
-        if (row.status === 'COMPLETED' || row.status === 'FAILED' || row.status === 'REFUNDED' || row.status === 'EXPIRED') {
+        if (row.status === 'COMPLETED') {
+          // PAY-07: a refund is its own permission, with its own tier (Direct / Needs approval).
+          const tier = tierAt(organization, 'payments.refund', row.branchId ?? branchId)
+          if (tier === 'OFF') return <span className="text-muted-foreground text-xs">—</span>
+          return (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="text-purple-700 hover:text-purple-700 hover:bg-purple-50"
+              title={tier === 'DIRECT' ? 'Refund' : 'Request refund'}
+              onClick={(e) => {
+                e.stopPropagation()
+                setRefundError(null); setRefundPartial(false); setRefundAmount(''); setRefundReason(''); setRefundTarget(row)
+              }}
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+          )
+        }
+        if (row.status === 'FAILED' || row.status === 'REFUNDED' || row.status === 'EXPIRED') {
           return <span className="text-muted-foreground text-xs">—</span>
         }
         const mayRecord = canRecordAt(row.branchId)
@@ -417,6 +490,12 @@ export default function PaymentsPage() {
                 <option key={b.id} value={b.id}>{b.branchName}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {notice && (
+          <div className="mb-4">
+            <SubmittedForApprovalNotice summary={notice.summary} />
           </div>
         )}
 
@@ -637,6 +716,74 @@ export default function PaymentsPage() {
               }
             >
               Mark as collected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund (PAY-07): full by default, or part of it; always with a reason */}
+      <Dialog open={!!refundTarget} onOpenChange={(open) => !open && setRefundTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {refundTarget && tierAt(organization, 'payments.refund', refundTarget.branchId ?? branchId) === 'REQUEST'
+                ? 'Request a refund'
+                : 'Refund payment'}
+            </DialogTitle>
+            <DialogDescription>
+              {refundTarget ? `${formatMoney(refundTarget.amount, refundTarget.currency || 'PKR')} paid by ${refundTarget.user?.fullName ?? 'the member'}. ` : ''}
+              {refundTarget && tierAt(organization, 'payments.refund', refundTarget.branchId ?? branchId) === 'REQUEST'
+                ? 'Your request goes to someone with approval rights. Nothing is refunded until it is approved.'
+                : 'A full refund also ends the membership it paid for.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="refund-mode" checked={!refundPartial} onChange={() => setRefundPartial(false)} />
+                Refund the full amount still refundable
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="refund-mode" checked={refundPartial} onChange={() => setRefundPartial(true)} />
+                Refund part of it
+              </label>
+              {refundPartial && (
+                <div className="space-y-1 pl-6">
+                  <Label htmlFor="refund-amount">Amount to refund (PKR)</Label>
+                  <Input
+                    id="refund-amount"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="0"
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="refund-reason">Reason *</Label>
+              <Textarea
+                id="refund-reason"
+                rows={3}
+                maxLength={500}
+                placeholder="e.g. Member moved away; membership cancelled within the trial week"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+              />
+            </div>
+            {refundError && <p className="text-sm font-medium text-destructive" role="alert">{refundError}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRefundTarget(null)}>Cancel</Button>
+            <Button
+              disabled={!refundReason.trim()}
+              loading={refundMutation.isPending}
+              onClick={submitRefund}
+            >
+              {refundTarget && tierAt(organization, 'payments.refund', refundTarget.branchId ?? branchId) === 'REQUEST'
+                ? 'Send request'
+                : 'Refund'}
             </Button>
           </DialogFooter>
         </DialogContent>
