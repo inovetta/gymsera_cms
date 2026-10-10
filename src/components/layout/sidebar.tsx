@@ -33,6 +33,7 @@ import {
   Layers,
   UserCog,
   ClipboardCheck,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
@@ -85,6 +86,7 @@ const navSections: NavSection[] = [
       { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck, permission: 'checkins.view', scope: 'branch' },
       { title: 'Payments', href: '/gym/payments', icon: Receipt, permission: 'payments.view', scope: 'branch' },
       { title: 'Invoices', href: '/gym/invoices', icon: Receipt, permission: 'invoices.view', scope: 'branch' },
+      { title: 'Ledger', href: '/gym/ledger', icon: Wallet, permission: 'ledger.today.view', scope: 'branch' },
       { title: 'Trainers', href: '/gym/trainers', icon: Dumbbell, permission: 'schedule.trainer.assign', scope: 'branch' },
       { title: 'Reports', href: '/gym/reports', icon: BarChart3, permission: 'dashboard.revenue.view', scope: 'branch' },
     ],
