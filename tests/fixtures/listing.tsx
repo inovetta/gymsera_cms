@@ -1,6 +1,6 @@
 import React from 'react'
 import { vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { configure, render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ListingEditorPage from '@/app/(dashboard)/gym/branches/[id]/listing/page'
 import { hostApi, type BranchListingContent } from '@/lib/api/host'
@@ -10,6 +10,10 @@ import { plansApi } from '@/lib/api/plans'
 import type { MembershipPlan } from '@/types'
 import { ok } from './team'
 import { ownerContext } from './context'
+
+// The page waits on three queries (context, tenant, listing); role queries are slow when the
+// whole suite runs in parallel, so wait longer than the 1s default. Assertions are unchanged.
+configure({ asyncUtilTimeout: 4000 })
 
 /** A branch as GET /host/branches/:id/listing-content returns it. */
 export const branchFixture: BranchListingContent = {
