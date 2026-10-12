@@ -7,6 +7,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -100,7 +101,7 @@ export default function ReviewsPage() {
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState<string>('PENDING')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['reviews', statusFilter],
     queryFn: () => adminApi.getReviews({
       status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -143,6 +144,8 @@ export default function ReviewsPage() {
           <div className="space-y-4">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-40 rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <ErrorState error={loadError} what="the reviews" onRetry={() => refetch()} />
         ) : reviews.length === 0 ? (
           <EmptyState
             icon={Star}

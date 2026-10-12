@@ -54,7 +54,7 @@ export default function TenantsPage() {
 
   const debouncedSearch = useDebounce(search, 400)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: listError, refetch } = useQuery({
     queryKey: ['tenants', debouncedSearch, statusFilter, page],
     queryFn: () => adminApi.getTenants({
       search: debouncedSearch || undefined,
@@ -248,6 +248,9 @@ export default function TenantsPage() {
               columns={columns}
               data={(data?.data?.tenants ?? []) as Tenant[]}
               loading={isLoading}
+              error={listError}
+              errorWhat="the tenant list"
+              onRetry={() => refetch()}
               emptyTitle="No tenants found"
               emptyDescription="No gym hosts match the current filter"
               page={page}

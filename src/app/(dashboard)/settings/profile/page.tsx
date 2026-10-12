@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
 import { StatusBadge } from '@/components/features/status-badge'
 import { tenantsApi } from '@/lib/api/tenants'
 import { citiesApi, parseCities } from '@/lib/api/cities'
@@ -32,7 +33,7 @@ export default function BusinessProfilePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data: tenantData, isLoading } = useQuery({
+  const { data: tenantData, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['my-tenant'],
     queryFn: () => tenantsApi.getMyTenant(),
   })
@@ -75,6 +76,17 @@ export default function BusinessProfilePage() {
     },
     onError: () => toast({ title: 'Error', description: 'Failed to update business profile', variant: 'destructive' }),
   })
+
+  if (loadError) {
+    return (
+      <>
+        <Header title="Business Profile" />
+        <div className="p-6">
+          <ErrorState error={loadError} what="your business profile" onRetry={() => refetch()} />
+        </div>
+      </>
+    )
+  }
 
   if (isLoading) {
     return (

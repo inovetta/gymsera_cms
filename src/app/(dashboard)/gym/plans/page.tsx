@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -140,7 +141,7 @@ export default function PlansPage() {
   const [editPlan, setEditPlan] = useState<MembershipPlan | null>(null)
   const [deletePlan, setDeletePlan] = useState<MembershipPlan | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['plans'],
     queryFn: () => plansApi.getHostPlans(),
   })
@@ -247,6 +248,8 @@ export default function PlansPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-64 rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <ErrorState error={loadError} what="your membership plans" onRetry={() => refetch()} />
         ) : plans.length === 0 ? (
           <EmptyState
             icon={CreditCard}

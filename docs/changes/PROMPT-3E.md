@@ -14,6 +14,10 @@ color everywhere; UX-09 covers string infrastructure plus the Phase 3A-3D screen
 
 ## Screen checklist
 Ticked as committed (copied into AGENT_HANDOFF §2 in the final docs PR).
-- [ ] PR 2: state sweep (pages with no error handling, then 3A-3D pages)
+- [x] PR 2: state sweep. A failed load used to show an empty list ("No members found"), a blank page, or a form over data that never loaded.
+  Now each shows `ErrorState` (Retry, reference id, 403 never raw): gym members, member detail, branch detail (+ its tables),
+  subscriptions, attendance, plans, trainers, gym profile, business profile, admin tenants / cities / billing plans / packages / reviews / reports.
+  Billing settings: only a 404 means "no plan" (R-21); any other failure is a failed load. `DataTable` gained `error` / `errorWhat` / `onRetry`.
+  Already right (3A-3D, not changed): team, approvals, ledger, payments, payouts, invoices, reports, dashboard, notifications, listing editor.
 - [ ] PR 3: UX-17 admin tenant detail per tab
 - [ ] PR 6: next-intl + hard-coded-string check + 3A-3D screens

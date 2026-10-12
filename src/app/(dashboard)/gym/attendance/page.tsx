@@ -52,7 +52,7 @@ export default function AttendancePage() {
     queryFn: () => attendanceApi.getTodayAttendance(),
   })
 
-  const { data: attendanceData, isLoading } = useQuery({
+  const { data: attendanceData, isLoading, error: listError, refetch } = useQuery({
     queryKey: ['attendance', dateFilter, page],
     queryFn: () => attendanceApi.getAttendance({ date: dateFilter, page, limit: 20 }),
   })
@@ -249,6 +249,9 @@ export default function AttendancePage() {
               columns={columns}
               data={logs}
               loading={isLoading}
+              error={listError}
+              errorWhat="the check-in list"
+              onRetry={() => refetch()}
               emptyTitle="No check-ins found"
               emptyDescription={`No attendance recorded for ${formatDate(dateFilter)}`}
               page={page}

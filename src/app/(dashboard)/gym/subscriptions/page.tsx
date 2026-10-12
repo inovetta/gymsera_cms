@@ -54,7 +54,7 @@ export default function SubscriptionsPage() {
 
   const debouncedSearch = useDebounce(search, 400)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: listError, refetch } = useQuery({
     queryKey: ['staff-subscriptions', statusFilter, page],
     queryFn: () => subscriptionsApi.getStaffSubscriptions({
       status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -240,6 +240,9 @@ export default function SubscriptionsPage() {
           columns={columns}
           data={allSubscriptions}
           loading={isLoading}
+          error={listError}
+          errorWhat="the subscription list"
+          onRetry={() => refetch()}
           emptyTitle="No subscriptions found"
           emptyDescription="No subscriptions match the selected filters"
           page={page}
