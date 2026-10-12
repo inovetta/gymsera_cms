@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, Clock, FileText, ImageIcon, Sparkles, Tag } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock, FileText, ImageIcon, MapPin, Sparkles, Tag } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { NoAccess } from '@/components/features/no-access'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { CategoryTagsSection } from '@/components/features/listing/category-tags
 import { PhotosSection } from '@/components/features/listing/photos-section'
 import { AmenitiesSection } from '@/components/features/listing/amenities-section'
 import { HoursSection } from '@/components/features/listing/hours-section'
+import { LocationSection } from '@/components/features/listing/location-section'
 import { BoostCard } from '@/components/features/listing/boost-card'
 import { listingContentKey } from '@/components/features/listing/use-listing-save'
 import { hostApi } from '@/lib/api/host'
@@ -24,7 +25,7 @@ import { useToast } from '@/hooks/use-toast'
 import { listingAccess } from '@/lib/listing/access'
 import { asStringList, splitCategories, toHourMinute } from '@/lib/listing/content'
 
-type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours'
+type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours' | 'location'
 
 /**
  * The branch listing editor (UX-21): the same sections as the mobile listing_editor_hub_screen.dart,
@@ -191,6 +192,18 @@ export default function ListingEditorPage() {
               canEdit={access.manage}
             >
               <HoursSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
+            </SectionCard>
+
+            <SectionCard
+              id="location"
+              title="Location & Map"
+              icon={MapPin}
+              summary={branch.addressLine1 || branch.address || 'Not set'}
+              open={open === 'location'}
+              onToggle={() => toggle('location')}
+              canEdit={access.manage}
+            >
+              <LocationSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
             </SectionCard>
 
             <BoostCard />
