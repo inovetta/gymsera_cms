@@ -1,65 +1,42 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Building2, Mail, Phone, MapPin, CheckCircle, XCircle, ShieldOff,
-  Package, Star, Users, GitBranch, Dumbbell, FileCheck, Globe, RefreshCw,
-  Clock, ToggleLeft, ToggleRight, CreditCard, FileText, Plus, Send,
-  CheckCheck, AlertCircle, Camera, ImageIcon, BanknoteIcon, History,
-  Eye, ShieldAlert, Lock,
+  ArrowLeft, Mail, Phone, MapPin, CheckCircle, XCircle, ShieldOff, Globe, RefreshCw,
+  CreditCard, FileText, GitBranch, Camera, ImageIcon,
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { adminApi, TenantSubscription, PlatformInvoice, AssignSubscriptionPayload, CreateInvoicePayload, TenantBranch, CreateTenantBranchPayload, UpdateTenantBranchPayload, KycDocument } from '@/lib/api/admin'
-import { packagesApi } from '@/lib/api/packages'
-import { citiesApi, parseCities } from '@/lib/api/cities'
-import { formatDate, getInitials, formatCurrency } from '@/lib/utils'
+import { adminApi, TenantSubscription } from '@/lib/api/admin'
+import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { useAuth } from '@/hooks/use-auth'
 import { GymListingTab } from '@/components/features/gym-listing-tab'
-import { BranchFormDialog } from '@/components/features/branch-form-dialog'
 import { ProvisioningStatus } from '@/components/features/provisioning-status'
+import { OverviewTab } from '@/components/features/admin-tenant/overview-tab'
+import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
+import { CapacityTab } from '@/components/features/admin-tenant/capacity-tab'
+import { InvoicesTab } from '@/components/features/admin-tenant/invoices-tab'
+import { BranchesTab } from '@/components/features/admin-tenant/branches-tab'
+import { MembersTab } from '@/components/features/admin-tenant/members-tab'
+import { PlansTab } from '@/components/features/admin-tenant/plans-tab'
 
-const INVOICE_STATUS_COLORS: Record<string, string> = {
-  DRAFT: 'bg-muted text-muted-foreground',
-  ISSUED: 'bg-blue-100 text-blue-700',
-  PAID: 'bg-green-100 text-green-700',
-  OVERDUE: 'bg-red-100 text-red-700',
-  CANCELLED: 'bg-gray-100 text-gray-500',
-}
-
-const SUB_STATUS_COLORS: Record<string, string> = {
-  ACTIVE: 'bg-green-100 text-green-700',
-  EXPIRED: 'bg-yellow-100 text-yellow-700',
-  CANCELLED: 'bg-red-100 text-red-700',
-  // Transitional states from a cross-provider migration — see
-  // subscription-migration.service.js on the backend.
-  PENDING_MIGRATION: 'bg-blue-100 text-blue-700',
-  PENDING_CANCEL: 'bg-orange-100 text-orange-700',
-  SCHEDULED: 'bg-orange-100 text-orange-700',
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  MANUAL: 'Bank Transfer / Manual',
-  IOS: 'Apple App Store',
-  ANDROID: 'Google Play',
-  STRIPE: 'Stripe (Card)',
-}
-
+/**
+ * Tenant detail (UX-17 / PERF-10). This page owns the tenant record, the header and the lifecycle
+ * actions (approve, reject, suspend, reactivate). Each tab is its own component that mounts only
+ * while it is open and fetches only its own data. The one exception is the subscription list the
+ * header badge needs; the Subscription tab shares its query key and so reads the same cache.
+ */
 export default function TenantDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -83,146 +60,21 @@ export default function TenantDetailPage() {
   const [reactivateDialog, setReactivateDialog] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [suspendReason, setSuspendReason] = useState('')
-  const [deactivateBranchDialog, setDeactivateBranchDialog] = useState<{ open: boolean; branchId: string }>({ open: false, branchId: '' })
-  const [deactivateBranchReason, setDeactivateBranchReason] = useState('')
-  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; branchId: string; branchName: string }>({ open: false, branchId: '', branchName: '' })
-  const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['admin-branch-visibility-history', historyDialog.branchId],
-    queryFn: () => adminApi.getBranchVisibilityHistory(historyDialog.branchId),
-    enabled: historyDialog.open && !!historyDialog.branchId,
-  })
 
-  // Subscription dialog
-  const [assignSubDialog, setAssignSubDialog] = useState(false)
-  const [subForm, setSubForm] = useState<AssignSubscriptionPayload>({ packageId: '', billingCycle: 'MONTHLY', createInvoice: true, autoRenew: true })
-
-  // Branch dialogs
-  const [branchDialog, setBranchDialog] = useState<{ open: boolean; mode: 'create' | 'edit'; branch?: TenantBranch }>({ open: false, mode: 'create' })
-
-  // Invoice dialogs
-  const [createInvoiceDialog, setCreateInvoiceDialog] = useState(false)
-  const [updateStatusDialog, setUpdateStatusDialog] = useState<{ open: boolean; invoice: PlatformInvoice | null }>({ open: false, invoice: null })
-  const [invoiceForm, setInvoiceForm] = useState<CreateInvoicePayload>({ subtotal: 0, description: '', dueDate: '', status: 'ISSUED' })
-  const [newStatus, setNewStatus] = useState('')
-
-  const { user } = useAuth()
-  const [viewingKycDoc, setViewingKycDoc] = useState<KycDocument | null>(null)
-  const [kycBlobUrl, setKycBlobUrl] = useState<string | null>(null)
-  const [kycLoading, setKycLoading] = useState(false)
-
-  const { data: kycDocsData } = useQuery({
-    queryKey: ['admin-tenant-kyc-docs', tenantId],
-    queryFn: () => adminApi.getTenantKycDocuments(tenantId),
-    enabled: !!tenantId,
-  })
-  const kycDocs = kycDocsData?.data || []
-
-  const handleViewKycDoc = async (doc: KycDocument) => {
-    setViewingKycDoc(doc)
-    setKycLoading(true)
-    try {
-      const blob = await adminApi.downloadKycDocumentBlob(doc.streamUrl)
-      const objectUrl = URL.createObjectURL(blob)
-      setKycBlobUrl(objectUrl)
-    } catch (err: any) {
-      toast({ title: 'Failed to load document', description: err.message || 'Access denied', variant: 'destructive' })
-      setViewingKycDoc(null)
-    } finally {
-      setKycLoading(false)
-    }
-  }
-
-  const handleCloseKycDoc = () => {
-    if (kycBlobUrl) {
-      URL.revokeObjectURL(kycBlobUrl)
-      setKycBlobUrl(null)
-    }
-    setViewingKycDoc(null)
-  }
-
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: tenantError, refetch: refetchTenant } = useQuery({
     queryKey: ['tenant', tenantId],
     queryFn: () => adminApi.getTenant(tenantId),
     // While another run is provisioning, check its step every 10 s.
     refetchInterval: (query) => (query.state.data?.data?.tenant?.provisioning?.inProgress ? 10_000 : false),
   })
 
-  const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['admin-tenant-branches', tenantId],
-    queryFn: () => adminApi.getTenantBranches(tenantId),
-    enabled: data?.data?.tenant?.status === 'ACTIVE',
-  })
-
-  const { data: membersData, isLoading: membersLoading } = useQuery({
-    queryKey: ['admin-tenant-members', tenantId],
-    queryFn: () => adminApi.getTenantMembers(tenantId),
-    enabled: data?.data?.tenant?.status === 'ACTIVE',
-  })
-
-  const { data: plansData, isLoading: plansLoading } = useQuery({
-    queryKey: ['admin-tenant-plans', tenantId],
-    queryFn: () => adminApi.getTenantMembershipPlans(tenantId),
-    enabled: data?.data?.tenant?.status === 'ACTIVE',
-  })
-
-  const { data: subscriptionsData, isLoading: subsLoading } = useQuery({
+  // For the header's "Subscribed until" badge. Same key as the Subscription tab.
+  const { data: subscriptionsData } = useQuery({
     queryKey: ['admin-tenant-subscriptions', tenantId],
     queryFn: () => adminApi.getTenantSubscriptions(tenantId),
   })
 
-  // Read-only integrity report: does this tenant's real branch capacity
-  // agree with its own audit trail, and does overQuotaCount match reality?
-  // Always resolves to the real tenant even from a compound
-  // tenantId:listingId id — capacity is a property of the subscription,
-  // which is tenant-wide, never one organization's own.
-  const { data: capacityAuditData, isLoading: capacityAuditLoading } = useQuery({
-    queryKey: ['admin-tenant-capacity-audit', tenantId],
-    queryFn: () => adminApi.getTenantCapacityAudit(tenantId),
-    enabled: data?.data?.tenant?.status === 'ACTIVE',
-  })
-
-  const { data: invoicesData, isLoading: invoicesLoading } = useQuery({
-    queryKey: ['admin-tenant-invoices', tenantId],
-    queryFn: () => adminApi.getTenantInvoices(tenantId),
-  })
-
-  const { data: packagesData } = useQuery({
-    queryKey: ['packages'],
-    queryFn: () => packagesApi.getPackages(),
-  })
-
-  const { data: citiesData } = useQuery({
-    queryKey: ['cities'],
-    queryFn: () => citiesApi.getCities(),
-  })
-
   const tenant = data?.data?.tenant
-  const packages = Array.isArray(packagesData?.data) ? (packagesData.data as any[]) : []
-  const cities = parseCities(citiesData?.data)
-
-  // Branches grouped by organization — a host can genuinely run several
-  // (see tenant.organizations, from GET /admin/tenants/:id), and a flat
-  // pile of all their branches with no grouping was part of what made this
-  // page unreadable for a multi-organization tenant. Falls back to one
-  // "Branches" group when organization data isn't available (e.g. viewing
-  // a single PENDING/REJECTED additional organization directly).
-  const branchGroups = useMemo(() => {
-    const branches = branchesData?.data?.branches ?? []
-    const orgs = tenant?.organizations
-    if (!orgs || !orgs.length) {
-      return branches.length ? [{ orgId: 'all', orgTitle: 'Branches', branches }] : []
-    }
-    const byOrg = new Map(orgs.map((o) => [o.id, { orgId: o.id, orgTitle: o.title, branches: [] as TenantBranch[] }]))
-    const unassigned: TenantBranch[] = []
-    for (const branch of branches) {
-      const group = branch.gymListingId ? byOrg.get(branch.gymListingId) : undefined
-      if (group) group.branches.push(branch)
-      else unassigned.push(branch)
-    }
-    const groups = orgs.map((o) => byOrg.get(o.id)!).filter((g) => g.branches.length > 0)
-    if (unassigned.length) groups.push({ orgId: 'unassigned', orgTitle: 'Other', branches: unassigned })
-    return groups
-  }, [branchesData, tenant?.organizations])
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
@@ -263,46 +115,6 @@ export default function TenantDetailPage() {
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reactivate tenant', variant: 'destructive' }),
   })
 
-  const branchStatusMutation = useMutation({
-    mutationFn: ({ branchId, status }: { branchId: string; status: 'ACTIVE' | 'INACTIVE' }) =>
-      adminApi.updateTenantBranchStatus(tenantId, branchId, status),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] }); toast({ title: 'Branch status updated' }) },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update branch status', variant: 'destructive' }),
-  })
-
-  const travelerVisibilityMutation = useMutation({
-    mutationFn: ({ branchId, status, reason }: { branchId: string; status: 'active' | 'deactivated'; reason?: string }) =>
-      adminApi.updateBranchTravelerVisibility(branchId, status, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
-      setDeactivateBranchDialog({ open: false, branchId: '' })
-      setDeactivateBranchReason('')
-      toast({ title: 'Branch traveler visibility updated' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update visibility', variant: 'destructive' }),
-  })
-
-  const createBranchMutation = useMutation({
-    mutationFn: (payload: CreateTenantBranchPayload) => adminApi.createTenantBranch(tenantId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
-      setBranchDialog({ open: false, mode: 'create' })
-      toast({ title: 'Branch created' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to create branch', variant: 'destructive' }),
-  })
-
-  const updateBranchMutation = useMutation({
-    mutationFn: ({ branchId, payload }: { branchId: string; payload: UpdateTenantBranchPayload }) =>
-      adminApi.updateTenantBranch(tenantId, branchId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
-      setBranchDialog({ open: false, mode: 'create' })
-      toast({ title: 'Branch updated' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update branch', variant: 'destructive' }),
-  })
-
   const uploadLogoMutation = useMutation({
     mutationFn: (file: File) => adminApi.uploadTenantLogo(tenantId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Logo updated' }) },
@@ -313,58 +125,6 @@ export default function TenantDetailPage() {
     mutationFn: (file: File) => adminApi.uploadTenantCover(tenantId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Cover image updated' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to upload cover', variant: 'destructive' }),
-  })
-
-  const assignSubMutation = useMutation({
-    mutationFn: (payload: AssignSubscriptionPayload) => adminApi.assignTenantSubscription(tenantId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
-      setAssignSubDialog(false)
-      toast({ title: 'Subscription assigned successfully' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to assign subscription', variant: 'destructive' }),
-  })
-
-  const revokeSubMutation = useMutation({
-    mutationFn: (subId: string) => adminApi.revokeTenantSubscription(tenantId, subId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] }); toast({ title: 'Subscription revoked' }) },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to revoke subscription', variant: 'destructive' }),
-  })
-
-  const createInvoiceMutation = useMutation({
-    mutationFn: (payload: CreateInvoicePayload) => adminApi.createTenantInvoice(tenantId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
-      setCreateInvoiceDialog(false)
-      setInvoiceForm({ subtotal: 0, description: '', dueDate: '', status: 'ISSUED' })
-      toast({ title: 'Invoice created' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to create invoice', variant: 'destructive' }),
-  })
-
-  const updateInvoiceMutation = useMutation({
-    mutationFn: ({ invoiceId, payload }: { invoiceId: string; payload: any }) =>
-      adminApi.updateTenantInvoice(tenantId, invoiceId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
-      setUpdateStatusDialog({ open: false, invoice: null })
-      toast({ title: 'Invoice status updated' })
-    },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update invoice', variant: 'destructive' }),
-  })
-
-  const sendReminderMutation = useMutation({
-    mutationFn: (invoiceId: string) => adminApi.sendInvoiceReminder(tenantId, invoiceId),
-    onSuccess: () => toast({ title: 'Payment reminder sent' }),
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send reminder', variant: 'destructive' }),
-  })
-
-  const sendConfirmationMutation = useMutation({
-    mutationFn: (invoiceId: string) => adminApi.sendInvoiceConfirmation(tenantId, invoiceId),
-    onSuccess: () => toast({ title: 'Payment confirmation sent' }),
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send confirmation', variant: 'destructive' }),
   })
 
   if (isLoading) {
@@ -383,16 +143,25 @@ export default function TenantDetailPage() {
     )
   }
 
+  if (tenantError) {
+    return (
+      <>
+        <Header title="Tenant Detail" />
+        <div className="p-6">
+          <ErrorState error={tenantError} what="this tenant" onRetry={() => refetchTenant()} />
+        </div>
+      </>
+    )
+  }
+
   if (!tenant) return null
 
   const canApprove = ['PENDING_REVIEW', 'UNDER_REVIEW', 'REJECTED', 'APPROVED'].includes(tenant.status)
   const canReject = ['PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'ACTIVE', 'SUSPENDED'].includes(tenant.status)
   const canSuspend = tenant.status === 'ACTIVE'
   const canReactivate = tenant.status === 'SUSPENDED'
-  const owner = tenant.owner || tenant.user
 
   const activeSub = subscriptionsData?.data?.subscriptions?.find((s: TenantSubscription) => s.status === 'ACTIVE')
-  const invoices: PlatformInvoice[] = invoicesData?.data?.invoices ?? []
 
   return (
     <>
@@ -531,14 +300,14 @@ export default function TenantDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
+        {/* Tabs: each one mounts, and fetches, only while open */}
         <Tabs defaultValue="overview">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="gym-listing">
               <Globe className="h-3.5 w-3.5 mr-1" />
               Gym Listing
-              {tenant?.gymListing && <Badge variant="secondary" className="ml-1.5 text-xs bg-green-100 text-green-700">Live</Badge>}
+              {tenant.gymListing && <Badge variant="secondary" className="ml-1.5 text-xs bg-green-100 text-green-700">Live</Badge>}
             </TabsTrigger>
             <TabsTrigger value="subscription">
               <CreditCard className="h-3.5 w-3.5 mr-1" />
@@ -547,648 +316,39 @@ export default function TenantDetailPage() {
             <TabsTrigger value="capacity">
               <GitBranch className="h-3.5 w-3.5 mr-1" />
               Capacity
-              {capacityAuditData?.data?.audit && !capacityAuditData.data.audit.ok && (
-                <Badge variant="secondary" className="ml-1.5 text-xs bg-red-100 text-red-700">!</Badge>
-              )}
             </TabsTrigger>
             <TabsTrigger value="invoices">
               <FileText className="h-3.5 w-3.5 mr-1" />
               Invoices
-              {invoices.length > 0 && <Badge variant="secondary" className="ml-1.5 text-xs">{invoices.length}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="branches">
-              Branches
-              {branchesData?.data?.branches?.length != null && (
-                <Badge variant="secondary" className="ml-2 text-xs">{branchesData.data.branches.length}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="members">
-              Members
-              {membersData?.data?.members?.length != null && (
-                <Badge variant="secondary" className="ml-2 text-xs">{membersData.data.members.length}</Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="branches">Branches</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="plans">Plans</TabsTrigger>
           </TabsList>
 
-          {/* ── Overview ── */}
           <TabsContent value="overview" className="mt-6">
-            <div className="grid gap-6 sm:grid-cols-2">
-              {owner && (
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Owner Information</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 text-sm">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Full Name</span><span className="font-medium">{owner.fullName}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium">{owner.email}</span></div>
-                      {owner.phone && <div className="flex justify-between"><span className="text-muted-foreground">Phone</span><span className="font-medium">{owner.phone}</span></div>}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Account Status</span><StatusBadge status={owner.status} /></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Verified</span><span className="font-medium">{owner.isVerified ? 'Yes' : 'No'}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Member Since</span><span className="font-medium">{formatDate(owner.createdAt)}</span></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4" /> Gym Profile</CardTitle></CardHeader>
-                <CardContent>
-                  {tenant.gymName ? (
-                    <div className="grid gap-3 text-sm">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Gym Name</span><span className="font-medium">{tenant.gymName}</span></div>
-                      {tenant.genderType && <div className="flex justify-between"><span className="text-muted-foreground">Gender Type</span><span className="font-medium capitalize">{tenant.genderType.replace('_', ' ')}</span></div>}
-                      {tenant.gymDescription && <div><span className="text-muted-foreground block mb-1">Description</span><p className="text-foreground leading-relaxed">{tenant.gymDescription}</p></div>}
-                      <div className="pt-2 border-t mt-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-muted-foreground flex items-center gap-1 text-xs font-semibold uppercase tracking-wider">
-                            <FileCheck className="h-3.5 w-3.5" /> KYC Verification Documents ({kycDocs.length > 0 ? kycDocs.length : (tenant.kycDocumentsJson?.length || 0)})
-                          </span>
-                          {tenant.kycStatus && <StatusBadge status={tenant.kycStatus} />}
-                        </div>
-                        {kycDocs.length === 0 && (!tenant.kycDocumentsJson || tenant.kycDocumentsJson.length === 0) ? (
-                          <p className="text-xs text-muted-foreground italic">No KYC documents uploaded.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {kycDocs.map((doc: KycDocument) => (
-                              <div key={doc.documentId} className="flex items-center justify-between p-2 rounded-md bg-muted/40 border text-xs">
-                                <div className="flex items-center gap-2 truncate pr-2">
-                                  <FileText className="h-4 w-4 text-primary shrink-0" />
-                                  <span className="font-medium truncate">{doc.originalName}</span>
-                                  {doc.size > 0 && <span className="text-muted-foreground shrink-0">({(doc.size / 1024).toFixed(0)} KB)</span>}
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 px-2 text-xs flex items-center gap-1 shrink-0"
-                                  onClick={() => handleViewKycDoc(doc)}
-                                >
-                                  <Eye className="h-3.5 w-3.5" /> View
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {tenant.gymListing && (
-                        <>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground flex items-center gap-1"><Globe className="h-3.5 w-3.5" /> Public Listing</span>
-                            <div className="flex items-center gap-2"><StatusBadge status={tenant.gymListing.status} />{tenant.gymListing.isFeatured && <Badge className="text-xs">Featured</Badge>}</div>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground flex items-center gap-1"><Star className="h-3.5 w-3.5" /> Rating</span>
-                            <span className="font-medium">{(Number(tenant.gymListing.averageRating) || 0).toFixed(1)} ({tenant.gymListing.totalReviews || 0} reviews)</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Gym profile not submitted yet.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4" /> Subscription Package</CardTitle></CardHeader>
-                <CardContent>
-                  {tenant.selectedPackage ? (
-                    <div className="grid gap-3 text-sm">
-                      <div className="flex justify-between items-center"><span className="text-muted-foreground">Plan</span><span className="font-semibold text-base">{tenant.selectedPackage.name}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Price</span><span className="font-medium">{formatCurrency(tenant.selectedPackage.price)} / {tenant.selectedPackage.billingCycle?.toLowerCase()}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="h-3.5 w-3.5" /> Max Branches</span><span className="font-medium">{tenant.selectedPackage.maxBranches}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Users className="h-3.5 w-3.5" /> Max Members</span><span className="font-medium">{tenant.selectedPackage.maxMembers?.toLocaleString()}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" /> Max Trainers</span><span className="font-medium">{tenant.selectedPackage.maxTrainers}</span></div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No package selected yet.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-base">Onboarding Progress</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      { step: 1, label: 'Business Registration', done: (tenant.onboardingStep ?? 0) >= 1 },
-                      { step: 2, label: 'Gym Profile & KYC Submitted', done: (tenant.onboardingStep ?? 0) >= 2 },
-                      { step: 3, label: 'Package Selected', done: (tenant.onboardingStep ?? 0) >= 3 },
-                    ].map(({ step, label, done }) => (
-                      <div key={step} className="flex items-center gap-3 text-sm">
-                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${done ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>
-                          {done ? '✓' : step}
-                        </div>
-                        <span className={done ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <OverviewTab tenant={tenant} tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Gym Listing ── */}
           <TabsContent value="gym-listing" className="mt-6">
-            <GymListingTab
-              tenantId={tenantId}
-              hasListing={!!tenant?.gymListing}
-              tenantName={tenant?.businessName ?? ''}
-            />
+            <GymListingTab tenantId={tenantId} hasListing={!!tenant.gymListing} tenantName={tenant.businessName ?? ''} />
           </TabsContent>
-
-          {/* ── Subscription ── */}
           <TabsContent value="subscription" className="mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Subscription History</h3>
-                <Button onClick={() => setAssignSubDialog(true)} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Assign Subscription
-                </Button>
-              </div>
-
-              {subsLoading ? (
-                <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : !subscriptionsData?.data?.subscriptions?.length ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <CreditCard className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">No subscriptions found. Assign a subscription to get started.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {subscriptionsData.data.subscriptions.map((sub: TenantSubscription) => {
-                    const isActive = sub.status === 'ACTIVE'
-                    const daysLeft = isActive ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null
-                    const isExpired = daysLeft !== null && daysLeft < 0
-                    const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7
-
-                    return (
-                      <Card key={sub.id} className={isActive ? 'border-green-200 bg-green-50/30' : ''}>
-                        <CardContent className="p-5">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="font-semibold">
-                                  {/* Store-verified (IOS/ANDROID/STRIPE) rows never have a `package` —
-                                      branchCount is the real entitlement instead (see
-                                      TenantSubscription.model.js on the backend). */}
-                                  {sub.package?.name ?? (sub.branchCount ? `${sub.branchCount} branch${sub.branchCount !== 1 ? 'es' : ''}` : 'Unknown Package')}
-                                </span>
-                                {sub.platform && sub.platform !== 'MANUAL' && (
-                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">
-                                    {PLATFORM_LABELS[sub.platform]}
-                                  </span>
-                                )}
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SUB_STATUS_COLORS[sub.status] ?? ''}`}>{sub.status.replace('_', ' ')}</span>
-                                {isExpired && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Expired</span>}
-                                {isExpiringSoon && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">Expiring soon!</span>}
-                              </div>
-                              <div className="grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-3">
-                                <span>Billing: {sub.billingCycle}</span>
-                                <span>Amount (locked-in): {formatCurrency(sub.amount)}</span>
-                                <span>Auto-renew: {sub.autoRenew ? 'Yes' : 'No'}</span>
-                                <span>Start: {formatDate(sub.startDate)}</span>
-                                <span className={isExpiringSoon ? 'text-yellow-600 font-medium' : isExpired ? 'text-red-600 font-medium' : ''}>Expires: {formatDate(sub.endDate)}</span>
-                                {daysLeft !== null && !isExpired && (
-                                  <span className={isExpiringSoon ? 'text-yellow-600 font-semibold' : 'text-green-600'}>
-                                    {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining
-                                  </span>
-                                )}
-                                {isExpired && (
-                                  <span className="text-red-600 font-semibold">{Math.abs(daysLeft!)} day{Math.abs(daysLeft!) !== 1 ? 's' : ''} overdue</span>
-                                )}
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-3 flex-wrap">
-                                <span className={`text-xs font-medium ${sub.paymentStatus === 'PAID' ? 'text-green-600' : sub.paymentStatus === 'FAILED' ? 'text-red-600' : 'text-yellow-600'}`}>
-                                  Payment: {sub.paymentStatus}
-                                </span>
-                                {!!sub.overQuotaCount && (
-                                  <span className="text-xs font-medium text-red-600">Over quota by {sub.overQuotaCount}</span>
-                                )}
-                              </div>
-                              {/* Guidance for a transitional state the admin (or the host) needs to
-                                  act on — e.g. "cancel your Apple subscription yourself" after a
-                                  migration to a different provider. See
-                                  subscription-migration.service.js on the backend. */}
-                              {sub.statusNote && (
-                                <div className="mt-2 text-xs rounded-lg bg-orange-50 border border-orange-200 text-orange-700 px-3 py-2">
-                                  {sub.statusNote}
-                                </div>
-                              )}
-                            </div>
-                            {isActive && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-destructive text-destructive hover:bg-destructive hover:text-white shrink-0"
-                                onClick={() => revokeSubMutation.mutate(sub.id)}
-                                loading={revokeSubMutation.isPending}
-                              >
-                                Revoke
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+            <SubscriptionTab tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Capacity ── */}
-          {/* The one place that answers "how many branches does this host
-              actually have, across every organization, against their real
-              plan — and does the record agree with the ledger." Before
-              this, that question had no single answer: the tenant list
-              showed a separate row per organization with no shared total,
-              and nothing anywhere compared reservedSlots against
-              capacity_events. See subscription-quota.service.js#auditCapacity. */}
           <TabsContent value="capacity" className="mt-6">
-            <div className="space-y-4">
-              {tenant.status !== 'ACTIVE' ? (
-                <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Capacity data is only available for active tenants.</CardContent></Card>
-              ) : capacityAuditLoading ? (
-                <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : !capacityAuditData?.data?.audit ? (
-                <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No capacity data available.</CardContent></Card>
-              ) : (() => {
-                const audit = capacityAuditData.data.audit
-                return (
-                  <>
-                    <Card className={audit.ok ? 'border-green-200 bg-green-50/30' : 'border-red-200 bg-red-50/30'}>
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div>
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Plan capacity</p>
-                            <p className="text-2xl font-bold">
-                              {audit.activeBranches ?? '—'} <span className="text-base font-normal text-muted-foreground">of {audit.maxBranches} branches active</span>
-                            </p>
-                            {audit.usedCapacity != null && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {audit.usedCapacity} committed (active + unbuilt reserved) against a {audit.maxBranches}-branch plan
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            {audit.ok ? (
-                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700"><CheckCircle className="h-4 w-4" /> Integrity check passed</span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700"><AlertCircle className="h-4 w-4" /> Needs a human look</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {audit.invariantHolds === false && (
-                          <div className="mt-3 text-sm rounded-lg bg-red-100 border border-red-200 text-red-800 px-3 py-2">
-                            Committed capacity ({audit.usedCapacity}) exceeds the plan ({audit.maxBranches}). Real branches are never touched automatically — the host needs to upgrade or close a branch themselves.
-                          </div>
-                        )}
-                        {audit.overQuotaMismatch && (
-                          <div className="mt-3 text-sm rounded-lg bg-orange-100 border border-orange-200 text-orange-800 px-3 py-2">
-                            Recorded over-quota is {audit.recordedOverQuota}, but should be {audit.expectedOverQuota} given the real branch count. This resolves itself the next time this tenant&apos;s capacity is reconciled (any branch delete/restore, or the daily job).
-                          </div>
-                        )}
-                        {audit.totalDrift !== 0 && (
-                          <div className="mt-3 text-sm rounded-lg bg-red-100 border border-red-200 text-red-800 px-3 py-2">
-                            Ledger drift of {audit.totalDrift > 0 ? '+' : ''}{audit.totalDrift}: the audit trail (capacity_events) and the actual reserved-slot counts below disagree. This is reported, not auto-repaired — see the per-organization breakdown for where.
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader><CardTitle className="text-base">Per-organization breakdown</CardTitle></CardHeader>
-                      <CardContent className="p-0">
-                        {!audit.listings.length ? (
-                          <p className="text-sm text-muted-foreground px-6 py-6">No organizations yet.</p>
-                        ) : (
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b text-left text-muted-foreground text-xs uppercase tracking-wide">
-                                <th className="font-medium px-6 py-2.5">Organization</th>
-                                <th className="font-medium px-4 py-2.5">Reserved slots</th>
-                                <th className="font-medium px-4 py-2.5">Ledger says</th>
-                                <th className="font-medium px-4 py-2.5">Drift</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {audit.listings.map((l) => (
-                                <tr key={l.listingId} className={`border-b last:border-0 ${l.drift !== 0 ? 'bg-red-50' : ''}`}>
-                                  <td className="px-6 py-2.5 font-medium">{l.title}</td>
-                                  <td className="px-4 py-2.5">{l.actualReservedSlots}</td>
-                                  <td className="px-4 py-2.5 text-muted-foreground">{l.ledgerReservedSlots}</td>
-                                  <td className="px-4 py-2.5">
-                                    {l.drift === 0 ? (
-                                      <span className="text-green-600">none</span>
-                                    ) : (
-                                      <span className="font-semibold text-red-600">{l.drift > 0 ? '+' : ''}{l.drift}</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </>
-                )
-              })()}
-            </div>
+            <CapacityTab tenant={tenant} tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Invoices ── */}
           <TabsContent value="invoices" className="mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Platform Invoices</h3>
-                <Button onClick={() => setCreateInvoiceDialog(true)} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Invoice
-                </Button>
-              </div>
-
-              {invoicesLoading ? (
-                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : !invoices.length ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">No invoices yet. Create the first invoice for this tenant.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {invoices.map((inv: PlatformInvoice) => (
-                    <Card key={inv.id}>
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="font-mono text-sm font-semibold">{inv.invoiceNo}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${INVOICE_STATUS_COLORS[inv.status] ?? ''}`}>{inv.status}</span>
-                            </div>
-                            {inv.description && <p className="text-sm text-muted-foreground mb-1.5">{inv.description}</p>}
-                            {inv.subscription?.package && (
-                              <p className="text-xs text-muted-foreground mb-1.5">Package: {inv.subscription.package.name}</p>
-                            )}
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                              <span>Amount: <strong className="text-foreground">{formatCurrency(inv.totalAmount)}</strong></span>
-                              {inv.dueDate && <span>Due: {formatDate(inv.dueDate)}</span>}
-                              {inv.paidAt && <span className="text-green-600">Paid: {formatDate(inv.paidAt)}</span>}
-                              <span>Created: {formatDate(inv.createdAt)}</span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-1.5 shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => { setUpdateStatusDialog({ open: true, invoice: inv }); setNewStatus(inv.status) }}>
-                              Update Status
-                            </Button>
-                            {['ISSUED', 'OVERDUE'].includes(inv.status) && (
-                              <Button size="sm" variant="outline" onClick={() => sendReminderMutation.mutate(inv.id)} loading={sendReminderMutation.isPending}>
-                                <Send className="h-3.5 w-3.5 mr-1" />
-                                Send Reminder
-                              </Button>
-                            )}
-                            {inv.status === 'PAID' && (
-                              <Button size="sm" variant="outline" onClick={() => sendConfirmationMutation.mutate(inv.id)} loading={sendConfirmationMutation.isPending}>
-                                <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                                Send Receipt
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
+            <InvoicesTab tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Branches ── */}
           <TabsContent value="branches" className="mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" /> Gym Branches</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    &quot;Traveler&quot; is an admin-controlled visibility toggle for the Travelers discovery feed — not a request from the host. Hover a badge for details.
-                  </p>
-                </div>
-                {tenant.status === 'ACTIVE' && (
-                  <Button size="sm" onClick={() => setBranchDialog({ open: true, mode: 'create' })}>
-                    <Plus className="h-4 w-4 mr-2" /> Add Branch
-                  </Button>
-                )}
-              </div>
-
-              {tenant.status !== 'ACTIVE' ? (
-                <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Branch data is only available for active tenants.</CardContent></Card>
-              ) : branchesLoading ? (
-                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : !branchGroups.length ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <GitBranch className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">No branches yet.</p>
-                    <Button size="sm" className="mt-4" onClick={() => setBranchDialog({ open: true, mode: 'create' })}>
-                      <Plus className="h-4 w-4 mr-2" /> Add First Branch
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  {branchGroups.map(({ orgId, orgTitle, branches }) => (
-                  <div key={orgId}>
-                    {branchGroups.length > 1 && (
-                      <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
-                        <Building2 className="h-3.5 w-3.5" /> {orgTitle}
-                        <Badge variant="secondary" className="text-xs">{branches.length}</Badge>
-                      </h4>
-                    )}
-                    <div className="space-y-3">
-                  {branches.map((branch) => (
-                    <Card key={branch.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-4">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-xs font-bold text-primary">{branch.branchName.charAt(0)}</span>
-                          </div>
-                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <p className="text-sm font-semibold">{branch.branchName}</p>
-                              <StatusBadge status={branch.status} />
-                              <span
-                                title="Admin-controlled visibility to the Travelers discovery feed — not a request from the host, and not tied to review/approval. Toggle it yourself for a branch you want featured there."
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-help ${
-                                (branch.travelerVisibilityStatus || 'pending') === 'active'
-                                  ? 'bg-green-100 text-green-800 border border-green-200'
-                                  : (branch.travelerVisibilityStatus || 'pending') === 'deactivated'
-                                  ? 'bg-red-100 text-red-800 border border-red-200'
-                                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                              }`}>
-                                Traveler: {(branch.travelerVisibilityStatus || 'pending').toUpperCase()}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-5 px-1.5 text-[10px] text-muted-foreground flex items-center gap-0.5 hover:text-primary hover:bg-muted"
-                                onClick={() => setHistoryDialog({ open: true, branchId: branch.id, branchName: branch.branchName })}
-                              >
-                                <History className="h-3 w-3" /> History
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{branch.address || '—'}</p>
-                            {(branch.openingTime || branch.closingTime) && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                <Clock className="h-3 w-3" />{branch.openingTime} – {branch.closingTime}
-                              </p>
-                            )}
-                            {branch.facilitiesJson && branch.facilitiesJson.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {branch.facilitiesJson.slice(0, 5).map((f) => <Badge key={f} variant="secondary" className="text-xs">{f}</Badge>)}
-                                {branch.facilitiesJson.length > 5 && <Badge variant="secondary" className="text-xs">+{branch.facilitiesJson.length - 5}</Badge>}
-                              </div>
-                            )}
-                            {(branch.travelerVisibilityStatus || 'pending') === 'deactivated' && branch.deactivationReason && (
-                              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mt-2 max-w-md">
-                                <strong>Deactivation Reason:</strong> {branch.deactivationReason}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex flex-col gap-2 shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => setBranchDialog({ open: true, mode: 'edit', branch })}>
-                              Edit
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => branchStatusMutation.mutate({ branchId: branch.id, status: branch.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })} disabled={branchStatusMutation.isPending}>
-                              {branch.status === 'ACTIVE' ? <><ToggleRight className="h-4 w-4 mr-1 text-green-600" />Disable</> : <><ToggleLeft className="h-4 w-4 mr-1 text-muted-foreground" />Enable</>}
-                            </Button>
-                            {(branch.travelerVisibilityStatus || 'pending') !== 'active' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-green-600 text-green-600 hover:bg-green-50 text-xs py-1 h-8"
-                                onClick={() => travelerVisibilityMutation.mutate({ branchId: branch.id, status: 'active' })}
-                                disabled={travelerVisibilityMutation.isPending}
-                              >
-                                Activate Traveler
-                              </Button>
-                            )}
-                            {(branch.travelerVisibilityStatus || 'pending') !== 'deactivated' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-red-600 text-red-600 hover:bg-red-50 text-xs py-1 h-8"
-                                onClick={() => setDeactivateBranchDialog({ open: true, branchId: branch.id })}
-                                disabled={travelerVisibilityMutation.isPending}
-                              >
-                                Deactivate Traveler
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                    </div>
-                  </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <BranchFormDialog
-              open={branchDialog.open}
-              onOpenChange={(o) => !o && setBranchDialog((p) => ({ ...p, open: false }))}
-              mode={branchDialog.mode}
-              branch={branchDialog.branch}
-              cities={cities}
-              onSubmit={(payload) => {
-                if (branchDialog.mode === 'create') {
-                  createBranchMutation.mutate(payload as CreateTenantBranchPayload)
-                } else if (branchDialog.branch) {
-                  updateBranchMutation.mutate({ branchId: branchDialog.branch.id, payload: payload as UpdateTenantBranchPayload })
-                }
-              }}
-              loading={createBranchMutation.isPending || updateBranchMutation.isPending}
-            />
+            <BranchesTab tenant={tenant} tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Members ── */}
           <TabsContent value="members" className="mt-6">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" /> Member Subscriptions</CardTitle></CardHeader>
-              <CardContent>
-                {tenant.status !== 'ACTIVE' ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">Member data is only available for active tenants.</p>
-                ) : membersLoading ? (
-                  <div className="space-y-4">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="flex items-center gap-4"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-1.5 flex-1"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-56" /></div><Skeleton className="h-6 w-16 rounded-full" /><Skeleton className="h-4 w-24" /></div>)}</div>
-                ) : !membersData?.data?.members?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No members found.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {membersData.data.members.map((member) => (
-                      <div key={member.id} className="flex items-center gap-4 p-3 rounded-lg border">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">{getInitials(member.user?.fullName ?? '?')}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{member.user?.fullName ?? 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground truncate">{member.user?.email ?? member.userId}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{member.plan?.name ?? '—'} · {member.branch?.branchName ?? '—'}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <StatusBadge status={member.status} />
-                          <span className="text-xs text-muted-foreground">{formatDate(member.startDate)} – {formatDate(member.endDate)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <MembersTab tenant={tenant} tenantId={tenantId} />
           </TabsContent>
-
-          {/* ── Plans ── */}
           <TabsContent value="plans" className="mt-6">
-            <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Dumbbell className="h-4 w-4" /> Membership Plans</CardTitle></CardHeader>
-              <CardContent>
-                {tenant.status !== 'ACTIVE' ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">Plan data is only available for active tenants.</p>
-                ) : plansLoading ? (
-                  <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="flex items-center gap-4"><div className="space-y-1.5 flex-1"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-56" /></div><Skeleton className="h-6 w-16 rounded-full" /></div>)}</div>
-                ) : !plansData?.data?.plans?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No membership plans found.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {plansData.data.plans.map((plan) => (
-                      <div key={plan.id} className="flex items-center gap-4 p-3 rounded-lg border">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{plan.name}</p>
-                            <StatusBadge status={plan.status} />
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {plan.branch?.branchName ?? 'Gym-wide'} · {plan.durationValue} {plan.durationType.toLowerCase()}
-                            {plan.isTrial ? ' · Trial' : ''}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-semibold">{formatCurrency(plan.price)}</p>
-                          {plan.freezeLimitDays > 0 && <p className="text-xs text-muted-foreground">Freeze: {plan.freezeLimitDays}d</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <PlansTab tenant={tenant} tenantId={tenantId} />
           </TabsContent>
         </Tabs>
       </div>
@@ -1204,10 +364,12 @@ export default function TenantDetailPage() {
         confirmLabel={tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume' : 'Approve'} variant="default"
         onConfirm={() => approveMutation.mutate(approveKeyRef.current)} loading={approveMutation.isPending} />
 
+
       {/* Reactivate */}
       <ConfirmDialog open={reactivateDialog} onOpenChange={setReactivateDialog}
         title="Reactivate Tenant" description={`Reactivate "${tenant.businessName}"? They will regain full platform access immediately.`}
         confirmLabel="Reactivate" variant="default" onConfirm={() => reactivateMutation.mutate()} loading={reactivateMutation.isPending} />
+
 
       {/* Reject */}
       <Dialog open={rejectDialog} onOpenChange={setRejectDialog}>
@@ -1222,6 +384,7 @@ export default function TenantDetailPage() {
         </DialogContent>
       </Dialog>
 
+
       {/* Suspend */}
       <Dialog open={suspendDialog} onOpenChange={setSuspendDialog}>
         <DialogContent>
@@ -1235,271 +398,6 @@ export default function TenantDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Subscription */}
-      <Dialog open={assignSubDialog} onOpenChange={setAssignSubDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Assign Subscription</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-2 block">Package *</Label>
-              <Select value={subForm.packageId} onValueChange={(v) => setSubForm((p) => ({ ...p, packageId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select a package" /></SelectTrigger>
-                <SelectContent>
-                  {packages.map((pkg: any) => (
-                    <SelectItem key={pkg.id} value={pkg.id}>{pkg.name} — {formatCurrency(pkg.price)} / {pkg.billingCycle?.toLowerCase()}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="mb-2 block">Billing Cycle</Label>
-              <Select value={subForm.billingCycle} onValueChange={(v: any) => setSubForm((p) => ({ ...p, billingCycle: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                  <SelectItem value="YEARLY">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="mb-2 block">Start Date</Label>
-              <Input type="date" value={subForm.startDate || ''} onChange={(e) => setSubForm((p) => ({ ...p, startDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Custom Amount (optional)</Label>
-              <Input type="number" placeholder="Leave empty to use package price" value={subForm.amount ?? ''} onChange={(e) => setSubForm((p) => ({ ...p, amount: e.target.value ? Number(e.target.value) : undefined }))} />
-            </div>
-            <div className="flex items-center gap-3">
-              <input type="checkbox" id="createInvoice" checked={subForm.createInvoice ?? true} onChange={(e) => setSubForm((p) => ({ ...p, createInvoice: e.target.checked }))} className="h-4 w-4" />
-              <Label htmlFor="createInvoice" className="cursor-pointer">Auto-create invoice</Label>
-            </div>
-            <div className="flex items-center gap-3">
-              <input type="checkbox" id="autoRenew" checked={subForm.autoRenew ?? true} onChange={(e) => setSubForm((p) => ({ ...p, autoRenew: e.target.checked }))} className="h-4 w-4" />
-              <Label htmlFor="autoRenew" className="cursor-pointer">Auto-renew</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignSubDialog(false)}>Cancel</Button>
-            <Button onClick={() => assignSubMutation.mutate(subForm)} loading={assignSubMutation.isPending} disabled={!subForm.packageId}>Assign</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Invoice */}
-      <Dialog open={createInvoiceDialog} onOpenChange={setCreateInvoiceDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Create Invoice</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-2 block">Description</Label>
-              <Input placeholder="e.g. Monthly subscription — June 2026" value={invoiceForm.description ?? ''} onChange={(e) => setInvoiceForm((p) => ({ ...p, description: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Amount (PKR) *</Label>
-              <Input type="number" min="0" placeholder="0.00" value={invoiceForm.subtotal || ''} onChange={(e) => setInvoiceForm((p) => ({ ...p, subtotal: Number(e.target.value) }))} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Tax Amount (PKR)</Label>
-              <Input type="number" min="0" placeholder="0.00" value={invoiceForm.taxAmount ?? ''} onChange={(e) => setInvoiceForm((p) => ({ ...p, taxAmount: Number(e.target.value) }))} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Due Date</Label>
-              <Input type="date" value={invoiceForm.dueDate ?? ''} onChange={(e) => setInvoiceForm((p) => ({ ...p, dueDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="mb-2 block">Status</Label>
-              <Select value={invoiceForm.status ?? 'ISSUED'} onValueChange={(v: any) => setInvoiceForm((p) => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                  <SelectItem value="ISSUED">Issued</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateInvoiceDialog(false)}>Cancel</Button>
-            <Button onClick={() => createInvoiceMutation.mutate(invoiceForm)} loading={createInvoiceMutation.isPending} disabled={!invoiceForm.subtotal}>Create Invoice</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Update Invoice Status */}
-      <Dialog open={updateStatusDialog.open} onOpenChange={(o) => !o && setUpdateStatusDialog({ open: false, invoice: null })}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Update Invoice Status</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Invoice: <span className="font-mono font-semibold">{updateStatusDialog.invoice?.invoiceNo}</span></p>
-            <div>
-              <Label className="mb-2 block">New Status</Label>
-              <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                <SelectContent>
-                  {['DRAFT', 'ISSUED', 'PAID', 'OVERDUE', 'CANCELLED'].map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpdateStatusDialog({ open: false, invoice: null })}>Cancel</Button>
-            <Button
-              onClick={() => updateStatusDialog.invoice && updateInvoiceMutation.mutate({ invoiceId: updateStatusDialog.invoice.id, payload: { status: newStatus as any } })}
-              loading={updateInvoiceMutation.isPending}
-              disabled={!newStatus}
-            >
-              Update
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Deactivate Branch Dialog */}
-      <Dialog open={deactivateBranchDialog.open} onOpenChange={(o) => !o && setDeactivateBranchDialog({ open: false, branchId: '' })}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Deactivate Branch Traveler Visibility</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              Are you sure you want to deactivate this branch from traveler visibility? It will no longer appear in traveler search or discovery results.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="deactivate-reason">Reason for Deactivation</Label>
-              <Textarea
-                id="deactivate-reason"
-                placeholder="Enter the reason for deactivation (mandatory)..."
-                value={deactivateBranchReason}
-                onChange={(e) => setDeactivateBranchReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeactivateBranchDialog({ open: false, branchId: '' })}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => travelerVisibilityMutation.mutate({
-                branchId: deactivateBranchDialog.branchId,
-                status: 'deactivated',
-                reason: deactivateBranchReason
-              })}
-              disabled={!deactivateBranchReason.trim() || travelerVisibilityMutation.isPending}
-            >
-              Deactivate
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Branch Visibility History Dialog */}
-      <Dialog open={historyDialog.open} onOpenChange={(o) => !o && setHistoryDialog({ open: false, branchId: '', branchName: '' })}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Visibility Logs: {historyDialog.branchName}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2 max-h-[350px] overflow-y-auto">
-            {historyLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Loading visibility history...</p>
-            ) : !historyData?.data?.history || historyData.data.history.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No visibility logs found for this branch.</p>
-            ) : (
-              <div className="space-y-3">
-                {historyData.data.history.map((log: any) => (
-                  <div key={log.id} className="border-b pb-2.5 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        log.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : log.status === 'deactivated'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {log.status.toUpperCase()}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground flex items-center">
-                        {log.changedAt ? new Date(log.changedAt).toLocaleString() : 'N/A'}
-                      </span>
-                    </div>
-                    {log.reason && (
-                      <p className="text-xs text-muted-foreground bg-muted p-2 rounded mt-1.5 border">
-                        {log.reason}
-                      </p>
-                    )}
-                    {log.changedBy && (
-                      <p className="text-[9px] text-muted-foreground/80 mt-1">
-                        By User ID: {log.changedBy}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHistoryDialog({ open: false, branchId: '', branchName: '' })}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* SEC-10 / R-27: Watermarked Audited KYC Document Viewer */}
-      <Dialog open={!!viewingKycDoc} onOpenChange={(open) => { if (!open) handleCloseKycDoc() }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-5 w-5 text-primary" />
-              <span>KYC Document: {viewingKycDoc?.originalName}</span>
-              <Badge variant="outline" className="ml-2 text-xs uppercase">{viewingKycDoc?.documentType || 'Verification'}</Badge>
-            </DialogTitle>
-          </DialogHeader>
-
-          {/* Audit Alert Banner */}
-          <div className="flex items-center gap-2 rounded bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs text-amber-800 dark:text-amber-300">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span><strong>Audited Access:</strong> Your viewing of this identity verification document has been immutably logged with your admin account ({user?.email || 'admin'}) and IP address.</span>
-          </div>
-
-          {/* Document Preview Container with Visual Watermark Overlay (Decision R-27) */}
-          <div className="relative mt-2 flex-1 min-h-[450px] max-h-[60vh] overflow-auto rounded-lg border bg-muted/20 flex items-center justify-center select-none">
-            {/* Visual Watermark Overlay */}
-            <div className="pointer-events-none absolute inset-0 z-20 flex flex-wrap items-center justify-center gap-12 overflow-hidden opacity-15 select-none p-4">
-              {Array.from({ length: 24 }).map((_, i) => (
-                <div key={i} className="-rotate-45 transform whitespace-nowrap text-xs font-bold tracking-widest text-red-600 dark:text-red-400">
-                  CONFIDENTIAL • {user?.email || 'PLATFORM_ADMIN'} • {new Date().toLocaleDateString()} • GYMSERA AUDITED ACCESS
-                </div>
-              ))}
-            </div>
-
-            {kycLoading ? (
-              <div className="flex flex-col items-center gap-2 text-muted-foreground py-16">
-                <RefreshCw className="h-8 w-8 animate-spin" />
-                <p className="text-sm">Fetching and decrypting document stream...</p>
-              </div>
-            ) : kycBlobUrl ? (
-              viewingKycDoc?.mimetype === 'application/pdf' ? (
-                <iframe src={kycBlobUrl} className="w-full h-full min-h-[500px] border-none" title="KYC PDF Viewer" />
-              ) : (
-                <img src={kycBlobUrl} alt="KYC Document" className="max-h-[500px] max-w-full object-contain mx-auto" />
-              )
-            ) : null}
-          </div>
-
-          <DialogFooter className="mt-4 flex items-center justify-between sm:justify-between">
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Lock className="h-3.5 w-3.5" /> Private Encrypted Storage (AES-256)
-            </div>
-            <Button variant="outline" size="sm" onClick={handleCloseKycDoc}>
-              Close Preview
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

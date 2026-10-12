@@ -19,5 +19,8 @@ Ticked as committed (copied into AGENT_HANDOFF §2 in the final docs PR).
   subscriptions, attendance, plans, trainers, gym profile, business profile, admin tenants / cities / billing plans / packages / reviews / reports.
   Billing settings: only a 404 means "no plan" (R-21); any other failure is a failed load. `DataTable` gained `error` / `errorWhat` / `onRetry`.
   Already right (3A-3D, not changed): team, approvals, ledger, payments, payouts, invoices, reports, dashboard, notifications, listing editor.
-- [ ] PR 3: UX-17 admin tenant detail per tab
+- [x] PR 3: UX-17 / PERF-10 admin tenant detail per tab. `admin/tenants/[id]/page.tsx` 1,505 → 403 lines (tenant record, header, lifecycle actions);
+  seven tab components in `src/components/features/admin-tenant/`, each mounted and fetching only while open (was 13 `useQuery` in the page).
+  Behaviour change: the tab triggers no longer carry counts or the capacity "!" badge (they needed every tab's data up front);
+  the same information is inside each tab. Package and city lists load only when their dialog opens.
 - [ ] PR 6: next-intl + hard-coded-string check + 3A-3D screens
