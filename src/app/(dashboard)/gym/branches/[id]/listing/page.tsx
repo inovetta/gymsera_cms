@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, FileText, ImageIcon, Tag } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock, FileText, ImageIcon, Sparkles, Tag } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { NoAccess } from '@/components/features/no-access'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ import { SectionCard } from '@/components/features/listing/section-card'
 import { BasicInfoSection } from '@/components/features/listing/basic-info-section'
 import { CategoryTagsSection } from '@/components/features/listing/category-tags-section'
 import { PhotosSection } from '@/components/features/listing/photos-section'
+import { AmenitiesSection } from '@/components/features/listing/amenities-section'
+import { HoursSection } from '@/components/features/listing/hours-section'
 import { BoostCard } from '@/components/features/listing/boost-card'
 import { listingContentKey } from '@/components/features/listing/use-listing-save'
 import { hostApi } from '@/lib/api/host'
@@ -20,9 +22,9 @@ import { describeRequestError } from '@/lib/api/request-errors'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { useToast } from '@/hooks/use-toast'
 import { listingAccess } from '@/lib/listing/access'
-import { asStringList, splitCategories } from '@/lib/listing/content'
+import { asStringList, splitCategories, toHourMinute } from '@/lib/listing/content'
 
-type SectionId = 'photos' | 'basic' | 'category'
+type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours'
 
 /**
  * The branch listing editor (UX-21): the same sections as the mobile listing_editor_hub_screen.dart,
@@ -84,6 +86,10 @@ export default function ListingEditorPage() {
   const categories = splitCategories(branch?.category)
   const tags = asStringList(branch?.tagsJson)
   const photoCount = asStringList(branch?.imagesJson).length
+  const amenityCount = asStringList(branch?.facilitiesJson).length
+  const opens = toHourMinute(branch?.openingTime)
+  const closes = toHourMinute(branch?.closingTime)
+  const hoursSummary = opens && closes ? `${opens} – ${closes}` : 'Not set'
 
   return (
     <>
@@ -161,6 +167,30 @@ export default function ListingEditorPage() {
               canEdit={access.manage}
             >
               <CategoryTagsSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
+            </SectionCard>
+
+            <SectionCard
+              id="amenities"
+              title="Amenities"
+              icon={Sparkles}
+              summary={`${amenityCount} listed`}
+              open={open === 'amenities'}
+              onToggle={() => toggle('amenities')}
+              canEdit={access.manage}
+            >
+              <AmenitiesSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
+            </SectionCard>
+
+            <SectionCard
+              id="hours"
+              title="Operating Hours"
+              icon={Clock}
+              summary={hoursSummary}
+              open={open === 'hours'}
+              onToggle={() => toggle('hours')}
+              canEdit={access.manage}
+            >
+              <HoursSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
             </SectionCard>
 
             <BoostCard />
