@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
+import { httpStatus } from '@/lib/api/request-errors'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { tenantsApi } from '@/lib/api/tenants'
 import { hostBillingApi, CatalogPlan } from '@/lib/api/host-billing'
@@ -57,7 +59,7 @@ export default function BillingPage() {
   // real entitlement, not a CMS-specific view of it. 404s (via isError)
   // when the tenant has no active subscription at all, which is a normal
   // state here, not a failure to show.
-  const { data: subData, isLoading: subLoading, isError: noActiveSub } = useQuery({
+  const { data: subData, isLoading: subLoading, error: subError, refetch: refetchSub } = useQuery({
     queryKey: ['host-subscription-current'],
     queryFn: () => hostBillingApi.getCurrentSubscription(),
     retry: false,
@@ -79,6 +81,10 @@ export default function BillingPage() {
     queryKey: ['platform-packages'],
     queryFn: () => tenantsApi.getPackages(),
   })
+
+  // 404 is the normal "no plan yet" answer (R-21). Any other failure is a failed load, never "no plan".
+  const noActiveSub = !!subError && httpStatus(subError) === 404
+  const subLoadFailed = !!subError && !noActiveSub
 
   const tenant = tenantData?.data?.tenant
   const sub = subData?.data
@@ -226,6 +232,10 @@ export default function BillingPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {subLoadFailed && (
+          <ErrorState error={subError} what="your current plan" onRetry={() => refetchSub()} compact />
         )}
 
         {noActiveSub && (

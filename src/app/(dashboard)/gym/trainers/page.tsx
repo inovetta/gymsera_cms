@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -129,7 +130,7 @@ export default function TrainersPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTrainer, setEditTrainer] = useState<Trainer | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['trainers'],
     queryFn: () => trainersApi.getTrainers(),
   })
@@ -221,6 +222,8 @@ export default function TrainersPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <ErrorState error={loadError} what="your trainers" onRetry={() => refetch()} />
         ) : trainers.length === 0 ? (
           <EmptyState
             icon={Dumbbell}

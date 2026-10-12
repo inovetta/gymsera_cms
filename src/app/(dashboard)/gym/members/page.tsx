@@ -49,7 +49,7 @@ export default function MembersPage() {
 
   const debouncedSearch = useDebounce(search, 400)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: listError, refetch } = useQuery({
     queryKey: ['gym-members', debouncedSearch, statusFilter, page],
     queryFn: () => gymApi.getMembers({
       q: debouncedSearch || undefined,
@@ -225,6 +225,9 @@ export default function MembersPage() {
           columns={columns}
           data={members}
           loading={isLoading}
+          error={listError}
+          errorWhat="the member list"
+          onRetry={() => refetch()}
           emptyTitle="No members found"
           emptyDescription={search ? `No members matching "${search}"` : 'No members have registered yet'}
           page={page}

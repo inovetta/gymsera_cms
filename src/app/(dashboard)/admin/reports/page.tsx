@@ -11,16 +11,17 @@ import { PageHeader } from '@/components/features/page-header'
 import { StatsCard } from '@/components/features/stats-card'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
 import { adminApi } from '@/lib/api/admin'
 import { formatCurrency } from '@/lib/utils'
 
 export default function AdminReportsPage() {
-  const { data: statsData, isLoading: statsLoading } = useQuery({
+  const { data: statsData, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['platform-stats'],
     queryFn: () => adminApi.getPlatformStats(),
   })
 
-  const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
+  const { data: analyticsData, isLoading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useQuery({
     queryKey: ['platform-analytics'],
     queryFn: () => adminApi.getPlatformAnalytics(),
   })
@@ -41,6 +42,10 @@ export default function AdminReportsPage() {
       <Header title="Platform Analytics" description="Platform-wide performance metrics" />
       <div className="p-6 animate-fade-in space-y-6">
         <PageHeader title="Platform Analytics" description={`Overview of platform-wide activity — ${year}`} />
+
+        {statsError && (
+          <ErrorState error={statsError} what="the platform totals" onRetry={() => refetchStats()} compact />
+        )}
 
         {/* KPI Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -127,6 +132,8 @@ export default function AdminReportsPage() {
             <CardContent>
               {analyticsLoading ? (
                 <Skeleton className="h-[220px] w-full rounded-lg" />
+              ) : analyticsError ? (
+                <ErrorState error={analyticsError} what="this chart" onRetry={() => refetchAnalytics()} compact />
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={tenantGrowth}>
@@ -153,6 +160,8 @@ export default function AdminReportsPage() {
             <CardContent>
               {analyticsLoading ? (
                 <Skeleton className="h-[220px] w-full rounded-lg" />
+              ) : analyticsError ? (
+                <ErrorState error={analyticsError} what="this chart" onRetry={() => refetchAnalytics()} compact />
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={memberGrowth}>
@@ -180,6 +189,8 @@ export default function AdminReportsPage() {
           <CardContent>
             {analyticsLoading ? (
               <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : analyticsError ? (
+              <ErrorState error={analyticsError} what="this chart" onRetry={() => refetchAnalytics()} compact />
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={monthlyRevenue}>

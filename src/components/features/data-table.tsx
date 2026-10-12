@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { EmptyState } from './empty-state'
+import { ErrorState } from './error-state'
 
 export interface Column<T> {
   key: string
@@ -25,6 +26,11 @@ interface DataTableProps<T> {
   columns: Column<T>[]
   data: T[]
   loading?: boolean
+  /** The error the list query threw. Shown instead of the empty state: a failed load is not "no records". */
+  error?: unknown
+  /** What the list holds, for the error sentence, e.g. "the member list". */
+  errorWhat?: string
+  onRetry?: () => void
   emptyTitle?: string
   emptyDescription?: string
   emptyAction?: ReactNode
@@ -39,6 +45,9 @@ export function DataTable<T extends { id: string }>({
   columns,
   data,
   loading = false,
+  error,
+  errorWhat = 'this list',
+  onRetry,
   emptyTitle = 'No records found',
   emptyDescription = 'There are no items to display.',
   emptyAction,
@@ -73,6 +82,14 @@ export function DataTable<T extends { id: string }>({
             ))}
           </TableBody>
         </Table>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-md border">
+        <ErrorState error={error} what={errorWhat} onRetry={onRetry} />
       </div>
     )
   }

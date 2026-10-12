@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
 import { gymApi } from '@/lib/api/gym'
 import { useToast } from '@/hooks/use-toast'
 
@@ -42,7 +43,7 @@ export default function GymProfilePage() {
   const [newGalleryFiles, setNewGalleryFiles] = useState<File[]>([])
   const [galleryUploading, setGalleryUploading] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['gym-profile'],
     queryFn: () => gymApi.getGymProfile(),
   })
@@ -140,6 +141,17 @@ export default function GymProfilePage() {
     } finally {
       setGalleryUploading(false)
     }
+  }
+
+  if (loadError) {
+    return (
+      <>
+        <Header title="Gym Profile" />
+        <div className="p-6">
+          <ErrorState error={loadError} what="your gym profile" onRetry={() => refetch()} />
+        </div>
+      </>
+    )
   }
 
   if (isLoading) {

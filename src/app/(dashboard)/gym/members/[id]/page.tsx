@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -54,22 +55,22 @@ export default function MemberDetailPage() {
     defaultValues: { method: 'CASH', notes: '' },
   })
 
-  const { data: userData, isLoading } = useQuery({
+  const { data: userData, isLoading, error: userError, refetch: refetchUser } = useQuery({
     queryKey: ['user', userId],
     queryFn: () => usersApi.getUser(userId),
   })
 
-  const { data: subscriptionsData, isLoading: subsLoading } = useQuery({
+  const { data: subscriptionsData, isLoading: subsLoading, error: subsLoadingError, refetch: refetch_subsLoading } = useQuery({
     queryKey: ['user-subscriptions', userId],
     queryFn: () => subscriptionsApi.getStaffSubscriptions({ userId, limit: 20 }),
   })
 
-  const { data: attendanceData, isLoading: attendanceLoading } = useQuery({
+  const { data: attendanceData, isLoading: attendanceLoading, error: attendanceLoadingError, refetch: refetch_attendanceLoading } = useQuery({
     queryKey: ['user-attendance', userId],
     queryFn: () => attendanceApi.getAttendance({ userId, limit: 10 }),
   })
 
-  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+  const { data: paymentsData, isLoading: paymentsLoading, error: paymentsLoadingError, refetch: refetch_paymentsLoading } = useQuery({
     queryKey: ['user-payments', userId],
     queryFn: () => paymentsApi.getPayments({ userId, limit: 10 }),
   })
@@ -264,6 +265,17 @@ export default function MemberDetailPage() {
     )
   }
 
+  if (userError) {
+    return (
+      <>
+        <Header title="Member Detail" />
+        <div className="p-6">
+          <ErrorState error={userError} what="this member" onRetry={() => refetchUser()} />
+        </div>
+      </>
+    )
+  }
+
   if (!user) return null
 
   return (
@@ -348,6 +360,9 @@ export default function MemberDetailPage() {
                   columns={subsColumns}
                   data={(subscriptionsData?.data?.subscriptions ?? []) as MemberSubscription[]}
                   loading={subsLoading}
+                  error={subsLoadingError}
+                  errorWhat="the member subscriptions"
+                  onRetry={() => refetch_subsLoading()}
                   emptyTitle="No subscriptions"
                   emptyDescription="This member has no subscription history"
                 />
@@ -363,6 +378,9 @@ export default function MemberDetailPage() {
                   columns={paymentsColumns}
                   data={(paymentsData?.data?.payments ?? []) as Payment[]}
                   loading={paymentsLoading}
+                  error={paymentsLoadingError}
+                  errorWhat="the payments"
+                  onRetry={() => refetch_paymentsLoading()}
                   emptyTitle="No payments"
                   emptyDescription="This member has no payment history"
                 />
@@ -378,6 +396,9 @@ export default function MemberDetailPage() {
                   columns={attendanceColumns}
                   data={(attendanceData?.data?.logs ?? []) as AttendanceLog[]}
                   loading={attendanceLoading}
+                  error={attendanceLoadingError}
+                  errorWhat="the attendance records"
+                  onRetry={() => refetch_attendanceLoading()}
                   emptyTitle="No attendance records"
                   emptyDescription="No check-in history found"
                 />

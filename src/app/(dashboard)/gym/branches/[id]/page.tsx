@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/features/error-state'
 import { Badge } from '@/components/ui/badge'
 import { gymApi } from '@/lib/api/gym'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
@@ -81,27 +82,27 @@ export default function BranchDetailPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
 
-  const { data: branchData, isLoading: branchLoading } = useQuery({
+  const { data: branchData, isLoading: branchLoading, error: branchError, refetch: refetchBranch } = useQuery({
     queryKey: ['branch', branchId],
     queryFn: () => gymApi.getBranch(branchId),
   })
 
-  const { data: staffData, isLoading: staffLoading } = useQuery({
+  const { data: staffData, isLoading: staffLoading, error: staffLoadingError, refetch: refetch_staffLoading } = useQuery({
     queryKey: ['branch-staff', branchId],
     queryFn: () => gymApi.getBranchStaff(branchId),
   })
 
-  const { data: subscriptionsData, isLoading: subsLoading } = useQuery({
+  const { data: subscriptionsData, isLoading: subsLoading, error: subsLoadingError, refetch: refetch_subsLoading } = useQuery({
     queryKey: ['subscriptions', branchId],
     queryFn: () => subscriptionsApi.getStaffSubscriptions({ branchId, limit: 10 }),
   })
 
-  const { data: attendanceData, isLoading: attendanceLoading } = useQuery({
+  const { data: attendanceData, isLoading: attendanceLoading, error: attendanceLoadingError, refetch: refetch_attendanceLoading } = useQuery({
     queryKey: ['attendance', branchId],
     queryFn: () => attendanceApi.getAttendance({ branchId, limit: 10 }),
   })
 
-  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
+  const { data: paymentsData, isLoading: paymentsLoading, error: paymentsLoadingError, refetch: refetch_paymentsLoading } = useQuery({
     queryKey: ['branch-payments', branchId, paymentStatusFilter],
     queryFn: () => paymentsApi.getPayments({
       branchId,
@@ -290,6 +291,17 @@ export default function BranchDetailPage() {
     )
   }
 
+  if (branchError) {
+    return (
+      <>
+        <Header title="Branch Detail" />
+        <div className="p-6">
+          <ErrorState error={branchError} what="this branch" onRetry={() => refetchBranch()} />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <Header title={branch?.branchName ?? 'Branch Detail'} />
@@ -372,6 +384,9 @@ export default function BranchDetailPage() {
                   columns={memberColumns}
                   data={(subscriptionsData?.data?.subscriptions ?? []) as MemberSubscription[]}
                   loading={subsLoading}
+                  error={subsLoadingError}
+                  errorWhat="the member subscriptions"
+                  onRetry={() => refetch_subsLoading()}
                   emptyTitle="No members"
                   emptyDescription="No subscriptions found for this branch"
                 />
@@ -387,6 +402,9 @@ export default function BranchDetailPage() {
                   columns={staffColumns}
                   data={(staffData?.data?.staff ?? []) as GymStaff[]}
                   loading={staffLoading}
+                  error={staffLoadingError}
+                  errorWhat="the staff list"
+                  onRetry={() => refetch_staffLoading()}
                   emptyTitle="No staff assigned"
                   emptyDescription="No staff members assigned to this branch"
                 />
@@ -432,6 +450,9 @@ export default function BranchDetailPage() {
                   columns={paymentColumns}
                   data={(paymentsData?.data?.payments ?? []) as Payment[]}
                   loading={paymentsLoading}
+                  error={paymentsLoadingError}
+                  errorWhat="the payments"
+                  onRetry={() => refetch_paymentsLoading()}
                   emptyTitle="No payments"
                   emptyDescription="No payments found for this branch"
                 />
@@ -533,6 +554,9 @@ export default function BranchDetailPage() {
                   columns={attendanceColumns}
                   data={(attendanceData?.data?.logs ?? []) as AttendanceLog[]}
                   loading={attendanceLoading}
+                  error={attendanceLoadingError}
+                  errorWhat="the attendance records"
+                  onRetry={() => refetch_attendanceLoading()}
                   emptyTitle="No attendance records"
                   emptyDescription="No check-ins recorded for this branch"
                 />

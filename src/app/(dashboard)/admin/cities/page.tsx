@@ -9,6 +9,7 @@ import { Plus, ChevronDown, ChevronRight, MapPin, Edit, Trash2 } from 'lucide-re
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { FileUpload } from '@/components/features/file-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,7 +46,7 @@ function CityRow({ city }: { city: City }) {
   const [cityImageFile, setCityImageFile] = useState<File | null>(null)
   const [areaImageFile, setAreaImageFile] = useState<File | null>(null)
 
-  const { data: areasData, isLoading: areasLoading } = useQuery({
+  const { data: areasData, isLoading: areasLoading, error: areasError, refetch: refetchAreas } = useQuery({
     queryKey: ['areas', city.id],
     queryFn: () => citiesApi.getAreas(city.id),
     enabled: expanded,
@@ -188,6 +189,8 @@ function CityRow({ city }: { city: City }) {
             <div className="space-y-2">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 rounded" />)}
             </div>
+          ) : areasError ? (
+            <ErrorState error={areasError} what="the areas" onRetry={() => refetchAreas()} compact />
           ) : areasData?.data?.areas?.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No areas yet. Add the first area.</p>
           ) : (
@@ -309,7 +312,7 @@ export default function CitiesPage() {
   const [addCityOpen, setAddCityOpen] = useState(false)
   const [cityImageFile, setCityImageFile] = useState<File | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: citiesError, refetch: refetchCities } = useQuery({
     queryKey: ['cities'],
     queryFn: () => citiesApi.getCities(),
   })
@@ -355,6 +358,8 @@ export default function CitiesPage() {
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
           </div>
+        ) : citiesError ? (
+          <ErrorState error={citiesError} what="the cities" onRetry={() => refetchCities()} />
         ) : cities.length === 0 ? (
           <EmptyState
             icon={MapPin}

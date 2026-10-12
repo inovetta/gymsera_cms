@@ -9,6 +9,7 @@ import { Plus, CreditCard, MoreHorizontal } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -119,7 +120,7 @@ export default function BillingPlansPage() {
   const [editPlan, setEditPlan] = useState<BillingPlan | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['billing-plans'],
     queryFn: () => billingPlansApi.getPlans(),
   })
@@ -217,6 +218,8 @@ export default function BillingPlansPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-72 rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <ErrorState error={loadError} what="the billing plans" onRetry={() => refetch()} />
         ) : plans.length === 0 ? (
           <EmptyState
             icon={CreditCard}
