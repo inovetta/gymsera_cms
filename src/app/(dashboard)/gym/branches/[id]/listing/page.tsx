@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, FileText, Tag } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, FileText, ImageIcon, Tag } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { NoAccess } from '@/components/features/no-access'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SectionCard } from '@/components/features/listing/section-card'
 import { BasicInfoSection } from '@/components/features/listing/basic-info-section'
 import { CategoryTagsSection } from '@/components/features/listing/category-tags-section'
+import { PhotosSection } from '@/components/features/listing/photos-section'
 import { BoostCard } from '@/components/features/listing/boost-card'
 import { listingContentKey } from '@/components/features/listing/use-listing-save'
 import { hostApi } from '@/lib/api/host'
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast'
 import { listingAccess } from '@/lib/listing/access'
 import { asStringList, splitCategories } from '@/lib/listing/content'
 
-type SectionId = 'basic' | 'category'
+type SectionId = 'photos' | 'basic' | 'category'
 
 /**
  * The branch listing editor (UX-21): the same sections as the mobile listing_editor_hub_screen.dart,
@@ -82,6 +83,7 @@ export default function ListingEditorPage() {
   const deactivated = branch?.travelerVisibilityStatus?.toLowerCase() === 'deactivated'
   const categories = splitCategories(branch?.category)
   const tags = asStringList(branch?.tagsJson)
+  const photoCount = asStringList(branch?.imagesJson).length
 
   return (
     <>
@@ -124,6 +126,18 @@ export default function ListingEditorPage() {
                 </AlertDescription>
               </Alert>
             )}
+
+            <SectionCard
+              id="photos"
+              title="Photos"
+              icon={ImageIcon}
+              summary={`${photoCount} ${photoCount === 1 ? 'photo' : 'photos'}`}
+              open={open === 'photos'}
+              onToggle={() => toggle('photos')}
+              canEdit={access.manage}
+            >
+              <PhotosSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
+            </SectionCard>
 
             <SectionCard
               id="basic"

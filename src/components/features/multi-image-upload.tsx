@@ -66,7 +66,8 @@ export function MultiImageUpload({
               <button
                 type="button"
                 onClick={() => onRemoveExisting(url)}
-                className="absolute top-1.5 right-1.5 h-7 w-7 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                aria-label="Remove image"
+                className="absolute top-1.5 right-1.5 h-7 w-7 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shadow-md"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
