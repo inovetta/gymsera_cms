@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, MapPin, Phone, Clock, Users, ImageIcon,
   CreditCard, BarChart3, CheckCircle, XCircle, Inbox, ShieldCheck,
-  TrendingUp, DollarSign, CalendarCheck, UserCheck,
+  TrendingUp, DollarSign, CalendarCheck, UserCheck, Pencil,
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { StatusBadge } from '@/components/features/status-badge'
@@ -77,6 +77,7 @@ export default function BranchDetailPage() {
   // payments.record to collect or reject and payments.verify to approve), not the account role.
   const canRecord = holdsAtBranch(organization, branchId, 'payments.record')
   const canVerify = holdsAtBranch(organization, branchId, 'payments.verify')
+  const canEditListing = holdsAtBranch(organization, branchId, 'listing.manage')
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
 
@@ -306,6 +307,12 @@ export default function BranchDetailPage() {
                 <h2 className="text-2xl font-bold">{branch?.branchName}</h2>
                 {branch && <StatusBadge status={branch.status} />}
               </div>
+              {canEditListing && (
+                <Button variant="outline" onClick={() => router.push(`/gym/branches/${branchId}/listing`)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit listing
+                </Button>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-3 text-sm text-muted-foreground">
               {branch?.address && (
