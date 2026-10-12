@@ -6,6 +6,8 @@ import ListingEditorPage from '@/app/(dashboard)/gym/branches/[id]/listing/page'
 import { hostApi, type BranchListingContent } from '@/lib/api/host'
 import { meApi, type MyContext } from '@/lib/api/me'
 import { tenantsApi } from '@/lib/api/tenants'
+import { plansApi } from '@/lib/api/plans'
+import type { MembershipPlan } from '@/types'
 import { ok } from './team'
 import { ownerContext } from './context'
 
@@ -38,6 +40,12 @@ export const branchFixture: BranchListingContent = {
   travelerVisibilityStatus: 'active',
 }
 
+export const planFixture = (over: Partial<MembershipPlan> = {}): MembershipPlan =>
+  ({
+    id: 'plan-1', gymId: 'gym-1', branchId: 'branch-1', name: 'Monthly', durationType: 'MONTHLY', durationValue: 1,
+    price: 5000, joiningFee: 0, securityFee: 0, freezeLimitDays: 0, isTrial: false, status: 'ACTIVE', ...over,
+  }) as MembershipPlan
+
 export const httpError = (status: number, data: Record<string, unknown>) =>
   Object.assign(new Error(`Request failed with status code ${status}`), { response: { status, data } })
 
@@ -57,15 +65,20 @@ export const contextWith = (keys: string[]): MyContext => ({
   })),
 })
 
-export function renderEditor(context: MyContext = ownerContext, branch: BranchListingContent = branchFixture) {
+export function renderEditor(
+  context: MyContext = ownerContext,
+  branch: BranchListingContent = branchFixture,
+  plans: MembershipPlan[] = [planFixture()]
+) {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
   vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
   const get = vi.spyOn(hostApi, 'getBranchListingContent').mockResolvedValue(ok({ branch }) as never)
+  const getPlans = vi.spyOn(plansApi, 'getHostPlans').mockResolvedValue(ok({ plans }) as never)
   const patch = vi.spyOn(hostApi, 'updateBranchListingContent').mockResolvedValue(patchResponse(200))
   const view = render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ListingEditorPage />
     </QueryClientProvider>
   )
-  return { ...view, get, patch }
+  return { ...view, get, patch, getPlans }
 }

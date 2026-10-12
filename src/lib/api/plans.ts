@@ -20,8 +20,9 @@ export interface UpdatePlanPayload extends Partial<CreatePlanPayload> {
 }
 
 export const plansApi = {
-  getHostPlans: async (): Promise<ApiResponse<{ plans: MembershipPlan[] }>> => {
-    const { data } = await apiClient.get('/membership-plans/host')
+  /** With `branchId`: that branch's plans plus the gym-wide ones (what the mobile listing editor shows). */
+  getHostPlans: async (branchId?: string): Promise<ApiResponse<{ plans: MembershipPlan[] }>> => {
+    const { data } = await apiClient.get('/membership-plans/host', { params: branchId ? { branchId } : undefined })
     return data
   },
 

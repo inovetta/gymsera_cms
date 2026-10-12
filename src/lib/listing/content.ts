@@ -84,7 +84,11 @@ export interface ListingQuality {
   advice: string
 }
 
-/** The mobile "Listing Quality" card: six equally weighted parts. */
+/**
+ * The mobile "Listing Quality" card: equally weighted parts. `planCount` is the number of live
+ * (not INACTIVE) packages, or null when the person may not see packages: that part is then left
+ * out instead of counted as missing.
+ */
 export function listingQuality(branch: BranchListingContent, planCount: number | null): ListingQuality {
   const photos = asStringList(branch.imagesJson).length
   const amenities = asStringList(branch.facilitiesJson).length
@@ -93,9 +97,9 @@ export function listingQuality(branch: BranchListingContent, planCount: number |
     !!branch.branchName?.trim(),
     amenities > 0,
     !!branch.openingTime && !!branch.closingTime,
-    (planCount ?? 0) > 0,
     !!(branch.address && branch.address.trim()),
   ]
+  if (planCount !== null) parts.push(planCount > 0)
   const percent = Math.floor((parts.filter(Boolean).length / parts.length) * 100)
   let advice = 'Great job! Your listing is highly detailed and traveler-friendly.'
   if (photos === 0) advice = 'Add branch photos to boost listing quality.'

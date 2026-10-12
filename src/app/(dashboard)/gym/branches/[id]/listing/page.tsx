@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, Clock, FileText, ImageIcon, MapPin, Sparkles, Tag } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock, CreditCard, FileText, ImageIcon, MapPin, Sparkles, Tag } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { NoAccess } from '@/components/features/no-access'
 import { Button } from '@/components/ui/button'
@@ -16,16 +16,20 @@ import { PhotosSection } from '@/components/features/listing/photos-section'
 import { AmenitiesSection } from '@/components/features/listing/amenities-section'
 import { HoursSection } from '@/components/features/listing/hours-section'
 import { LocationSection } from '@/components/features/listing/location-section'
+import { PackagesSection } from '@/components/features/listing/packages-section'
 import { BoostCard } from '@/components/features/listing/boost-card'
 import { listingContentKey } from '@/components/features/listing/use-listing-save'
 import { hostApi } from '@/lib/api/host'
+import { plansApi } from '@/lib/api/plans'
+import { Progress } from '@/components/ui/progress'
+import { Card } from '@/components/ui/card'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { useToast } from '@/hooks/use-toast'
 import { listingAccess } from '@/lib/listing/access'
-import { asStringList, splitCategories, toHourMinute } from '@/lib/listing/content'
+import { asStringList, listingQuality, splitCategories, toHourMinute } from '@/lib/listing/content'
 
-type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours' | 'location'
+type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours' | 'location' | 'packages'
 
 /**
  * The branch listing editor (UX-21): the same sections as the mobile listing_editor_hub_screen.dart,
@@ -48,6 +52,14 @@ export default function ListingEditorPage() {
     enabled: access.manage,
   })
   const branch = contentQuery.data?.data?.branch
+
+  const plansQuery = useQuery({
+    queryKey: ['listing-plans', branchId],
+    queryFn: () => plansApi.getHostPlans(branchId),
+    enabled: access.manage && access.plans,
+  })
+  const plans = plansQuery.data?.data?.plans
+  const livePlanCount = plans ? plans.filter((p) => p.status !== 'INACTIVE').length : null
 
   const resubmit = useMutation({
     mutationFn: () => hostApi.resubmitBranchReview(branchId),
@@ -90,6 +102,7 @@ export default function ListingEditorPage() {
   const amenityCount = asStringList(branch?.facilitiesJson).length
   const opens = toHourMinute(branch?.openingTime)
   const closes = toHourMinute(branch?.closingTime)
+  const quality = branch ? listingQuality(branch, access.plans ? livePlanCount : null) : { percent: 0, advice: '' }
   const hoursSummary = opens && closes ? `${opens} – ${closes}` : 'Not set'
 
   return (
@@ -206,7 +219,38 @@ export default function ListingEditorPage() {
               <LocationSection branchId={branchId} branch={branch} access={access} onClose={() => setOpen(null)} />
             </SectionCard>
 
+            {access.plans && (
+              <SectionCard
+                id="packages"
+                title="Packages & Pricing"
+                icon={CreditCard}
+                summary={
+                  plansQuery.isError
+                    ? 'Could not load'
+                    : livePlanCount === null
+                      ? 'Loading…'
+                      : `${livePlanCount} ${livePlanCount === 1 ? 'package' : 'packages'}`
+                }
+                open={open === 'packages'}
+                onToggle={() => toggle('packages')}
+                canEdit
+              >
+                <PackagesSection plans={plans} loading={plansQuery.isLoading} error={plansQuery.error} canManage={access.plansWrite} />
+              </SectionCard>
+            )}
+
             <BoostCard />
+
+            {!(access.plans && plansQuery.isLoading) && (
+            <Card className="p-4" data-testid="listing-quality">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Listing quality</h3>
+                <span className="text-xs font-semibold" data-testid="quality-percent">{quality.percent}%</span>
+              </div>
+              <Progress value={quality.percent} aria-label="Listing quality" />
+              <p className="mt-2 text-xs text-muted-foreground">{quality.advice}</p>
+            </Card>
+            )}
           </>
         )}
       </div>
