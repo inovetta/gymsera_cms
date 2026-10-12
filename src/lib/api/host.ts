@@ -95,6 +95,65 @@ export interface BranchMemberLookup {
   subscriptions?: LookupSubscription[]
 }
 
+/**
+ * One branch's storefront as GET /host/branches/:branchId/listing-content returns it
+ * (gymsera_be gyms.controller.js getBranchListingContent → `{ branch }`). The JSON columns can
+ * arrive as arrays or as JSON strings; read them with `asStringList` (lib/listing/content.ts).
+ */
+export interface BranchListingContent {
+  id: string
+  branchName: string
+  status: string
+  gymListingId?: string | null
+  tagline?: string | null
+  category?: string | null
+  description?: string | null
+  establishedYear?: number | null
+  floorArea?: number | null
+  tagsJson?: unknown
+  facilitiesJson?: unknown
+  imagesJson?: unknown
+  openingTime?: string | null
+  closingTime?: string | null
+  address?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  postalCode?: string | null
+  country?: string | null
+  cityId?: number | null
+  areaId?: number | null
+  latitude?: number | string | null
+  longitude?: number | string | null
+  phone?: string | null
+  travelerVisibilityStatus?: string | null
+  deactivationReason?: string | null
+}
+
+/** The fields PATCH /host/branches/:branchId/listing-content accepts (gyms.controller.js:409). No `status`. */
+export type UpdateListingContentPayload = Partial<{
+  branchName: string
+  tagline: string
+  category: string
+  description: string
+  establishedYear: number
+  floorArea: number
+  tagsJson: string[]
+  facilitiesJson: string[]
+  imagesJson: string[]
+  openingTime: string
+  closingTime: string
+  address: string
+  addressLine1: string
+  addressLine2: string
+  postalCode: string
+  country: string
+  cityId: number
+  areaId: number
+  phone: string
+  latitude: number
+  longitude: number
+}>
+
 export const hostApi = {
   getBranchQuota: async (organizationId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
@@ -203,6 +262,27 @@ export const hostApi = {
     email: string
   ): Promise<ApiResponse<BranchMemberLookup>> => {
     const { data } = await apiClient.get(`/host/branches/${branchId}/members/lookup`, { params: { email } })
+    return data
+  },
+
+  /** GET /host/branches/:branchId/listing-content — every storefront field of one branch. */
+  getBranchListingContent: async (branchId: string): Promise<ApiResponse<{ branch: BranchListingContent }>> => {
+    const { data } = await apiClient.get(`/host/branches/${branchId}/listing-content`)
+    return data
+  },
+
+  /**
+   * PATCH /host/branches/:branchId/listing-content, the call the mobile listing editor makes for
+   * every section. The whole response is returned: a 202 means the change was sent for approval
+   * and nothing was saved, so read it with `readApprovalOutcome`.
+   */
+  updateBranchListingContent: async (branchId: string, payload: UpdateListingContentPayload) => {
+    return apiClient.patch(`/host/branches/${branchId}/listing-content`, payload)
+  },
+
+  /** PATCH /host/branches/:branchId/resubmit-visibility — ask for review again after a deactivation. */
+  resubmitBranchReview: async (branchId: string): Promise<ApiResponse<{ branch: BranchListingContent }>> => {
+    const { data } = await apiClient.patch(`/host/branches/${branchId}/resubmit-visibility`)
     return data
   },
 }
