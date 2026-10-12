@@ -76,7 +76,7 @@ export function PhotosSection({ branchId, branch, access }: SectionEditorProps) 
       ) : (
         <>
           <p className="text-sm text-muted-foreground" data-testid="photos-readonly">
-            Adding photos needs the "Edit branch settings" permission. Ask the owner if you need it.
+            Adding photos needs the &ldquo;Edit branch settings&rdquo; permission. Ask the owner if you need it.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {photos.map((url) => (
