@@ -17,7 +17,7 @@ export const json = (route: Route, data: unknown, status = 200, extra: Record<st
 export const fail = (route: Route, status: number, body: Record<string, unknown>) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ success: false, ...body }) });
 
-export async function signIn(page: Page, role: 'GYM_HOST' | 'MEMBER' = 'GYM_HOST') {
+export async function signIn(page: Page, role: 'GYM_HOST' | 'MEMBER' | 'PLATFORM_ADMIN' = 'GYM_HOST') {
   await page.context().addCookies([{ name: 'gymsera_session', value: '1', url: 'http://localhost:3001' }]);
   await page.addInitScript((accountRole) => {
     localStorage.setItem('gymsera_access_token', 'e2e-placeholder');

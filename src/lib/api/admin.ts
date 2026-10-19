@@ -271,9 +271,45 @@ export interface UpdateTenantBranchPayload {
   status?: 'ACTIVE' | 'INACTIVE'
 }
 
+// OBS-05: GET /admin/billing-events, the webhook / store notification inbox. The server never returns
+// the raw provider payload, and neither does this type.
+export type BillingEventStatus = 'RECEIVED' | 'PROCESSED' | 'IGNORED' | 'FAILED'
+export type BillingEventProvider = 'APPLE' | 'GOOGLE' | 'STRIPE'
+
+export interface BillingEvent {
+  id: string
+  provider: BillingEventProvider
+  providerEventId: string
+  eventType: string | null
+  status: BillingEventStatus
+  attempts: number
+  /** Already redacted by the server. For an IGNORED event it is the reason. */
+  lastError: string | null
+  tenantId: string | null
+  tenantName: string | null
+  receivedAt: string
+  processedAt: string | null
+  /** RECEIVED for over 10 minutes, or FAILED at 5 attempts or more: the cases that raise a platform alert. */
+  stuck: boolean
+}
+
+export interface GetBillingEventsParams {
+  /** A tenant id, or 'none' for events not matched to any tenant. */
+  tenantId?: string
+  status?: BillingEventStatus
+  provider?: BillingEventProvider
+  page?: number
+  limit?: number
+}
+
 export const adminApi = {
   createTenant: async (payload: CreateTenantPayload): Promise<ApiResponse<{ tenant: Tenant }>> => {
     const { data } = await apiClient.post('/admin/tenants', payload)
+    return data
+  },
+
+  getBillingEvents: async (params?: GetBillingEventsParams): Promise<ApiResponse<BillingEvent[]>> => {
+    const { data } = await apiClient.get('/admin/billing-events', { params })
     return data
   },
 
