@@ -59,6 +59,9 @@ export function getStatusColor(status?: string | null): string {
     REJECTED: 'destructive',
     SUSPENDED: 'destructive',
     FAILED: 'destructive',
+    RECEIVED: 'warning',
+    PROCESSED: 'success',
+    IGNORED: 'secondary',
     OVERDUE: 'destructive',
   }
   return map[status] || 'secondary'

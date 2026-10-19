@@ -26,6 +26,10 @@ const statusLabels: Record<string, string> = {
   FAILED: 'Failed',
   OVERDUE: 'Overdue',
   REFUNDED: 'Refunded',
+  // billing events (OBS-05)
+  RECEIVED: 'Waiting',
+  PROCESSED: 'Processed',
+  IGNORED: 'Ignored',
 }
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'

@@ -39,7 +39,11 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void
   skeletonRows?: number
   onRowClick?: (row: T) => void
+  /** Extra attributes for a row, e.g. `data-*` markers or a highlight class. */
+  rowAttrs?: (row: T) => RowAttrs
 }
+
+type RowAttrs = { className?: string } & { [K in `data-${string}`]?: string }
 
 export function DataTable<T extends { id: string }>({
   columns,
@@ -56,6 +60,7 @@ export function DataTable<T extends { id: string }>({
   onPageChange,
   skeletonRows = 5,
   onRowClick,
+  rowAttrs,
 }: DataTableProps<T>) {
   if (loading) {
     return (
@@ -120,11 +125,15 @@ export function DataTable<T extends { id: string }>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row) => (
+            {data.map((row) => {
+              const { className: extraClass, ...attrs } = rowAttrs?.(row) ?? {}
+              const rowClass = [onRowClick ? 'cursor-pointer' : '', extraClass ?? ''].filter(Boolean).join(' ') || undefined
+              return (
               <TableRow
                 key={row.id}
                 onClick={() => onRowClick?.(row)}
-                className={onRowClick ? 'cursor-pointer' : undefined}
+                className={rowClass}
+                {...attrs}
               >
                 {columns.map((col) => (
                   <TableCell key={col.key} className={col.className}>
@@ -132,7 +141,8 @@ export function DataTable<T extends { id: string }>({
                   </TableCell>
                 ))}
               </TableRow>
-            ))}
+              )
+            })}
           </TableBody>
         </Table>
       </div>

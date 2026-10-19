@@ -35,6 +35,7 @@ import {
   ClipboardCheck,
   Wallet,
   Landmark,
+  Webhook,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
@@ -111,6 +112,7 @@ const navSections: NavSection[] = [
       { title: 'Cities', href: '/admin/cities', icon: MapPin },
       { title: 'Packages', href: '/admin/packages', icon: Package },
       { title: 'Billing Plans', href: '/admin/billing-plans', icon: CreditCard },
+      { title: 'Billing Events', href: '/admin/billing-events', icon: Webhook },
       { title: 'Analytics', href: '/admin/reports', icon: TrendingUp },
     ],
   },
