@@ -145,6 +145,8 @@ export interface TenantMember {
     fullName: string
     email: string
     phone: string | null
+    /** True while email and phone are masked (SEC-17); the full values come from revealTenantMemberContact. */
+    contactMasked?: boolean
     status: string
     profileImageUrl: string | null
   }
@@ -372,6 +374,16 @@ export const adminApi = {
 
   getTenantMembers: async (id: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<{ members: TenantMember[] }>> => {
     const { data } = await apiClient.get(`/admin/tenants/${id}/members`, { params })
+    return data
+  },
+
+  /** Full e-mail and phone of one member (SEC-17). Platform admins only; the server writes an audit row for every call. */
+  revealTenantMemberContact: async (
+    id: string,
+    userId: string,
+    reason?: string
+  ): Promise<ApiResponse<{ userId: string; email: string; phone: string | null }>> => {
+    const { data } = await apiClient.post(`/admin/tenants/${id}/members/${userId}/reveal`, reason ? { reason } : {})
     return data
   },
 
