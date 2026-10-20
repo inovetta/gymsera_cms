@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider } from './auth-provider'
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children, nonce }: { children: React.ReactNode; nonce?: string }) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: { staleTime: 30 * 1000, retry: 1 },
@@ -14,7 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem nonce={nonce}>
         <AuthProvider>
           {children}
           <Toaster />
