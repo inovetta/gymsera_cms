@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   CheckCircle, Layers, Clock, CreditCard, Copy, Check, AlertCircle,
   Store, Smartphone, Building2, Info,
@@ -13,12 +13,10 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/features/error-state'
 import { httpStatus } from '@/lib/api/request-errors'
-import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { tenantsApi } from '@/lib/api/tenants'
 import { hostBillingApi, CatalogPlan } from '@/lib/api/host-billing'
-import { useToast } from '@/hooks/use-toast'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
-import { PlatformPackage, TenantSubscription } from '@/types'
+import { TenantSubscription } from '@/types'
 
 const BANK_DETAILS = {
   'Bank Name': 'Meezan Bank',
@@ -44,10 +42,6 @@ const STATUS_LABEL: Record<TenantSubscription['status'], string> = {
 }
 
 export default function BillingPage() {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-  const [selectedPkg, setSelectedPkg] = useState<PlatformPackage | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const { data: tenantData, isLoading: tenantLoading } = useQuery({
@@ -75,13 +69,6 @@ export default function BillingPage() {
     queryFn: () => hostBillingApi.getCatalog(),
   })
 
-  // Only relevant for the manual/invoice path below — never shown once a
-  // real (store-verified) subscription exists.
-  const { data: packagesData, isLoading: packagesLoading } = useQuery({
-    queryKey: ['platform-packages'],
-    queryFn: () => tenantsApi.getPackages(),
-  })
-
   // 404 is the normal "no plan yet" answer (R-21). Any other failure is a failed load, never "no plan".
   const noActiveSub = !!subError && httpStatus(subError) === 404
   const subLoadFailed = !!subError && !noActiveSub
@@ -95,7 +82,6 @@ export default function BillingPage() {
     : (rawCatalog && typeof rawCatalog === 'object' && 'plans' in rawCatalog && Array.isArray((rawCatalog as { plans: unknown }).plans)
       ? (rawCatalog as { plans: CatalogPlan[] }).plans
       : [])
-  const packages = Array.isArray(packagesData?.data) ? packagesData.data : []
 
   // host.controller.js#upgradeSubscription's own guard, mirrored here: the
   // manual/invoice path only ever applies while there's no real,
@@ -111,32 +97,7 @@ export default function BillingPage() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  const mutation = useMutation({
-    mutationFn: (pkg: PlatformPackage) => hostBillingApi.requestManualPlan(pkg.id),
-    onSuccess: (_, pkg) => {
-      queryClient.invalidateQueries({ queryKey: ['host-subscription-current'] })
-      queryClient.invalidateQueries({ queryKey: ['host-branch-quota'] })
-      queryClient.invalidateQueries({ queryKey: ['my-tenant'] })
-      setConfirmOpen(false)
-      setSelectedPkg(null)
-      toast({ title: `Switched to ${pkg.name} plan` })
-    },
-    onError: (err: unknown) => {
-      const axiosError = err as { response?: { data?: { message?: string } } }
-      toast({
-        title: 'Error',
-        description: axiosError.response?.data?.message || 'Failed to update package',
-        variant: 'destructive',
-      })
-    },
-  })
-
-  const handleSelect = (pkg: PlatformPackage) => {
-    setSelectedPkg(pkg)
-    setConfirmOpen(true)
-  }
-
-  const isLoading = tenantLoading || subLoading || packagesLoading
+  const isLoading = tenantLoading || subLoading
 
   if (isLoading) {
     return (
@@ -316,10 +277,10 @@ export default function BillingPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Request a Manual Plan</h2>
+                <h2 className="text-base font-semibold">Pay by bank transfer</h2>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                For tenants billed by invoice or bank transfer instead of a store purchase — not the self-serve catalog above.
+                For tenants billed by invoice or bank transfer instead of a store purchase. GymsEra support activates the plan after the payment is confirmed; a plan cannot be requested from this page.
               </p>
 
               <Card className="mb-4">
@@ -328,7 +289,7 @@ export default function BillingPage() {
                     <CreditCard className="h-4 w-4 text-primary" />
                     Bank Transfer Details
                   </CardTitle>
-                  <CardDescription>Send payment, then select a plan below</CardDescription>
+                  <CardDescription>Send payment, then email the proof</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <div className="bg-muted p-3 rounded-lg space-y-2 font-mono text-xs">
@@ -350,50 +311,10 @@ export default function BillingPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {packagesLoading ? (
-                <div className="grid gap-4 md:grid-cols-3">
-                  {[1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-lg" />)}
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-3">
-                  {packages.map((pkg) => (
-                    <Card key={pkg.id}>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">{pkg.name}</CardTitle>
-                        <CardDescription>{pkg.description}</CardDescription>
-                        <div className="pt-1">
-                          <span className="text-2xl font-bold">{formatCurrency(pkg.price)}</span>
-                          <span className="text-muted-foreground text-sm ml-1">/ {pkg.billingCycle?.toLowerCase()}</span>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Up to {pkg.maxBranches} {pkg.maxBranches === 1 ? 'branch' : 'branches'}
-                        </p>
-                        <Button className="w-full" onClick={() => handleSelect(pkg)}>
-                          Request this plan
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
             </div>
           </>
         )}
       </div>
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Request Manual Plan"
-        description={`Request "${selectedPkg?.name}"? Your existing subscription (if any) will be replaced and this takes effect immediately, pending payment confirmation.`}
-        confirmLabel="Confirm Request"
-        variant="default"
-        onConfirm={() => selectedPkg && mutation.mutate(selectedPkg)}
-        loading={mutation.isPending}
-      />
     </>
   )
 }
