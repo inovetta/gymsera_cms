@@ -19,7 +19,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { billingPlansApi } from '@/lib/api/billing-plans'
-import { BillingPlan, ProviderSyncStatus } from '@/types'
+import { BillingPlan, PriceVerificationStatus, ProviderSyncStatus } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,23 @@ function SyncStatusBadge({ label, status }: { label: string; status: ProviderSyn
   return (
     <Badge variant="outline" className={cn('text-xs font-normal', SYNC_COLOR[status])}>
       {label}: {status.replace('_', ' ').toLowerCase()}
+    </Badge>
+  )
+}
+
+const PRICE_CHECK_STYLE: Record<PriceVerificationStatus, { text: string; className: string; help: string }> = {
+  VERIFIED: { text: 'verified', className: 'text-success border-success/30 bg-success/10', help: 'The store holds this price (checked by the daily read-only check).' },
+  MISMATCH: { text: 'mismatch', className: 'text-destructive border-destructive/30 bg-destructive/10', help: 'The store does not hold this price. See the runbook (billing-prices).' },
+  ADMIN_ATTESTED: { text: 'admin-attested', className: 'text-muted-foreground border-border bg-muted', help: 'Nobody has checked this price against the store; it is as the admin entered it.' },
+}
+
+/** BILL-15: whether the store's price has been checked. Never changes anything; it only reports. */
+function PriceCheckBadge({ label, status, checkedAt }: { label: string; status: PriceVerificationStatus; checkedAt?: string | null }) {
+  const style = PRICE_CHECK_STYLE[status]
+  const title = checkedAt ? `${style.help} Last checked ${formatDate(checkedAt)}.` : style.help
+  return (
+    <Badge variant="outline" title={title} data-testid={`price-check-${label.toLowerCase()}`} className={cn('text-xs font-normal', style.className)}>
+      {label} prices: {style.text}
     </Badge>
   )
 }
@@ -100,6 +117,10 @@ function BillingPlanCard({
           <SyncStatusBadge label="iOS" status={plan.iosSyncStatus} />
           <SyncStatusBadge label="Android" status={plan.androidSyncStatus} />
           <SyncStatusBadge label="Stripe" status={plan.stripeSyncStatus} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <PriceCheckBadge label="Android" status={plan.priceVerification?.android.status ?? 'ADMIN_ATTESTED'} checkedAt={plan.priceVerification?.android.checkedAt} />
+          <PriceCheckBadge label="iOS" status={plan.priceVerification?.ios.status ?? 'ADMIN_ATTESTED'} checkedAt={plan.priceVerification?.ios.checkedAt} />
         </div>
 
         <div className="space-y-1.5 text-xs text-muted-foreground">
