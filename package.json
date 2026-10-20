@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:security": "npm run build && playwright test -c playwright.security.config.ts",
     "tokens": "node scripts/generate-tokens.mjs"
   },
   "dependencies": {

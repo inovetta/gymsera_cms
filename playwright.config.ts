@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Runs against the production build with its own config (SEC-14): npm run test:e2e:security
+  testIgnore: /security-headers\.spec\.ts/,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
