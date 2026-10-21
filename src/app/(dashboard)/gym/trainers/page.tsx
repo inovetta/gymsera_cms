@@ -140,11 +140,11 @@ export default function TrainersPage() {
   })
 
   // Access is never created here: the trainer profile links to the person's team record.
-  const { organization, isTenantOwner } = useGymAccess()
-  // The API: GET needs team.view; POST /trainers is the owner's (authorize('GYM_HOST')); PATCH is for
-  // GYM_HOST / BRANCH_MANAGER. The sidebar shows the page to schedule.trainer.assign holders.
+  const { organization } = useGymAccess()
+  // The API (NEW-98 to NEW-100): GET needs team.view; add, assign and edit need schedule.trainer.assign
+  // at the trainer's branch. The server checks the branch; the page only needs the key somewhere.
   const canManage = holdsPermission(organization, 'schedule.trainer.assign', 'branch')
-  const canAdd = isTenantOwner
+  const canAdd = canManage
 
   const { data: teamData } = useQuery({
     queryKey: ['team', { includeRevoked: false }],
@@ -244,7 +244,7 @@ export default function TrainersPage() {
           <EmptyState
             icon={Dumbbell}
             title="No trainers yet"
-            description={canAdd ? 'Add trainers to your gym staff' : 'The owner adds trainers'}
+            description={canAdd ? 'Add trainers to your gym staff' : 'People with trainer access add trainers'}
             action={canAdd ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Trainer</Button> : undefined}
           />
         ) : (

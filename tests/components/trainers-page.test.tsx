@@ -58,7 +58,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-describe('CMS Trainers page: permission gates match what /trainers allows', () => {
+describe('CMS Trainers page: add, edit and status all follow schedule.trainer.assign', () => {
   it('the owner can add a trainer, picking a person from the team (the API wants a user id)', async () => {
     accountRole = 'GYM_HOST'
     show(ownerContext)
@@ -71,10 +71,10 @@ describe('CMS Trainers page: permission gates match what /trainers allows', () =
     expect(createTrainer.mock.calls[0][0]).not.toHaveProperty('email')
   })
 
-  it('a branch manager (account role MEMBER) sees the list but not "Add Trainer": POST /trainers is owner-only', async () => {
+  it('a branch manager can add a trainer: POST /trainers needs schedule.trainer.assign (NEW-99), not ownership', async () => {
     show(branchManagerContext)
     await screen.findByText('Yoga')
-    expect(screen.queryByRole('button', { name: /add trainer/i })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /add trainer/i }).length).toBeGreaterThan(0)
   })
 
   it('a branch manager can deactivate: PATCH /trainers/:id { status: INACTIVE }', async () => {
