@@ -42,7 +42,7 @@ export const plansApi = {
   },
 
   togglePlanStatus: async (id: string): Promise<ApiResponse<{ plan: MembershipPlan }>> => {
-    const { data } = await apiClient.patch(`/membership-plans/${id}/toggle-status`)
+    const { data } = await apiClient.post(`/membership-plans/${id}/status`)
     return data
   },
 

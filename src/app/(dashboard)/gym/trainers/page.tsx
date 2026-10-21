@@ -24,12 +24,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { trainersApi } from '@/lib/api/trainers'
 import { teamApi, TeamMember } from '@/lib/api/team'
 import { memberDisplayName } from '@/lib/team/access'
+import { useGymAccess } from '@/hooks/use-gym-access'
+import { holdsPermission } from '@/lib/access/menu'
 import { Trainer } from '@/types'
 import { getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
 const trainerSchema = z.object({
-  email: z.string().email('Valid email required'),
+  userId: z.string().min(1, 'Choose a team member'),
   specialization: z.string().min(2, 'Specialization required'),
   bio: z.string().optional(),
   yearsExperience: z.coerce.number().min(0),
@@ -37,12 +39,14 @@ const trainerSchema = z.object({
 
 type TrainerForm = z.infer<typeof trainerSchema>
 
-function TrainerCard({ trainer, teamRecord, teamLoaded, onEdit, onToggle }: {
+function TrainerCard({ trainer, teamRecord, teamLoaded, canManage, onEdit, onToggle }: {
   trainer: Trainer
   /** The person's Team & access record, matched by user id. */
   teamRecord?: TeamMember
   /** False when the team list could not be read; then nothing is claimed about access. */
   teamLoaded: boolean
+  /** schedule.trainer.assign: edit and (de)activate. Without it the card is read-only. */
+  canManage: boolean
   onEdit: (t: Trainer) => void
   onToggle: (t: Trainer) => void
 }) {
@@ -64,7 +68,7 @@ function TrainerCard({ trainer, teamRecord, teamLoaded, onEdit, onToggle }: {
               <p className="text-sm text-muted-foreground">{trainer.user?.email ?? teamRecord?.email}</p>
             </div>
           </div>
-          <DropdownMenu>
+          {canManage && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm">
                 <MoreHorizontal className="h-4 w-4" />
@@ -76,7 +80,7 @@ function TrainerCard({ trainer, teamRecord, teamLoaded, onEdit, onToggle }: {
                 {trainer.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
 
         <div className="space-y-2">
@@ -136,6 +140,12 @@ export default function TrainersPage() {
   })
 
   // Access is never created here: the trainer profile links to the person's team record.
+  const { organization, isTenantOwner } = useGymAccess()
+  // The API: GET needs team.view; POST /trainers is the owner's (authorize('GYM_HOST')); PATCH is for
+  // GYM_HOST / BRANCH_MANAGER. The sidebar shows the page to schedule.trainer.assign holders.
+  const canManage = holdsPermission(organization, 'schedule.trainer.assign', 'branch')
+  const canAdd = isTenantOwner
+
   const { data: teamData } = useQuery({
     queryKey: ['team', { includeRevoked: false }],
     queryFn: () => teamApi.getTeam(),
@@ -148,7 +158,7 @@ export default function TrainersPage() {
 
   const form = useForm<TrainerForm>({
     resolver: zodResolver(trainerSchema),
-    defaultValues: { email: '', specialization: '', bio: '', yearsExperience: 0 },
+    defaultValues: { userId: '', specialization: '', bio: '', yearsExperience: 0 },
   })
 
   const createMutation = useMutation({
@@ -164,7 +174,11 @@ export default function TrainersPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<TrainerForm> }) =>
-      trainersApi.updateTrainer(id, payload),
+      trainersApi.updateTrainer(id, {
+        specialization: payload.specialization,
+        bio: payload.bio,
+        yearsExperience: payload.yearsExperience,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] })
       setDialogOpen(false)
@@ -174,7 +188,7 @@ export default function TrainersPage() {
   })
 
   const toggleMutation = useMutation({
-    mutationFn: (id: string) => trainersApi.toggleTrainerStatus(id),
+    mutationFn: (t: Trainer) => trainersApi.setTrainerStatus(t.id, t.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] })
       toast({ title: 'Trainer status updated' })
@@ -183,14 +197,14 @@ export default function TrainersPage() {
 
   const openCreate = () => {
     setEditTrainer(null)
-    form.reset({ email: '', specialization: '', bio: '', yearsExperience: 0 })
+    form.reset({ userId: '', specialization: '', bio: '', yearsExperience: 0 })
     setDialogOpen(true)
   }
 
   const openEdit = (trainer: Trainer) => {
     setEditTrainer(trainer)
     form.reset({
-      email: trainer.user?.email || '',
+      userId: trainer.userId,
       specialization: trainer.specialization,
       bio: trainer.bio || '',
       yearsExperience: trainer.yearsExperience,
@@ -207,6 +221,8 @@ export default function TrainersPage() {
   }
 
   const trainers = data?.data?.trainers ?? []
+  const trainerUserIds = new Set(trainers.filter((t) => t.status === 'ACTIVE').map((t) => t.userId))
+  const candidates = Array.from(teamByUserId.values()).filter((m) => m.userId && !trainerUserIds.has(m.userId))
 
   return (
     <>
@@ -215,7 +231,7 @@ export default function TrainersPage() {
         <PageHeader
           title="Trainers"
           description={`${trainers.length} trainer${trainers.length !== 1 ? 's' : ''}`}
-          action={<Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Trainer</Button>}
+          action={canAdd ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Trainer</Button> : undefined}
         />
 
         {isLoading ? (
@@ -228,8 +244,8 @@ export default function TrainersPage() {
           <EmptyState
             icon={Dumbbell}
             title="No trainers yet"
-            description="Add trainers to your gym staff"
-            action={<Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Trainer</Button>}
+            description={canAdd ? 'Add trainers to your gym staff' : 'The owner adds trainers'}
+            action={canAdd ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Trainer</Button> : undefined}
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -240,7 +256,8 @@ export default function TrainersPage() {
                 teamRecord={teamByUserId.get(trainer.userId)}
                 teamLoaded={!!teamData}
                 onEdit={openEdit}
-                onToggle={(t) => toggleMutation.mutate(t.id)}
+                canManage={canManage}
+                onToggle={(t) => toggleMutation.mutate(t)}
               />
             ))}
           </div>
@@ -264,11 +281,24 @@ export default function TrainersPage() {
               {!editTrainer && (
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="userId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Trainer Email *</FormLabel>
-                      <FormControl><Input type="email" placeholder="trainer@example.com" {...field} /></FormControl>
+                      <FormLabel htmlFor="trainer-member">Team member *</FormLabel>
+                      <FormControl>
+                        <select
+                          id="trainer-member"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          {...field}
+                        >
+                          <option value="">{candidates.length ? 'Choose a person' : 'No one left to add'}</option>
+                          {candidates.map((m) => (
+                            <option key={m.id} value={m.userId ?? ''}>
+                              {memberDisplayName(m)} ({m.role.name})
+                            </option>
+                          ))}
+                        </select>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
