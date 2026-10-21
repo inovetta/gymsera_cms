@@ -7,6 +7,9 @@ import { answerShell, apiPath, contextFor, json, signIn } from './support/api';
  */
 test.describe('Notifications', () => {
   test('bell: server unread count, mark read, mapped deep link', async ({ page }) => {
+    // The Next 15 dev server needs about 30 s to compile /gym/subscriptions on first visit (a production
+    // build answers in under a second), so this test gets more time than the 30 s default.
+    test.setTimeout(90_000);
     const reads: string[] = [];
     let unread = 3;
     await page.route('**/api/v1/**', async (route) => {
@@ -39,6 +42,6 @@ test.describe('Notifications', () => {
 
     await expect.poll(() => reads).toEqual(['n1']);
     // The dev server compiles the target page on first visit.
-    await expect(page).toHaveURL(/\/gym\/subscriptions/, { timeout: 30000 });
+    await expect(page).toHaveURL(/\/gym\/subscriptions/, { timeout: 60000 });
   });
 });

@@ -42,7 +42,7 @@
     "date-fns": "^3.6.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.446.0",
-    "next": "14.2.21",
+    "next": "15.5.28",
     "next-themes": "^0.3.0",
     "postcss": "^8",
     "react": "^18",
@@ -65,7 +65,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "axe-core": "^4.12.0",
     "eslint": "^8",
-    "eslint-config-next": "14.2.21",
+    "eslint-config-next": "15.5.28",
     "jsdom": "^29.1.1",
     "vitest": "^4.1.11"
   }
