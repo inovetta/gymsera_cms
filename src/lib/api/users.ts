@@ -17,20 +17,9 @@ export interface CreateUserPayload {
   password: string
 }
 
-export interface UpdateUserPayload {
-  fullName?: string
-  email?: string
-  phone?: string
-  status?: string
-}
-
 export interface UpdateUserStatusPayload {
   status: string
   reason?: string
-}
-
-export interface ResetPasswordPayload {
-  newPassword: string
 }
 
 export interface AccountStatementParams {
@@ -56,18 +45,8 @@ export const usersApi = {
     return data
   },
 
-  updateUser: async (id: string, payload: UpdateUserPayload): Promise<ApiResponse<{ user: User }>> => {
-    const { data } = await apiClient.patch(`/users/${id}`, payload)
-    return data
-  },
-
   updateUserStatus: async (id: string, payload: UpdateUserStatusPayload): Promise<ApiResponse<{ user: User }>> => {
     const { data } = await apiClient.post(`/users/${id}/status`, payload)
-    return data
-  },
-
-  resetUserPassword: async (id: string, payload: ResetPasswordPayload): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.post(`/users/${id}/reset-password`, payload)
     return data
   },
 
