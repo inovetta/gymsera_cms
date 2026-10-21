@@ -14,9 +14,9 @@ export const metadata: Metadata = {
   description: 'GymsEra Management Portal',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Set by src/middleware.ts; next-themes' inline script needs it (SEC-14).
-  const nonce = headers().get('x-nonce') ?? undefined
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${manrope.variable} font-sans`}>
