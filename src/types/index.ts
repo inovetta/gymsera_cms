@@ -382,6 +382,17 @@ export interface BillingPlan {
   iosLastSyncedAt?: string | null
   androidLastSyncedAt?: string | null
   stripeLastSyncedAt?: string | null
+  /** BILL-15: what the daily read-only store check found. Absent on responses from an older API. */
+  priceVerification?: PriceVerification
+}
+
+/** VERIFIED: the store holds the catalog price (checked within 48 h). MISMATCH: it does not.
+ * ADMIN_ATTESTED: nothing has proved it; the admin says it matches (no check yet, product not in the store, old check, or iOS). */
+export type PriceVerificationStatus = 'VERIFIED' | 'MISMATCH' | 'ADMIN_ATTESTED'
+
+export interface PriceVerification {
+  android: { status: PriceVerificationStatus; checkedAt: string | null; mismatchCount?: number }
+  ios: { status: PriceVerificationStatus; checkedAt: string | null }
 }
 
 export interface DashboardStats {
