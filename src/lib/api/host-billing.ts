@@ -37,15 +37,4 @@ export const hostBillingApi = {
     const { data } = await apiClient.get('/billing/plans')
     return data
   },
-
-  // POST /host/subscription/upgrade — the manual/invoice path (bank
-  // transfer), NOT the IAP purchase flow. host.controller.js#upgradeSubscription
-  // itself refuses this with 409 iap_subscription_active if the tenant
-  // already has a store-verified subscription, so this only ever succeeds
-  // for a tenant with no real (IAP) plan — which is also the only state
-  // this screen shows the option in.
-  requestManualPlan: async (planId: string): Promise<ApiResponse<TenantSubscription>> => {
-    const { data } = await apiClient.post('/host/subscription/upgrade', { planId })
-    return data
-  },
 }
