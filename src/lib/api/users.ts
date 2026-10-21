@@ -62,7 +62,7 @@ export const usersApi = {
   },
 
   updateUserStatus: async (id: string, payload: UpdateUserStatusPayload): Promise<ApiResponse<{ user: User }>> => {
-    const { data } = await apiClient.patch(`/users/${id}/status`, payload)
+    const { data } = await apiClient.post(`/users/${id}/status`, payload)
     return data
   },
 
