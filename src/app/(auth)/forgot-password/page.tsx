@@ -17,11 +17,24 @@ const schema = z.object({
   email: z.string().email('Please enter a valid email address'),
 })
 
+const resetSchema = z
+  .object({
+    code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  })
+
 type ForgotPasswordForm = z.infer<typeof schema>
+type ResetForm = z.infer<typeof resetSchema>
 
 export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [email, setEmail] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const form = useForm<ForgotPasswordForm>({
@@ -29,14 +42,34 @@ export default function ForgotPasswordPage() {
     defaultValues: { email: '' },
   })
 
+  const resetForm = useForm<ResetForm>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: { code: '', password: '', confirmPassword: '' },
+  })
+
   const onSubmit = async (values: ForgotPasswordForm) => {
     setLoading(true)
     setError(null)
     try {
       await authApi.requestPasswordReset(values)
-      setSuccess(true)
+      setEmail(values.email)
     } catch {
-      setError('Failed to send reset email. Please try again.')
+      setError('Failed to send the reset code. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onConfirm = async (values: ResetForm) => {
+    if (!email) return
+    setLoading(true)
+    setError(null)
+    try {
+      await authApi.confirmPasswordReset({ email, code: values.code, password: values.password })
+      setDone(true)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } }
+      setError(e.response?.data?.message || 'Could not reset the password. Check the code and try again.')
     } finally {
       setLoading(false)
     }
@@ -58,16 +91,16 @@ export default function ForgotPasswordPage() {
         <CardHeader className="space-y-1 pb-4">
           <CardTitle className="text-2xl text-white">Reset Password</CardTitle>
           <CardDescription className="text-slate-400">
-            Enter your email to receive a password reset link
+            {email && !done ? `Enter the code sent to ${email} and choose a new password` : 'Enter your email to receive a password reset code'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {success ? (
+          {done ? (
             <div className="text-center py-4">
               <CheckCircle className="h-12 w-12 text-success mx-auto mb-4" />
-              <p className="text-white font-medium">Check your email</p>
+              <p className="text-white font-medium">Password has been reset</p>
               <p className="text-slate-400 text-sm mt-2">
-                We sent a password reset link to your email address.
+                You can now sign in with your new password.
               </p>
               <Link href="/login">
                 <Button className="mt-6" variant="outline">
@@ -76,6 +109,51 @@ export default function ForgotPasswordPage() {
                 </Button>
               </Link>
             </div>
+          ) : email ? (
+            <>
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Form {...resetForm}>
+                <form onSubmit={resetForm.handleSubmit(onConfirm)} className="space-y-4">
+                  {([
+                    ['code', 'Reset code', 'text', '123456'],
+                    ['password', 'New password', 'password', 'At least 8 characters'],
+                    ['confirmPassword', 'Confirm new password', 'password', 'Repeat the new password'],
+                  ] as const).map(([name, label, type, placeholder]) => (
+                    <FormField
+                      key={name}
+                      control={resetForm.control}
+                      name={name}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-slate-300">{label}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type={type}
+                              placeholder={placeholder}
+                              autoComplete={name === 'code' ? 'one-time-code' : 'new-password'}
+                              className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-500 focus-visible:ring-primary"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                  <Button type="submit" className="w-full" loading={loading}>
+                    Reset password
+                  </Button>
+                  <Button type="button" variant="ghost" className="w-full text-slate-400 hover:text-white" onClick={() => { setEmail(null); setError(null) }}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Use a different email
+                  </Button>
+                </form>
+              </Form>
+            </>
           ) : (
             <>
               {error && (
@@ -104,7 +182,7 @@ export default function ForgotPasswordPage() {
                     )}
                   />
                   <Button type="submit" className="w-full" loading={loading}>
-                    Send reset link
+                    Send reset code
                   </Button>
                   <Link href="/login" className="block">
                     <Button type="button" variant="ghost" className="w-full text-slate-400 hover:text-white">

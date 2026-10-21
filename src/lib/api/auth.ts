@@ -16,9 +16,11 @@ export interface PasswordResetPayload {
   email: string
 }
 
+// Same body the API validates (passwordResetConfirm); web and mobile send it too.
 export interface ConfirmPasswordResetPayload {
-  token: string
-  newPassword: string
+  email: string
+  code: string
+  password: string
 }
 
 export const authApi = {
@@ -52,12 +54,12 @@ export const authApi = {
   },
 
   requestPasswordReset: async (payload: PasswordResetPayload): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.post('/auth/forgot-password', payload)
+    const { data } = await apiClient.post('/auth/password-reset/request', payload)
     return data
   },
 
   confirmPasswordReset: async (payload: ConfirmPasswordResetPayload): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.post('/auth/reset-password', payload)
+    const { data } = await apiClient.post('/auth/password-reset/confirm', payload)
     return data
   },
 }
