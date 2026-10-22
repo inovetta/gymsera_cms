@@ -17,12 +17,13 @@ export interface TenantSubscription {
   endDate: string
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+  // GRACE on a MANUAL row is a pay-later plan waiting for the bank transfer; endDate is the pay-by date (BILL-13, R-17).
   // PENDING_MIGRATION/PENDING_CANCEL/SCHEDULED are transitional states from
   // a cross-provider migration (subscription-migration.service.js) —
   // PENDING_CANCEL means the host needs to cancel this one themselves
   // (Apple/Google, no server-side cancel API); SCHEDULED means GymsEra
   // already scheduled its cancellation with Stripe.
-  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'PENDING_MIGRATION' | 'PENDING_CANCEL' | 'SCHEDULED'
+  status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELLED' | 'PENDING_MIGRATION' | 'PENDING_CANCEL' | 'SCHEDULED'
   statusNote?: string | null
   autoRenew: boolean
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED'
@@ -460,6 +461,12 @@ export const adminApi = {
 
   revokeTenantSubscription: async (id: string, subId: string): Promise<ApiResponse<{ subscription: TenantSubscription }>> => {
     const { data } = await apiClient.patch(`/admin/tenants/${id}/subscriptions/${subId}/revoke`)
+    return data
+  },
+
+  // Pay later (BILL-13, NEW-20): the admin confirms the bank transfer arrived; the GRACE plan becomes ACTIVE.
+  verifyPayLaterPayment: async (id: string, subId: string, bankTransferRef?: string): Promise<ApiResponse<{ subscription: TenantSubscription }>> => {
+    const { data } = await apiClient.post(`/admin/tenants/${id}/subscriptions/${subId}/verify-payment`, bankTransferRef ? { bankTransferRef } : {})
     return data
   },
 

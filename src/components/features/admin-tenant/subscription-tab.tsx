@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CreditCard, Plus } from 'lucide-react'
 import { ErrorState } from '@/components/features/error-state'
@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast'
 
 const SUB_STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
+  GRACE: 'bg-amber-100 text-amber-700',
   EXPIRED: 'bg-yellow-100 text-yellow-700',
   CANCELLED: 'bg-red-100 text-red-700',
   // Transitional states from a cross-provider migration: see subscription-migration.service.js.
@@ -67,6 +68,24 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to assign subscription', variant: 'destructive' }),
   })
 
+  // NEW-20: pay-later row being verified (null = dialog closed) and the optional bank reference.
+  const [verifySub, setVerifySub] = useState<TenantSubscription | null>(null)
+  const [bankRef, setBankRef] = useState('')
+  const verifying = useRef(false) // a second click in the same tick must not send a second request
+  const verifyMutation = useMutation({
+    mutationFn: ({ subId, ref }: { subId: string; ref: string }) => adminApi.verifyPayLaterPayment(tenantId, subId, ref.trim() || undefined),
+    onSettled: () => { verifying.current = false },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
+      setVerifySub(null)
+      setBankRef('')
+      toast({ title: 'Payment verified', description: 'The plan is active.' })
+    },
+    onError: (err: any) => toast({ title: 'Could not verify the payment', description: err?.response?.data?.message || err?.message || 'Try again.', variant: 'destructive' }),
+  })
+
   const revokeSubMutation = useMutation({
     mutationFn: (subId: string) => adminApi.revokeTenantSubscription(tenantId, subId),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] }); toast({ title: 'Subscription revoked' }) },
@@ -102,6 +121,9 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
             const daysLeft = isActive ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null
             const isExpired = daysLeft !== null && daysLeft < 0
             const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7
+            // Pay-later plan waiting for the bank transfer: endDate is the pay-by date.
+            const awaitingPayment = sub.platform === 'MANUAL' && sub.status === 'GRACE'
+            const payByDays = awaitingPayment ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null
 
             return (
               <Card key={sub.id} className={isActive ? 'border-green-200 bg-green-50/30' : ''}>
@@ -151,12 +173,25 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
                           act on — e.g. "cancel your Apple subscription yourself" after a
                           migration to a different provider. See
                           subscription-migration.service.js on the backend. */}
+                      {awaitingPayment && payByDays !== null && (
+                        <div className="mt-2 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2">
+                          Waiting for the bank transfer. {payByDays >= 0
+                            ? `Pay by ${formatDate(sub.endDate)} (${payByDays} day${payByDays !== 1 ? 's' : ''} left).`
+                            : `The pay-by date passed ${Math.abs(payByDays)} day${Math.abs(payByDays) !== 1 ? 's' : ''} ago.`}{' '}
+                          The plan lapses if no payment is verified.
+                        </div>
+                      )}
                       {sub.statusNote && (
                         <div className="mt-2 text-xs rounded-lg bg-orange-50 border border-orange-200 text-orange-700 px-3 py-2">
                           {sub.statusNote}
                         </div>
                       )}
                     </div>
+                    {awaitingPayment && (
+                      <Button size="sm" className="shrink-0" onClick={() => { setBankRef(''); setVerifySub(sub) }}>
+                        Verify payment
+                      </Button>
+                    )}
                     {isActive && (
                       <Button
                         size="sm"
@@ -176,6 +211,35 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
         </div>
       )}
     </div>
+
+  <Dialog open={!!verifySub} onOpenChange={(open) => { if (!open && !verifyMutation.isPending) setVerifySub(null) }}>
+    <DialogContent className="max-w-md">
+      <DialogHeader><DialogTitle>Verify payment</DialogTitle></DialogHeader>
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Only continue once the bank transfer of <span className="font-semibold text-foreground">{verifySub ? formatCurrency(verifySub.amount) : ''}</span> has
+          arrived in the GymsEra account. The plan becomes active for one billing period from today.
+        </p>
+        <div>
+          <Label htmlFor="bankTransferRef" className="mb-2 block">Bank reference (optional)</Label>
+          <Input id="bankTransferRef" maxLength={100} placeholder="Transaction or slip number" value={bankRef} onChange={(e) => setBankRef(e.target.value)} />
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => setVerifySub(null)} disabled={verifyMutation.isPending}>Cancel</Button>
+        <Button
+          onClick={() => {
+            if (!verifySub || verifying.current) return
+            verifying.current = true
+            verifyMutation.mutate({ subId: verifySub.id, ref: bankRef })
+          }}
+          loading={verifyMutation.isPending}
+        >
+          Confirm payment received
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <Dialog open={assignSubDialog} onOpenChange={setAssignSubDialog}>
     <DialogContent className="max-w-md">
