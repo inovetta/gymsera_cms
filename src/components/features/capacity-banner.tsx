@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
  * Tenant-wide branch capacity, as on the mobile Gyms tab (`_TenantCapacityBanner` and the
  * over-quota banner in host_gyms_overview_screen.dart). Read from useBranchQuota, the single
  * source; the numbers describe the whole subscription, never one organization.
+ * The over-capacity warning, with its days-left countdown, is a BillingNotices notice (NEW-32).
  */
 export function CapacityBanner() {
   const { data } = useBranchQuota()
@@ -31,25 +32,11 @@ export function CapacityBanner() {
     )
   }
 
-  const { maxBranches, activeBranches, buildableBranches, overQuotaCount } = quota
+  const { maxBranches, activeBranches, buildableBranches } = quota
   const atLimit = buildableBranches <= 0
 
   return (
     <div className="space-y-3" data-testid="capacity-banner">
-      {overQuotaCount > 0 && (
-        <div role="alert" className="flex gap-3 rounded-lg border border-primary/30 bg-orange-50 p-3 text-sm dark:bg-orange-950/30">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div>
-            <p className="font-bold">Over your plan&apos;s branch capacity</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              Your plan was recently downgraded and now covers {overQuotaCount} fewer branch(es) than you have active.
-              Nothing has been closed — upgrade your plan or close a branch yourself to add new branches or restore old
-              ones again.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* The plan is managed on the plan page; the web sells no store plans. */}
       <Link
         href="/settings/billing"

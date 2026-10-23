@@ -57,14 +57,12 @@ describe('CapacityBanner — mobile _TenantCapacityBanner (Prompt 3B)', () => {
     expect(screen.getByRole('link', { name: /branches used/i })).toHaveAttribute('href', '/settings/billing')
   })
 
-  it('shows the over-capacity warning with the mobile wording', async () => {
+  it('leaves the over-capacity warning to BillingNotices (it carries the days-left countdown, NEW-32)', async () => {
     vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota({ overQuotaCount: 2, buildableBranches: 0 })) as never)
     mount(<CapacityBanner />)
 
-    expect(await screen.findByText("Over your plan's branch capacity")).toBeInTheDocument()
-    expect(
-      screen.getByText(/Your plan was recently downgraded and now covers 2 fewer branch\(es\) than you have active\. Nothing has been closed/)
-    ).toBeInTheDocument()
+    expect(await screen.findByText('5 of 6 branches used')).toBeInTheDocument()
+    expect(screen.queryByText("Over your plan's branch capacity")).toBeNull()
   })
 
   it('with no subscription (maxBranches 0) shows 0 branch capacity notice and links to billing (NEW-46b)', async () => {

@@ -15,6 +15,7 @@ import {
 } from 'recharts'
 import { Header } from '@/components/layout/header'
 import { StatsCard } from '@/components/features/stats-card'
+import { BillingNotices } from '@/components/features/billing-notices'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -219,6 +220,7 @@ export default function DashboardPage() {
     <>
       <Header title="Dashboard" description="Welcome to your GymsEra management portal" />
       <div className="p-6 space-y-6 animate-fade-in">
+        {isTenantOwner && <BillingNotices />}
         {countsError && (
           <Alert variant="destructive" role="alert">
             <AlertCircle className="h-4 w-4" />
