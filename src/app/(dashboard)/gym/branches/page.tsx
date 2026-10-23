@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/features/page-header'
 import { StatusBadge } from '@/components/features/status-badge'
 import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { CapacityBanner } from '@/components/features/capacity-banner'
+import { BillingNotices } from '@/components/features/billing-notices'
 import { OrganizationStrip } from '@/components/features/organization-strip'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { LastBranchDialog } from '@/components/features/last-branch-dialog'
@@ -460,7 +461,8 @@ export default function BranchesPage() {
         )}
 
         {isTenantOwner && (
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
+            <BillingNotices />
             <CapacityBanner />
           </div>
         )}

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/features/error-state'
+import { BillingNoticeList } from '@/components/features/billing-notices'
 import { httpStatus } from '@/lib/api/request-errors'
 import { tenantsApi } from '@/lib/api/tenants'
 import { hostBillingApi, CatalogPlan } from '@/lib/api/host-billing'
@@ -115,6 +116,7 @@ export default function BillingPage() {
     <>
       <Header title="Subscription & Billing" description="Manage your platform subscription plan" />
       <div className="p-6 animate-fade-in space-y-6">
+        <BillingNoticeList subscription={sub as unknown as Record<string, unknown> | undefined} activeBranches={quota?.activeBranches} />
 
         {/* Current plan — the real entitlement, whichever provider it's on */}
         {sub && (
