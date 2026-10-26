@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { User } from '@/types'
+import { useSelectedOrgStore } from './selected-org.store'
 
 interface AuthState {
   user: User | null
@@ -62,6 +63,8 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
     localStorage.removeItem('gymsera_access_token')
     localStorage.removeItem('gymsera_refresh_token')
     localStorage.removeItem('gymsera_user')
+    // NEW-110: the organization this person picked in the switcher is theirs, not the device's.
+    useSelectedOrgStore.getState().select(null)
     document.cookie = 'gymsera_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
     set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false })
   },
