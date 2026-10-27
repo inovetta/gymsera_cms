@@ -13,11 +13,11 @@
  * remotePatterns already allows `https://**`).
  */
 
-const DEFAULT_API_URL = 'http://localhost:3000'
+import { DEFAULT_API_URL, apiUrl } from './api-url'
 
-/** The API origin the browser may call. Same variable the API client reads. */
+/** The API origin the browser may call. Same setting the API client reads (api-url.ts). */
 export const apiOrigin = (): string => {
-  const raw = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL
+  const raw = apiUrl()
   try {
     return new URL(raw).origin
   } catch {

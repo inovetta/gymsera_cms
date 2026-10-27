@@ -1,7 +1,11 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { buildCsp, newNonce, apiOrigin, SENTRY_CONNECT_HOSTS } from '@/lib/csp'
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants'
 // @ts-expect-error the config is plain JS
-import nextConfig from '../../next.config.mjs'
+import nextConfigFor from '../../next.config.mjs'
+
+// The config is a function of the build phase (NEW-132); headers are the same in every phase.
+const nextConfig = nextConfigFor(PHASE_DEVELOPMENT_SERVER)
 
 // SEC-18 / SEC-14: security headers on every response and a Report-Only CSP with a per-request nonce.
 const directive = (csp: string, name: string) =>
