@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client'
+import { apiUrl } from '../api-url'
 
 /**
  * One realtime connection for the CMS (spec §9.2). The server computes the rooms from the
@@ -7,7 +8,7 @@ import { io, Socket } from 'socket.io-client'
  * picked up without reloading the page.
  */
 
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+const API_ORIGIN = apiUrl()
 
 /** Events the server emits to `user:{id}` when it writes a notification (notifications.service.js). */
 export const NOTIFICATION_EVENTS = ['new_notification', 'notification'] as const

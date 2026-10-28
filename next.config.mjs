@@ -1,3 +1,6 @@
+import { PHASE_PRODUCTION_BUILD } from 'next/constants.js'
+import { assertBuildEnv } from './build-env.mjs'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -28,4 +31,11 @@ const nextConfig = {
   },
 }
 
-export default nextConfig
+// NEW-132: `next build` stops without an explicit NEXT_PUBLIC_API_URL (build-env.mjs).
+// `next lint` loads the config in the build phase too, but builds nothing, so it is not checked.
+const isLint = () => process.argv[2] === 'lint'
+
+export default (phase) => {
+  if (phase === PHASE_PRODUCTION_BUILD && !isLint()) assertBuildEnv(process.env)
+  return nextConfig
+}
