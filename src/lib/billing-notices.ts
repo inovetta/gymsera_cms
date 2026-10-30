@@ -29,6 +29,8 @@ const storeName = (platform?: string | null) =>
 const safeUrl = (u: unknown): string | undefined => (typeof u === 'string' && /^https:\/\//i.test(u) ? u : undefined)
 
 export function billingNoticesFrom(sub: Sub, opts: { activeBranches?: number } = {}): BillingNotice[] {
+  // NEW-180: a plan that does not entitle (P7c lapse) has no notices here until P9 builds its view.
+  if (sub.entitled === false) return []
   const notices: BillingNotice[] = []
 
   // NEW-19: a smaller plan is scheduled and covers fewer branches than are active, and no choice was saved.
