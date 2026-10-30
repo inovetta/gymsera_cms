@@ -71,11 +71,14 @@ export default function BillingPage() {
   })
 
   // 404 is the normal "no plan yet" answer (R-21). Any other failure is a failed load, never "no plan".
-  const noActiveSub = !!subError && httpStatus(subError) === 404
+  // NEW-180: since P7c a plan that ended answers 200 with `entitled: false`; until P9 builds its view it
+  // reads as before (no current plan, bank transfer offered), never as the current plan.
+  const lapsed = (subData?.data as { entitled?: boolean } | undefined)?.entitled === false
+  const noActiveSub = (!!subError && httpStatus(subError) === 404) || lapsed
   const subLoadFailed = !!subError && !noActiveSub
 
   const tenant = tenantData?.data?.tenant
-  const sub = subData?.data
+  const sub = lapsed ? undefined : subData?.data
   const quota = quotaData?.data
   const rawCatalog = catalogData?.data
   const catalog: CatalogPlan[] = Array.isArray(rawCatalog)
