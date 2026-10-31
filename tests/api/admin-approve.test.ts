@@ -6,11 +6,11 @@ import { adminApi } from '@/lib/api/admin';
 describe('adminApi.approveTenant', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('POSTs to the approve endpoint with the Idempotency-Key header', async () => {
+  it('POSTs to the approve endpoint with the Idempotency-Key header and the photo check (R-84)', async () => {
     const body = { success: true, data: { tenant: { id: 't1' }, provisioning: { step: 6 } } };
     const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: body } as never);
-    const res = await adminApi.approveTenant('t1', 'key-123');
-    expect(post).toHaveBeenCalledWith('/admin/tenants/t1/approve', {}, { headers: { 'Idempotency-Key': 'key-123' } });
+    const res = await adminApi.approveTenant('t1', 'key-123', { photosChecked: true });
+    expect(post).toHaveBeenCalledWith('/admin/tenants/t1/approve', { photosChecked: true }, { headers: { 'Idempotency-Key': 'key-123' } });
     expect(res).toEqual(body);
   });
 });

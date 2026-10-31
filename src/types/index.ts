@@ -23,7 +23,15 @@ export interface User {
   createdAt: string
 }
 
+/** R-84 (NEW-158): a photo the approval would publish (GET /admin/tenants/:id). */
+export interface ApprovalPhoto {
+  url: string
+  kind: 'logo' | 'cover' | 'gallery'
+  branchId?: string
+}
+
 export interface Tenant {
+  approvalPhotos?: ApprovalPhoto[]
   id: string
   userId: string
   businessName: string
