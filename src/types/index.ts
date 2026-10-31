@@ -210,6 +210,8 @@ export interface Branch {
   currency?: string | null
   /** NEW-140: the Google place the address was picked from. */
   googlePlaceId?: string | null
+  /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
+  pausedAt?: string | null
 }
 
 export interface MembershipPlan {

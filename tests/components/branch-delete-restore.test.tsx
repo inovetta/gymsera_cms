@@ -68,7 +68,7 @@ afterEach(() => vi.restoreAllMocks())
 
 const startDelete = async () => {
   await screen.findByText('Uptown Gym')
-  fireEvent.click(await screen.findByText(/deactivate/i))
+  fireEvent.click(await screen.findByText(/^delete branch$/i))
   const dialog = await screen.findByRole('alertdialog')
   fireEvent.change(within(dialog).getByLabelText(/account password/i), { target: { value: 'placeholder-pass' } })
   fireEvent.click(within(dialog).getByRole('button', { name: /^delete branch$/i }))
@@ -144,7 +144,7 @@ describe('Delete branch — re-auth and the last-branch 409 (UX-19)', () => {
     accountRole = 'MEMBER'
     mount(orgAdminContext)
     await screen.findByText('Uptown Gym')
-    expect(screen.queryByText(/deactivate/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^delete branch$/i)).not.toBeInTheDocument()
   })
 })
 

@@ -16,7 +16,8 @@ import { LastBranchDialog } from '@/components/features/last-branch-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { NewOrganizationDialog } from '@/components/features/new-organization-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { hostApi, CreateHostBranchPayload } from '@/lib/api/host'
+import { hostApi, CreateHostBranchPayload, StorePlanNotice } from '@/lib/api/host'
+import { DeleteBlocked, DeleteBlockedDialog, StorePlanNoticeDialog, deleteBlockedFrom } from '@/components/features/branch-lifecycle-dialogs'
 import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { classifyBranchError } from '@/lib/branches/errors'
 import { resolveApiError } from '@/lib/api/error-copy'
@@ -72,19 +73,32 @@ const defaultForm = (): BranchFormState => ({
   initialPlanDuration: 'MONTHLY',
 })
 
-function BranchCard({ branch, onEdit, onDeactivate, canDelete }: { branch: Branch; onEdit: (b: Branch) => void; onDeactivate: (b: Branch) => void; canDelete: boolean }) {
+function BranchCard({ branch, onEdit, onDeactivate, canDelete, canPause, onTogglePause }: {
+  branch: Branch
+  onEdit: (b: Branch) => void
+  onDeactivate: (b: Branch) => void
+  canDelete: boolean
+  canPause: boolean
+  onTogglePause: (b: Branch) => void
+}) {
   const router = useRouter()
+  const paused = !!branch.pausedAt
   const facilities = Array.isArray(branch.facilities)
     ? branch.facilities
     : Object.keys((branch.facilities as unknown as Record<string, boolean>) || {}).filter(k => (branch.facilities as unknown as Record<string, boolean>)[k])
 
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/gym/branches/${branch.id}`)}>
+    <Card data-testid={`branch-card-${branch.id}`} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/gym/branches/${branch.id}`)}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="font-semibold text-lg">{branch.branchName}</h3>
-            <StatusBadge status={branch.status} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <StatusBadge status={branch.status} />
+              {/* P5b (R-81, NEW-167): paused by the host, hidden from travellers, nothing else changes. */}
+              {paused && <Badge variant="outline" className="border-warning/50 bg-warning/10 text-warning">Paused</Badge>}
+            </div>
+            {paused && <p className="mt-1 text-xs text-muted-foreground">Hidden from travellers. Members, plans and history stay.</p>}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -94,12 +108,17 @@ function BranchCard({ branch, onEdit, onDeactivate, canDelete }: { branch: Branc
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(branch) }}>Edit Branch</DropdownMenuItem>
+              {canPause && (
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTogglePause(branch) }}>
+                  {paused ? 'Resume' : 'Pause'}
+                </DropdownMenuItem>
+              )}
               {canDelete && (
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={(e) => { e.stopPropagation(); onDeactivate(branch) }}
                 >
-                  Deactivate
+                  Delete branch
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -146,7 +165,15 @@ export default function BranchesPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   // The host console routes (capacity, add, delete, restore) are the owner's.
-  const { isTenantOwner } = useGymAccess()
+  const { isTenantOwner, organization } = useGymAccess()
+  // Pause / resume: whoever may change the branch's settings (R-81 item 2).
+  const canPauseBranch = (branchId: string) => {
+    if (isTenantOwner) return true
+    const perms = [...(organization?.orgPermissions ?? []), ...(organization?.branches?.find((b) => b.id === branchId)?.permissions ?? [])]
+    return perms.includes('*') || perms.includes('branch.settings')
+  }
+  const [deleteBlocked, setDeleteBlocked] = useState<DeleteBlocked | null>(null)
+  const [storeNotice, setStoreNotice] = useState<StorePlanNotice | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editBranch, setEditBranch] = useState<Branch | null>(null)
   const [deactivateTarget, setDeactivateTarget] = useState<Branch | null>(null)
@@ -300,7 +327,9 @@ export default function BranchesPage() {
         ...(password ? { password } : {}),
         ...(confirmOrganizationDeletion ? { confirmOrganizationDeletion: true } : {}),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      // P5b item 7: the organization went with its last branch, and the store plan still renews.
+      if (res?.data?.storePlanNotice) setStoreNotice(res.data.storePlanNotice)
       queryClient.invalidateQueries({ queryKey: ['branches'] })
       queryClient.invalidateQueries({ queryKey: ['host-listings'] })
       queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
@@ -313,9 +342,18 @@ export default function BranchesPage() {
       setDeactivateTarget(null)
       setLastBranchPrompt(null)
       setDeleteError(null)
-      toast({ title: 'Branch deleted', description: 'Branch and associated data have been removed.' })
+      toast({ title: res?.data?.organizationDeleted ? 'Branch and organization closed' : 'Branch closed' })
     },
     onError: (err: any, vars) => {
+      // P5b item 3: open members, bookings or payments: say why and offer to pause instead.
+      const blocked = deleteBlockedFrom(err)
+      if (blocked) {
+        setDeactivateTarget(null)
+        setLastBranchPrompt(null)
+        setDeleteError(null)
+        setDeleteBlocked({ ...blocked, branchId: blocked.branchId ?? vars.id })
+        return
+      }
       if (err?.response?.status === 409 && err?.response?.data?.code === 'last_branch_in_organization') {
         setDeactivateTarget(null)
         setLastBranchPrompt({
@@ -334,6 +372,20 @@ export default function BranchesPage() {
       setDeleteError(serverMessage)
       toast({ title: 'Error', description: serverMessage, variant: 'destructive' })
     },
+  })
+
+  // Pause / resume (P5b item 2): hidden from travellers or shown again; nothing else changes.
+  const pauseMutation = useMutation({
+    mutationFn: ({ branch, pause }: { branch: Pick<Branch, 'id' | 'branchName'>; pause: boolean }) =>
+      pause ? hostApi.pauseBranch(branch.id) : hostApi.resumeBranch(branch.id),
+    onSuccess: (_res, { branch, pause }) => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] })
+      setDeleteBlocked(null)
+      toast({
+        title: pause ? `"${branch.branchName}" is paused. Travellers no longer see it.` : `"${branch.branchName}" is visible to travellers again.`,
+      })
+    },
+    onError: (err) => toast({ title: 'Error', description: resolveApiError(err).message, variant: 'destructive' }),
   })
 
   // Restore = POST /host/branches/:id/restore; it uses one unit of capacity again (403 when none).
@@ -515,7 +567,15 @@ export default function BranchesPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {branches.map((branch) => (
-              <BranchCard key={branch.id} branch={branch} onEdit={openEdit} onDeactivate={handleOpenDelete} canDelete={isTenantOwner} />
+              <BranchCard
+                key={branch.id}
+                branch={branch}
+                onEdit={openEdit}
+                onDeactivate={handleOpenDelete}
+                canDelete={isTenantOwner}
+                canPause={canPauseBranch(branch.id)}
+                onTogglePause={(b) => pauseMutation.mutate({ branch: b, pause: !b.pausedAt })}
+              />
             ))}
           </div>
         )}
@@ -718,6 +778,18 @@ export default function BranchesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteBlockedDialog
+        blocked={deleteBlocked}
+        pausing={pauseMutation.isPending}
+        onPause={() => {
+          const id = deleteBlocked?.branchId
+          const b = branches.find((x) => x.id === id)
+          if (id) pauseMutation.mutate({ branch: { id, branchName: b?.branchName ?? 'This branch' }, pause: true })
+        }}
+        onClose={() => setDeleteBlocked(null)}
+      />
+      <StorePlanNoticeDialog notice={storeNotice} onClose={() => setStoreNotice(null)} />
 
       <NewOrganizationDialog
         open={newOrgOpen}

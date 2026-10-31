@@ -10,6 +10,7 @@ import { meApi, MyContext } from '@/lib/api/me'
 import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
+import { fakePlaces, pickPlace } from '../fixtures/places'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }))
 vi.mock('next/link', () => ({ default: ({ href, children, ...r }: any) => <a href={href} {...r}>{children}</a> }))
@@ -34,8 +35,6 @@ const B2 = { id: 'b2', branchName: 'Downtown', status: 'ACTIVE', address: 'y', g
 const quota = (over = {}) => ({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0, ...over })
 
 let createListing: ReturnType<typeof vi.spyOn>
-let moveBranch: ReturnType<typeof vi.spyOn>
-let deleteListing: ReturnType<typeof vi.spyOn>
 let getListings: ReturnType<typeof vi.spyOn>
 let getQuota: ReturnType<typeof vi.spyOn>
 let orgQuota: ReturnType<typeof vi.spyOn>
@@ -65,8 +64,7 @@ beforeEach(() => {
   )
   vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
   createListing = vi.spyOn(hostApi, 'createListing').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
-  moveBranch = vi.spyOn(hostApi, 'moveBranch').mockResolvedValue(ok({}) as never)
-  deleteListing = vi.spyOn(hostApi, 'deleteListing').mockResolvedValue(ok(null) as never)
+  fakePlaces()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -75,42 +73,38 @@ const openDialog = async () => {
   return screen.findByRole('dialog')
 }
 
+/**
+ * Fill the form: the city is picked through /places (NEW-140; Lahore is city 7 in fixtures/places.ts),
+ * the address is typed, and the first plan is the host's own (nothing is filled in for them).
+ * "Move an existing branch" was removed with its route (P5b item 8, R-81; NEW-167).
+ */
 const buildNewForm = async () => {
   const dialog = await openDialog()
-  fireEvent.click(within(dialog).getByRole('button', { name: /build a brand new branch/i }))
   fireEvent.change(await within(dialog).findByLabelText(/organization name/i), { target: { value: 'Peak Fitness' } })
   fireEvent.change(within(dialog).getByLabelText(/description/i), { target: { value: 'A new gym' } })
-  fireEvent.change(within(dialog).getByLabelText(/address/i), { target: { value: '12 Mall Road' } })
-  fireEvent.change(within(dialog).getByLabelText(/city/i), { target: { value: '1' } })
+  await pickPlace('City', 'Lah', /Lahore/, dialog)
+  fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+  fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
+  fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '3000' } })
   return dialog
 }
 
-describe('New organization — the mobile source screen (UX-20)', () => {
-  it('asks how to set it up, and says what each choice uses (capacity read from the one quota)', async () => {
+describe('New organization — with its first branch (UX-20, NEW-167)', () => {
+  it('says what the first branch uses (capacity read from the one quota)', async () => {
     mount(ownerContext)
     const dialog = await openDialog()
 
-    expect(within(dialog).getByText('How do you want to set this organization up?')).toBeInTheDocument()
-    expect(within(dialog).getByText(/Every organization needs at least one branch\. Build a new one, or move one you already run somewhere else\./)).toBeInTheDocument()
-    expect(await within(dialog).findByText('Uses 1 of your 1 remaining branch — fill out details and photos.')).toBeInTheDocument()
-    expect(within(dialog).getByText('Relocate a branch you already run in another organization — no new purchase.')).toBeInTheDocument()
+    expect(await within(dialog).findByText(/It uses 1 of your 1 remaining branch\./)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/move/i)).not.toBeInTheDocument()
   })
 
-  it('with no room, "build new" is still offered (attempt first) and says so', async () => {
+  it('with no room, it can still be filled in (attempt first) and says so', async () => {
     getQuota.mockResolvedValue(ok(quota({ activeBranches: 6, usedBranches: 6, remainingBranches: 0, buildableBranches: 0 })) as never)
     mount(ownerContext)
     const dialog = await openDialog()
 
-    expect(await within(dialog).findByText('Fill out details and photos. If your plan has no room by the end, you can add a branch then.')).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: /build a brand new branch/i })).not.toBeDisabled()
-  })
-
-  it('"move an existing branch" is not available with only one organization', async () => {
-    mount(ownerContext, [L1])
-    const dialog = await openDialog()
-
-    expect(await within(dialog).findByText('No other branches available to move yet.')).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: /move an existing branch here/i })).toBeDisabled()
+    expect(await within(dialog).findByText(/If your plan has no room, you can add a branch when you create it\./)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/organization name/i)).not.toBeDisabled()
   })
 
   it('is blocked, with the mobile wording, while the previous organization is a draft or waiting for review', async () => {
@@ -142,7 +136,7 @@ describe('New organization — build a new branch', () => {
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
     const body = createListing.mock.calls[0][0]
-    expect(body).toMatchObject({ gymName: 'Peak Fitness', gymDescription: 'A new gym', genderType: 'MIXED', branchSource: 'new', address: '12 Mall Road', cityId: 1 })
+    expect(body).toMatchObject({ gymName: 'Peak Fitness', gymDescription: 'A new gym', genderType: 'MIXED', branchSource: 'new', address: '12 Mall Road', cityId: 7 })
     expect(body.packages.length).toBeGreaterThan(0)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(getListings.mock.calls.length).toBeGreaterThan(1)
@@ -174,63 +168,5 @@ describe('New organization — build a new branch', () => {
 
     expect(await within(dialog).findByTestId('new-org-error')).toHaveTextContent(message)
     expect(screen.queryByText('One more branch needed')).not.toBeInTheDocument()
-  })
-})
-
-describe('New organization — move an existing branch', () => {
-  const pickAndName = async () => {
-    const dialog = await openDialog()
-    fireEvent.click(await within(dialog).findByRole('button', { name: /move an existing branch here/i }))
-    expect(await within(dialog).findByText('Move which branch?')).toBeInTheDocument()
-    expect(within(dialog).getByText('Currently in Iron Gym')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: /uptown/i }))
-    expect(await within(dialog).findByText('"Uptown" will move here once this organization is created.')).toBeInTheDocument()
-    fireEvent.change(within(dialog).getByLabelText(/organization name/i), { target: { value: 'Peak Fitness' } })
-    fireEvent.change(within(dialog).getByLabelText(/description/i), { target: { value: 'Moved here' } })
-    return dialog
-  }
-
-  it('creates a bare organization (branchSource "none") and moves the branch into it, with no new capacity used', async () => {
-    mount(ownerContext)
-    const dialog = await pickAndName()
-    fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
-
-    await waitFor(() => expect(moveBranch).toHaveBeenCalledTimes(1))
-    expect(createListing.mock.calls[0][0]).toMatchObject({ gymName: 'Peak Fitness', branchSource: 'none' })
-    expect(createListing.mock.calls[0][0].packages).toBeUndefined()
-    expect(moveBranch).toHaveBeenCalledWith('b1', 'listing-3', false)
-    expect(deleteListing).not.toHaveBeenCalled()
-  })
-
-  const lastBranch = () => ({
-    response: {
-      status: 409,
-      data: { success: false, code: 'last_branch_in_organization', message: 'last', data: { organizationName: 'Iron Gym' } },
-    },
-  })
-
-  it('409 last branch: asks first; cancelling removes the organization that was just created', async () => {
-    moveBranch.mockRejectedValueOnce(lastBranch())
-    mount(ownerContext)
-    const dialog = await pickAndName()
-    fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
-
-    expect(await screen.findByText('Last branch in this organization')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-
-    await waitFor(() => expect(deleteListing).toHaveBeenCalledWith('listing-3'))
-    expect(moveBranch).toHaveBeenCalledTimes(1)
-  })
-
-  it('409 last branch: "Move anyway" moves it with the confirmation', async () => {
-    moveBranch.mockRejectedValueOnce(lastBranch())
-    mount(ownerContext)
-    const dialog = await pickAndName()
-    fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /move anyway/i }))
-
-    await waitFor(() => expect(moveBranch).toHaveBeenCalledTimes(2))
-    expect(moveBranch).toHaveBeenLastCalledWith('b1', 'listing-3', true)
-    expect(deleteListing).not.toHaveBeenCalled()
   })
 })

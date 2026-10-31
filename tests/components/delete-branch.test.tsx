@@ -216,7 +216,7 @@ describe('BranchesPage branch delete flow (NEW-35)', () => {
     const moreBtn = screen.getByRole('button', { name: '' }) // MoreHorizontal button
     fireEvent.click(moreBtn)
 
-    const deleteMenuItem = await screen.findByText(/deactivate/i)
+    const deleteMenuItem = await screen.findByText(/^delete branch$/i)
     fireEvent.click(deleteMenuItem)
 
     // Delete dialog opens

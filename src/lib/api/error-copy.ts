@@ -21,10 +21,29 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'حسابك تجاوز الحصة المسموح بها من الفروع. قم بترقية خطتك لإضافة فروع إضافية.',
     action: 'open_upsell',
   },
+  // P5b (R-81, NEW-167): the API's own copy (gymsera_be src/constants/error-copy.js).
   last_branch_in_organization: {
-    en: 'An organization must have at least one branch. You cannot delete the only branch.',
-    ur: 'کسی تنظیم میں کم از کم ایک برانچ کا ہونا ضروری ہے۔ آپ واحد برانچ کو حذف نہیں کر سکتے۔',
-    ar: 'يجب أن تحتوي المنظمة على فرع واحد على الأقل. لا يمكنك حذف الفرع الوحيد.',
+    en: 'This is the last branch in its organization. Deleting it also deletes the organization.',
+    ur: 'یہ اس تنظیم کی آخری برانچ ہے۔ اسے حذف کرنے سے تنظیم بھی حذف ہو جائے گی۔',
+    ar: 'هذا هو آخر فرع في منظمته. حذفه يحذف المنظمة أيضًا.',
+    action: 'none',
+  },
+  branch_delete_blocked: {
+    en: 'This branch still has active members, upcoming bookings or payments to settle. Settle them or wait until they end, or pause the branch instead.',
+    ur: 'اس برانچ میں ابھی فعال ممبرز، آنے والی بکنگز یا زیرِ التوا ادائیگیاں موجود ہیں۔ پہلے انہیں نمٹائیں یا ان کے ختم ہونے کا انتظار کریں، یا اس کے بجائے برانچ کو روک دیں۔',
+    ar: 'لا يزال لدى هذا الفرع أعضاء نشطون أو حجوزات قادمة أو مدفوعات معلقة. قم بتسويتها أو انتظر حتى تنتهي، أو أوقف الفرع مؤقتًا بدلاً من ذلك.',
+    action: 'none',
+  },
+  organization_delete_blocked: {
+    en: 'Some branches in this organization still have active members, upcoming bookings or payments to settle. Settle them or wait until they end, or pause those branches instead.',
+    ur: 'اس تنظیم کی کچھ برانچز میں ابھی فعال ممبرز، آنے والی بکنگز یا زیرِ التوا ادائیگیاں موجود ہیں۔ پہلے انہیں نمٹائیں یا ان کے ختم ہونے کا انتظار کریں، یا ان برانچز کو روک دیں۔',
+    ar: 'لا تزال بعض فروع هذه المنظمة تضم أعضاء نشطين أو حجوزات قادمة أو مدفوعات معلقة. قم بتسويتها أو انتظر حتى تنتهي، أو أوقف تلك الفروع مؤقتًا بدلاً من ذلك.',
+    action: 'none',
+  },
+  organization_needs_branch: {
+    en: 'An organization needs its first branch. Add the branch with its plans.',
+    ur: 'ہر ادارے کی پہلی برانچ ضروری ہے۔ برانچ اس کے پلانز کے ساتھ شامل کریں۔',
+    ar: 'تحتاج كل مؤسسة إلى فرعها الأول. أضف الفرع مع خططه.',
     action: 'none',
   },
   iap_subscription_active: {

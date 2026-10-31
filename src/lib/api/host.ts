@@ -51,7 +51,16 @@ export interface HostBranch {
   openingTime?: string
   closingTime?: string
   gymListingId?: string | null
+  /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
+  pausedAt?: string | null
   [key: string]: unknown
+}
+
+/** P5b item 7 (R-81): the GymsEra plan still renews at the store after an organization goes. */
+export interface StorePlanNotice {
+  platform: 'IOS' | 'ANDROID'
+  manageUrl: string
+  message: string
 }
 
 /** POST /host/branches — the body the mobile wizard sends (createBranch in gyms_repository.dart). */
@@ -76,11 +85,15 @@ export interface CreateListingPayload {
   gymName: string
   gymDescription: string
   genderType: string
-  branchSource: 'new' | 'reserve' | 'none'
+  branchSource: 'new' | 'reserve'
   packages?: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
   cityId?: number
   areaId?: number
   address?: string
+  latitude?: number
+  longitude?: number
+  /** NEW-140: the Google place the first branch's address was picked from. */
+  googlePlaceId?: string
 }
 
 /** One subscription a check-in would accept, as the member lookup returns it (NEW-56). */
@@ -199,12 +212,13 @@ export const hostApi = {
    * DELETE /host/branches/:id. Needs the owner's credentials again (re-auth: `password`, or a
    * social `provider` + `idToken`). The server answers 401 when they are wrong and 409
    * `last_branch_in_organization` when this is the organization's last branch; send again with
-   * `confirmOrganizationDeletion: true` once the owner has confirmed.
+   * `confirmOrganizationDeletion: true` once the owner has confirmed. 409 `branch_delete_blocked`
+   * (P5b, R-81) while members, bookings or payments are open; the host may pause instead.
    */
   deleteBranch: async (
     branchId: string,
     body: { password?: string; provider?: string; idToken?: string; confirmOrganizationDeletion?: boolean }
-  ): Promise<ApiResponse<null>> => {
+  ): Promise<ApiResponse<{ message?: string; organizationDeleted?: boolean; storePlanNotice?: StorePlanNotice | null } | null>> => {
     const { data } = await apiClient.delete(`/host/branches/${branchId}`, { data: body })
     return data
   },
@@ -215,7 +229,19 @@ export const hostApi = {
     return data
   },
 
-  /** GET /host/branches — every branch of the owner, across organizations (for "move an existing branch"). */
+  /** POST /host/branches/:id/pause (P5b, R-81): hidden from travellers, nothing else changes. */
+  pauseBranch: async (branchId: string): Promise<ApiResponse<{ branch: HostBranch }>> => {
+    const { data } = await apiClient.post(`/host/branches/${branchId}/pause`)
+    return data
+  },
+
+  /** POST /host/branches/:id/resume: shown to travellers again as it was. */
+  resumeBranch: async (branchId: string): Promise<ApiResponse<{ branch: HostBranch }>> => {
+    const { data } = await apiClient.post(`/host/branches/${branchId}/resume`)
+    return data
+  },
+
+  /** GET /host/branches — every branch of the owner, across organizations. */
   getAllBranches: async (): Promise<ApiResponse<{ branches: HostBranch[] }>> => {
     const { data } = await apiClient.get('/host/branches')
     return data
@@ -223,34 +249,11 @@ export const hostApi = {
 
   /**
    * POST /host/listings (mobile: createListing → POST /host/organizations, the same route).
-   * `branchSource`: 'new' builds a first branch now (needs `packages`), 'reserve' earmarks a slot,
-   * 'none' makes a bare organization to move an existing branch into.
+   * `branchSource`: 'new' builds a first branch now (needs `packages`), 'reserve' earmarks a slot.
+   * An organization with no branch is refused (422 organization_needs_branch, NEW-168).
    */
   createListing: async (body: CreateListingPayload): Promise<ApiResponse<HostListing>> => {
     const { data } = await apiClient.post('/host/listings', body)
-    return data
-  },
-
-  /** POST /host/branches/:id/move. 409 `last_branch_in_organization` until confirmed. */
-  moveBranch: async (
-    branchId: string,
-    targetListingId: string,
-    confirmOrganizationDeletion = false
-  ): Promise<ApiResponse<unknown>> => {
-    const { data } = await apiClient.post(`/host/branches/${branchId}/move`, {
-      targetListingId,
-      ...(confirmOrganizationDeletion ? { confirmOrganizationDeletion: true } : {}),
-    })
-    return data
-  },
-
-  /**
-   * DELETE /host/listings/:id with no body: the server lets the owner remove an organization
-   * they have just created and that holds no branch (NEW-38 rollback exemption). Used only to
-   * undo a half-finished "move an existing branch" when the owner backs out.
-   */
-  deleteListing: async (listingId: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/host/listings/${listingId}`)
     return data
   },
 

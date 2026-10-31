@@ -64,24 +64,29 @@ describe('hostApi — delete and restore', () => {
   })
 })
 
+// P5b item 8 (R-81) / NEW-167: the move route is gone and an organization starts with its first branch
+// (NEW-168), so the client has no move, no bare organization and no rollback delete.
 describe('hostApi — new organization', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('creates an organization, moves a branch into it and undoes it on the /host routes', async () => {
-    const get = vi.spyOn(apiClient, 'get').mockResolvedValue({ data: { success: true, data: {} } } as never)
+  it('creates an organization with its first branch on POST /host/listings', async () => {
     const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true, data: {} } } as never)
-    const del = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: { success: true, data: null } } as never)
+    const body = { gymName: 'Fit Hub', gymDescription: 'd', genderType: 'MIXED', branchSource: 'new' as const, cityId: 7, address: 'x', packages: [{ name: 'Monthly', price: 3000 }] }
+    await hostApi.createListing(body)
+    expect(post).toHaveBeenCalledWith('/host/listings', body)
+  })
 
-    await hostApi.getAllBranches()
-    await hostApi.createListing({ gymName: 'Fit Hub', gymDescription: 'd', genderType: 'MIXED', branchSource: 'none' })
-    await hostApi.moveBranch('b1', 'listing-2')
-    await hostApi.moveBranch('b1', 'listing-2', true)
-    await hostApi.deleteListing('listing-2')
+  it('has no move and no bare-organization rollback', () => {
+    const api = hostApi as Record<string, unknown>
+    expect(api.moveBranch).toBeUndefined()
+    expect(api.deleteListing).toBeUndefined()
+  })
 
-    expect(get).toHaveBeenCalledWith('/host/branches')
-    expect(post).toHaveBeenNthCalledWith(1, '/host/listings', { gymName: 'Fit Hub', gymDescription: 'd', genderType: 'MIXED', branchSource: 'none' })
-    expect(post).toHaveBeenNthCalledWith(2, '/host/branches/b1/move', { targetListingId: 'listing-2' })
-    expect(post).toHaveBeenNthCalledWith(3, '/host/branches/b1/move', { targetListingId: 'listing-2', confirmOrganizationDeletion: true })
-    expect(del).toHaveBeenCalledWith('/host/listings/listing-2')
+  it('pauses and resumes a branch on the P5b routes', async () => {
+    const post = vi.spyOn(apiClient, 'post').mockResolvedValue({ data: { success: true, data: {} } } as never)
+    await hostApi.pauseBranch('b1')
+    await hostApi.resumeBranch('b1')
+    expect(post).toHaveBeenNthCalledWith(1, '/host/branches/b1/pause')
+    expect(post).toHaveBeenNthCalledWith(2, '/host/branches/b1/resume')
   })
 })
