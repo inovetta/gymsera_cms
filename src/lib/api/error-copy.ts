@@ -40,6 +40,19 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'لا تزال بعض فروع هذه المنظمة تضم أعضاء نشطين أو حجوزات قادمة أو مدفوعات معلقة. قم بتسويتها أو انتظر حتى تنتهي، أو أوقف تلك الفروع مؤقتًا بدلاً من ذلك.',
     action: 'none',
   },
+  // Phase 7 P4 / P8 (BUG-05, NEW-146, NEW-147): plans travellers can see.
+  last_visible_plan: {
+    en: 'Travellers must always see at least one plan at each branch. Show another plan first, then hide this one.',
+    ur: 'مسافروں کو ہر برانچ میں کم از کم ایک پلان نظر آنا ضروری ہے۔ پہلے کوئی اور پلان دکھائیں، پھر اسے چھپائیں۔',
+    ar: 'يجب أن يرى المسافرون خطة واحدة على الأقل في كل فرع. اعرض خطة أخرى أولاً، ثم أخفِ هذه الخطة.',
+    action: 'none',
+  },
+  visible_plan_required: {
+    en: 'Turn on "Show to Travellers" for at least one plan, then try again.',
+    ur: 'کم از کم ایک پلان کے لیے "مسافروں کو دکھائیں" آن کریں، پھر دوبارہ کوشش کریں۔',
+    ar: 'فعّل "إظهار للمسافرين" لخطة واحدة على الأقل، ثم حاول مرة أخرى.',
+    action: 'none',
+  },
   organization_needs_branch: {
     en: 'An organization needs its first branch. Add the branch with its plans.',
     ur: 'ہر ادارے کی پہلی برانچ ضروری ہے۔ برانچ اس کے پلانز کے ساتھ شامل کریں۔',
