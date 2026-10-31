@@ -13,11 +13,35 @@ export interface CatalogPlan {
   currency: string
 }
 
+/** GET /billing/bank-instructions (UX-15, R-86): the platform account, from the API's env, never typed in here. */
+export interface BankTransferInstructions {
+  bankName: string | null
+  accountTitle: string | null
+  accountNumber: string | null
+  iban: string | null
+  swiftCode: string | null
+  currency: string
+  instructions: string | null
+}
+
+/** What GET /host/subscription/current says about a plan that no longer entitles (P7c, R-82). */
+export interface SubscriptionLapse {
+  status: string
+  reason: 'expired' | 'on_hold' | 'paused' | 'refunded' | 'ended' | string
+  provider?: string | null
+  manageUrl?: string | null
+  endedAt?: string | null
+  branchesLockAt?: string | null
+  inGrace?: boolean
+  remainingDays?: number | null
+}
+
 export const hostBillingApi = {
   // GET /host/subscription/current — the SAME endpoint the mobile app's
   // MySubscriptionScreen reads. Whatever this returns (IAP or legacy
   // manual) is this tenant's one real entitlement; there is deliberately no
-  // separate CMS-specific "get my plan" endpoint. 404s when there is none.
+  // separate CMS-specific "get my plan" endpoint. 404s when there never was one;
+  // a plan that ended answers 200 with `entitled: false` and `lapse` (P7c, R-82).
   getCurrentSubscription: async (): Promise<ApiResponse<TenantSubscription>> => {
     const { data } = await apiClient.get('/host/subscription/current')
     return data
@@ -33,6 +57,11 @@ export const hostBillingApi = {
   // GET /billing/plans — the real branch-count catalog, shown here as
   // reference pricing only (purchasing itself happens in the mobile app for
   // IOS/ANDROID; there is no web checkout yet).
+  getBankInstructions: async (): Promise<ApiResponse<BankTransferInstructions>> => {
+    const { data } = await apiClient.get('/billing/bank-instructions')
+    return data
+  },
+
   getCatalog: async (): Promise<ApiResponse<{ plans: CatalogPlan[] } | CatalogPlan[]>> => {
     const { data } = await apiClient.get('/billing/plans')
     return data
