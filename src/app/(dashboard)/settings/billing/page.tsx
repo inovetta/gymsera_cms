@@ -15,16 +15,10 @@ import { ErrorState } from '@/components/features/error-state'
 import { BillingNoticeList } from '@/components/features/billing-notices'
 import { httpStatus } from '@/lib/api/request-errors'
 import { tenantsApi } from '@/lib/api/tenants'
-import { hostBillingApi, CatalogPlan } from '@/lib/api/host-billing'
+import { hostBillingApi, CatalogPlan, SubscriptionLapse } from '@/lib/api/host-billing'
+import { LapsedPlanCard } from '@/components/features/lapsed-plan-card'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { TenantSubscription } from '@/types'
-
-const BANK_DETAILS = {
-  'Bank Name': 'Meezan Bank',
-  'Account Title': 'GymsEra Technologies Pvt Ltd',
-  'Account Number': '0247-0105817703',
-  'IBAN': 'PK61MEZN0002470105817703',
-}
 
 const PLATFORM_LABEL: Record<TenantSubscription['platform'], string> = {
   IOS: 'Apple App Store',
@@ -65,16 +59,34 @@ export default function BillingPage() {
     queryFn: () => hostBillingApi.getBranchQuota(),
   })
 
+  // R-86: the platform bank account comes from the API's environment, never from this page.
+  const { data: bankData, isLoading: bankLoading, error: bankError, refetch: refetchBank } = useQuery({
+    queryKey: ['billing-bank-instructions'],
+    queryFn: () => hostBillingApi.getBankInstructions(),
+  })
+  const bank = bankData?.data
+  const bankRows: Array<[string, string]> = bank
+    ? ([
+        ['Bank Name', bank.bankName],
+        ['Account Title', bank.accountTitle],
+        ['Account Number', bank.accountNumber],
+        ['IBAN', bank.iban],
+        ['SWIFT', bank.swiftCode],
+      ].filter(([, v]) => !!v) as Array<[string, string]>)
+    : []
+
   const { data: catalogData, isLoading: catalogLoading } = useQuery({
     queryKey: ['billing-catalog'],
     queryFn: () => hostBillingApi.getCatalog(),
   })
 
   // 404 is the normal "no plan yet" answer (R-21). Any other failure is a failed load, never "no plan".
-  // NEW-180: since P7c a plan that ended answers 200 with `entitled: false`; until P9 builds its view it
-  // reads as before (no current plan, bank transfer offered), never as the current plan.
-  const lapsed = (subData?.data as { entitled?: boolean } | undefined)?.entitled === false
-  const noActiveSub = (!!subError && httpStatus(subError) === 404) || lapsed
+  // NEW-180 (P9): a plan that ended answers 200 with `entitled: false` and `lapse` (P7c, R-82): it is
+  // shown as what it is (LapsedPlanCard), never as the current plan.
+  const lapsedSub = (subData?.data as { entitled?: boolean; lapse?: SubscriptionLapse | null; endDate?: string; platform?: string } | undefined)
+  const lapsed = lapsedSub?.entitled === false
+  const lapse = lapsed ? lapsedSub?.lapse ?? null : null
+  const noActiveSub = (!!subError && httpStatus(subError) === 404) || (lapsed && !lapse)
   const subLoadFailed = !!subError && !noActiveSub
 
   const tenant = tenantData?.data?.tenant
@@ -200,6 +212,8 @@ export default function BillingPage() {
           </Card>
         )}
 
+        {lapse && <LapsedPlanCard lapse={lapse} endDate={lapsedSub?.endDate} platform={lapsedSub?.platform} />}
+
         {subLoadFailed && (
           <ErrorState error={subError} what="your current plan" onRetry={() => refetchSub()} compact />
         )}
@@ -297,8 +311,17 @@ export default function BillingPage() {
                   <CardDescription>Send payment, then email the proof</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
+                  {bankLoading ? (
+                    <Skeleton className="h-24 rounded-lg" />
+                  ) : bankError ? (
+                    <ErrorState error={bankError} what="the bank details" onRetry={() => refetchBank()} compact />
+                  ) : bankRows.length === 0 ? (
+                    <p className="text-muted-foreground">
+                      The bank details are not available here yet. Contact support@gymsera.com for the bank details.
+                    </p>
+                  ) : (
                   <div className="bg-muted p-3 rounded-lg space-y-2 font-mono text-xs">
-                    {Object.entries(BANK_DETAILS).map(([label, value]) => (
+                    {bankRows.map(([label, value]) => (
                       <div key={label} className="flex justify-between gap-2 items-center">
                         <span className="text-muted-foreground">{label}:</span>
                         <div className="flex items-center gap-1.5">
@@ -310,6 +333,8 @@ export default function BillingPage() {
                       </div>
                     ))}
                   </div>
+                  )}
+                  {bank?.instructions && <p className="text-xs">{bank.instructions}</p>}
                   <div className="flex gap-2 items-start text-xs text-muted-foreground">
                     <AlertCircle className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                     <span>Please email your transaction proof with your Tenant ID to support@gymsera.com after transfer.</span>

@@ -23,7 +23,15 @@ export interface User {
   createdAt: string
 }
 
+/** R-84 (NEW-158): a photo the approval would publish (GET /admin/tenants/:id). */
+export interface ApprovalPhoto {
+  url: string
+  kind: 'logo' | 'cover' | 'gallery'
+  branchId?: string
+}
+
 export interface Tenant {
+  approvalPhotos?: ApprovalPhoto[]
   id: string
   userId: string
   businessName: string
@@ -198,6 +206,12 @@ export interface Branch {
   status: string
   city?: City
   area?: Area
+  /** GLB-02: the currency the branch sells in. */
+  currency?: string | null
+  /** NEW-140: the Google place the address was picked from. */
+  googlePlaceId?: string | null
+  /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
+  pausedAt?: string | null
 }
 
 export interface MembershipPlan {

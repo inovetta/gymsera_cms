@@ -258,6 +258,8 @@ export interface CreateTenantBranchPayload {
   facilities?: string[]
   latitude?: number
   longitude?: number
+  /** NEW-140: the Google place the address was picked from (through /places). */
+  googlePlaceId?: string
 }
 
 export interface UpdateTenantBranchPayload {
@@ -271,6 +273,7 @@ export interface UpdateTenantBranchPayload {
   facilities?: string[]
   latitude?: number | null
   longitude?: number | null
+  googlePlaceId?: string | null
   status?: 'ACTIVE' | 'INACTIVE'
 }
 
@@ -329,13 +332,21 @@ export const adminApi = {
   // Approve, or Resume a provisioning that stopped (FLOW-02). One idempotency
   // key per click: a repeated request replays the first answer. 202 = another
   // run is provisioning this tenant (data.provisioning.inProgress).
+  // R-84 (NEW-158): the API refuses an approval without the admin's photo check (photosChecked: true).
   approveTenant: async (
     id: string,
-    idempotencyKey: string
+    idempotencyKey: string,
+    body: { photosChecked: true }
   ): Promise<ApiResponse<{ tenant: Tenant; provisioning: TenantProvisioning }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/approve`, {}, {
+    const { data } = await apiClient.post(`/admin/tenants/${id}/approve`, body, {
       headers: { 'Idempotency-Key': idempotencyKey },
     })
+    return data
+  },
+
+  // R-84: takes one photo off an application before approval (audited by the API).
+  removeApprovalPhoto: async (id: string, imageUrl: string): Promise<ApiResponse<{ removedFrom: string }>> => {
+    const { data } = await apiClient.delete(`/admin/tenants/${id}/approval-photos`, { data: { imageUrl } })
     return data
   },
 

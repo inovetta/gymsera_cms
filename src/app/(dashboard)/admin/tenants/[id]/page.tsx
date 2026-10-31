@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { StatusBadge } from '@/components/features/status-badge'
+import { ApproveTenantDialog } from '@/components/features/approve-tenant-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,7 @@ export default function TenantDetailPage() {
   const approveKeyRef = useRef<string>('')
   const openApproveDialog = () => {
     approveKeyRef.current = crypto.randomUUID()
+    approveMutation.reset()
     setApproveDialog(true)
   }
   const [rejectDialog, setRejectDialog] = useState(false)
@@ -82,7 +84,8 @@ export default function TenantDetailPage() {
   }
 
   const approveMutation = useMutation({
-    mutationFn: (idempotencyKey: string) => adminApi.approveTenant(tenantId, idempotencyKey),
+    // R-84: only reachable from the approve dialog, after "I checked the photos".
+    mutationFn: (idempotencyKey: string) => adminApi.approveTenant(tenantId, idempotencyKey, { photosChecked: true }),
     onSuccess: (res) => {
       invalidate()
       setApproveDialog(false)
@@ -90,12 +93,11 @@ export default function TenantDetailPage() {
       if (p?.inProgress) toast({ title: `Provisioning is already in progress (step ${p.step}/${p.totalSteps})` })
       else toast({ title: 'Tenant approved — database provisioned' })
     },
-    onError: (err: any) => {
-      invalidate() // show the step it stopped at, with Resume
-      toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to approve tenant', variant: 'destructive' })
-    },
+    // Shown in the approve dialog (approvalErrorMessage); the page shows the step it stopped at, with Resume.
+    onError: () => invalidate(),
   })
-  const resumeProvisioning = () => approveMutation.mutate(crypto.randomUUID())
+  // Resume is an approve call too, so it goes through the same photo check (R-84).
+  const resumeProvisioning = openApproveDialog
 
   const rejectMutation = useMutation({
     mutationFn: () => adminApi.rejectTenant(tenantId, rejectReason),
@@ -353,16 +355,10 @@ export default function TenantDetailPage() {
         </Tabs>
       </div>
 
-      {/* Approve */}
-      <ConfirmDialog open={approveDialog} onOpenChange={setApproveDialog}
-        title={tenant.status === 'REJECTED' ? 'Re-approve Tenant' : tenant.status === 'APPROVED' ? 'Resume Provisioning' : 'Approve Tenant'}
-        description={
-          tenant.status === 'REJECTED' ? `Re-approve "${tenant.businessName}"? This will override the previous rejection and provision the tenant.`
-          : tenant.status === 'APPROVED' ? `Resume provisioning for "${tenant.businessName}" from the last finished step?`
-          : `Approve "${tenant.businessName}"? They will gain full platform access once provisioning completes.`
-        }
-        confirmLabel={tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume' : 'Approve'} variant="default"
-        onConfirm={() => approveMutation.mutate(approveKeyRef.current)} loading={approveMutation.isPending} />
+      {/* Approve / Re-approve / Resume, with the photo check (R-84, NEW-158) */}
+      <ApproveTenantDialog open={approveDialog} onOpenChange={setApproveDialog} tenant={tenant} tenantId={tenantId}
+        loading={approveMutation.isPending} error={approveMutation.error}
+        onApprove={() => approveMutation.mutate(approveKeyRef.current)} />
 
 
       {/* Reactivate */}

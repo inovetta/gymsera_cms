@@ -1,74 +1,74 @@
 import React from 'react'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
-import { MapPicker, getCityCoordinates } from '@/components/features/map-picker'
-import L from 'leaflet'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 
-const mockMap = {
-  setView: vi.fn(),
-  panTo: vi.fn(),
-  getZoom: vi.fn(() => 13),
-  remove: vi.fn(),
-  on: vi.fn(),
-}
-
-const mockMarker = {
-  addTo: vi.fn().mockReturnThis(),
-  bindPopup: vi.fn().mockReturnThis(),
-  openPopup: vi.fn().mockReturnThis(),
-  on: vi.fn(),
-  setLatLng: vi.fn(),
-  getLatLng: vi.fn(() => ({ lat: 31.5204, lng: 74.3587 })),
-}
-
-vi.mock('leaflet', () => ({
-  default: {
-    Icon: { Default: { prototype: {}, mergeOptions: vi.fn() } },
-    map: vi.fn(() => mockMap),
-    tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-    marker: vi.fn(() => mockMarker),
+/**
+ * MapPicker (Phase 7 P9, NEW-140): a Google map drawn with the web key; it never searches.
+ * Replaces the Leaflet / OpenStreetMap picker and its typed-in list of city centres (NEW-46e):
+ * the centre now comes from the city the host picked through /places.
+ */
+const mapProps: any[] = []
+vi.mock('@vis.gl/react-google-maps', () => ({
+  APIProvider: ({ apiKey, children }: any) => <div data-testid="provider" data-key={apiKey}>{children}</div>,
+  Map: (props: any) => {
+    mapProps.push(props)
+    return (
+      <div data-testid="map">
+        <button type="button" onClick={() => props.onClick({ detail: { latLng: { lat: 31.123456789, lng: 74.987654321 } } })}>map click</button>
+        {props.children}
+      </div>
+    )
   },
+  Marker: ({ onDragEnd }: any) => (
+    <button type="button" onClick={() => onDragEnd({ latLng: { lat: () => 24.8607001, lng: () => 67.0011009 } })}>drag pin</button>
+  ),
+  useMap: () => null,
 }))
 
-describe('MapPicker — City Coordinates Centering (NEW-46e)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+const load = async (key: string) => {
+  vi.resetModules()
+  vi.stubEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY', key)
+  return (await import('@/components/features/map-picker')).MapPicker
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  mapProps.length = 0
+})
+
+describe('MapPicker', () => {
+  it('without the web key: plain words for the person, no setting name, no map', async () => {
+    const MapPicker = await load('')
+    render(<MapPicker onChange={vi.fn()} />)
+    expect(screen.getByTestId('map-unavailable')).toHaveTextContent('The map is not available here')
+    expect(document.body.textContent).not.toMatch(/NEXT_PUBLIC|API_KEY/)
+    expect(screen.queryByTestId('map')).not.toBeInTheDocument()
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('draws the Google map with the web key, centred on the pin', async () => {
+    const MapPicker = await load('web-key')
+    render(<MapPicker latitude={31.5} longitude={74.3} onChange={vi.fn()} />)
+    expect(screen.getByTestId('provider')).toHaveAttribute('data-key', 'web-key')
+    expect(mapProps[0]).toMatchObject({ defaultCenter: { lat: 31.5, lng: 74.3 }, defaultZoom: 16 })
   })
 
-  it('resolves known Pakistan city coordinates', () => {
-    expect(getCityCoordinates('Islamabad')).toEqual([33.6844, 73.0479])
-    expect(getCityCoordinates('Karachi')).toEqual([24.8607, 67.0011])
-    expect(getCityCoordinates('Lahore')).toEqual([31.5204, 74.3587])
-    expect(getCityCoordinates('Rawalpindi')).toEqual([33.5651, 73.0169])
-    expect(getCityCoordinates('Unknown City')).toBeNull()
+  it('no pin yet: the picked city centre, else the whole country (no invented city)', async () => {
+    const MapPicker = await load('web-key')
+    const { unmount } = render(<MapPicker cityCoordinates={[33.6844, 73.0479]} onChange={vi.fn()} />)
+    expect(mapProps[0]).toMatchObject({ defaultCenter: { lat: 33.6844, lng: 73.0479 }, defaultZoom: 12 })
+    unmount()
+    render(<MapPicker onChange={vi.fn()} />)
+    expect(mapProps[mapProps.length - 1].defaultZoom).toBe(5)
+    expect(screen.queryByRole('button', { name: 'drag pin' })).not.toBeInTheDocument()
   })
 
-  it('centres the map on selected city coordinates when known and lat/lng are empty', async () => {
-    render(<MapPicker cityName="Islamabad" onChange={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(L.map).toHaveBeenCalled()
-    })
-
-    const mapCallArgs = (L.map as any).mock.calls[0][1]
-    expect(mapCallArgs.center).toEqual([33.6844, 73.0479])
-  })
-
-  it('updates center when cityName prop changes and no explicit coordinates were set', async () => {
-    const { rerender } = render(<MapPicker cityName="Lahore" onChange={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(L.map).toHaveBeenCalled()
-    })
-
-    rerender(<MapPicker cityName="Karachi" onChange={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(mockMap.setView).toHaveBeenCalledWith([24.8607, 67.0011], 13)
-    })
+  it('a click on the map and a dragged pin set the point, rounded to 6 decimals', async () => {
+    const MapPicker = await load('web-key')
+    const onChange = vi.fn()
+    render(<MapPicker latitude={31.5} longitude={74.3} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'map click' }))
+    expect(onChange).toHaveBeenLastCalledWith(31.123457, 74.987654)
+    fireEvent.click(screen.getByRole('button', { name: 'drag pin' }))
+    expect(onChange).toHaveBeenLastCalledWith(24.8607, 67.001101)
   })
 })
