@@ -63,6 +63,8 @@ export interface CreateHostBranchPayload {
   areaId?: number
   latitude?: number
   longitude?: number
+  /** NEW-140: the Google place the address was picked from (through /places). */
+  googlePlaceId?: string
   phone?: string
   openingTime?: string
   closingTime?: string
@@ -152,6 +154,7 @@ export type UpdateListingContentPayload = Partial<{
   phone: string
   latitude: number
   longitude: number
+  googlePlaceId: string
 }>
 
 export const hostApi = {

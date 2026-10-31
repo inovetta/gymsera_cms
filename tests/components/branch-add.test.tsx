@@ -10,6 +10,7 @@ import { meApi, MyContext } from '@/lib/api/me'
 import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
+import { fakePlaces, pickPlace } from '../fixtures/places'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }))
 vi.mock('next/link', () => ({ default: ({ href, children, ...r }: any) => <a href={href} {...r}>{children}</a> }))
@@ -63,6 +64,7 @@ let getQuota: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   accountRole = 'GYM_HOST'
+  fakePlaces()
   vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 1, name: 'Peshawar' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
@@ -76,13 +78,19 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-/** Open Add Branch, fill the required fields and press Create. */
+/**
+ * Open Add Branch, fill the required fields and press Create. The city is picked through /places
+ * (NEW-140, the fake in fixtures/places.ts: Lahore is city 7); the address is typed by hand; the
+ * first plan is typed, since none is filled in for the host any more.
+ */
 const addBranch = async () => {
   fireEvent.click((await screen.findAllByRole('button', { name: /add branch/i }))[0])
   const dialog = await screen.findByRole('dialog')
   fireEvent.change(within(dialog).getByPlaceholderText(/main branch, gulberg/i), { target: { value: 'New One' } })
-  fireEvent.change(within(dialog).getByPlaceholderText(/street address/i), { target: { value: '12 Mall Road' } })
-  fireEvent.change(within(dialog).getAllByRole('combobox')[0], { target: { value: '1' } })
+  await pickPlace('City', 'Lah', /Lahore/, dialog)
+  fireEvent.change(within(dialog).getByLabelText('Address'), { target: { value: '12 Mall Road' } })
+  fireEvent.change(within(dialog).getByLabelText(/plan name/i), { target: { value: 'Monthly' } })
+  fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '3000' } })
   fireEvent.click(within(dialog).getByRole('button', { name: /^(create|add) branch$|^create$|save/i }))
 }
 
@@ -113,7 +121,7 @@ describe('Add branch — attempt first, upsell only after a 403 (UX-19)', () => 
 
     await waitFor(() => expect(createBranch).toHaveBeenCalledTimes(1))
     const body = createBranch.mock.calls[0][0]
-    expect(body).toMatchObject({ branchName: 'New One', gymListingId: 'listing-2', address: '12 Mall Road', cityId: 1 })
+    expect(body).toMatchObject({ branchName: 'New One', gymListingId: 'listing-2', address: '12 Mall Road', cityId: 7 })
     expect(body.packages.length).toBeGreaterThan(0)
     // Even with the plan full, the attempt was made; no upsell appears when it succeeds.
     expect(screen.queryByText('One more branch needed')).not.toBeInTheDocument()

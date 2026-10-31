@@ -4,6 +4,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { citiesApi } from '@/lib/api/cities'
 import { branchFixture, httpError, renderEditor } from '../fixtures/listing'
 import { ok } from '../fixtures/team'
+import { fakePlaces, pickPlace } from '../fixtures/places'
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'branch-1' }),
@@ -77,6 +78,24 @@ describe('Listing editor: Location & Map', () => {
     fireEvent.change(screen.getByLabelText('Branch phone'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(patch).toHaveBeenCalledWith('branch-1', { phone: '' }))
+  })
+
+  // Phase 7 P9, NEW-140: the address comes from Google through our API, with its city, area, point and place id.
+  it('a picked address saves its city, area, point and Google place id', async () => {
+    fakePlaces()
+    const { patch } = renderEditor()
+    await open()
+    await pickPlace('Address', '12 MM', /12 MM Alam Road/)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patch).toHaveBeenCalledWith('branch-1', expect.objectContaining({
+      address: '12 MM Alam Road, Gulberg III, Lahore',
+      addressLine1: '12 MM Alam Road, Gulberg III, Lahore',
+      cityId: 7,
+      areaId: 71,
+      latitude: 31.5101,
+      longitude: 74.3442,
+      googlePlaceId: 'addr-mm-alam',
+    })))
   })
 
   it('shows the server message when the save is refused', async () => {

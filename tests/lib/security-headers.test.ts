@@ -14,9 +14,16 @@ const directive = (csp: string, name: string) =>
 describe('CSP policy', () => {
   const csp = buildCsp({ nonce: 'abc123', development: false, api: 'https://api.example.com' })
 
-  it('allows the KYC blob preview frame and the Leaflet stylesheet', () => {
+  it('allows the KYC blob preview frame', () => {
     expect(directive(csp, 'frame-src')).toContain('blob:')
-    expect(directive(csp, 'style-src')).toContain('https://unpkg.com')
+  })
+
+  // NEW-140 (P9): the map is Google's (Maps JavaScript API with the web key); Leaflet and its unpkg stylesheet are gone.
+  it('allows the Google map and nothing for the removed Leaflet picker', () => {
+    expect(directive(csp, 'script-src')).toContain('https://maps.googleapis.com')
+    expect(directive(csp, 'connect-src')).toContain('https://maps.googleapis.com')
+    expect(directive(csp, 'font-src')).toContain('https://fonts.gstatic.com')
+    expect(csp).not.toContain('unpkg.com')
   })
 
   it('production scripts: nonce + strict-dynamic, never unsafe-eval or unsafe-inline', () => {

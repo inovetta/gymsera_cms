@@ -258,6 +258,8 @@ export interface CreateTenantBranchPayload {
   facilities?: string[]
   latitude?: number
   longitude?: number
+  /** NEW-140: the Google place the address was picked from (through /places). */
+  googlePlaceId?: string
 }
 
 export interface UpdateTenantBranchPayload {
@@ -271,6 +273,7 @@ export interface UpdateTenantBranchPayload {
   facilities?: string[]
   latitude?: number | null
   longitude?: number | null
+  googlePlaceId?: string | null
   status?: 'ACTIVE' | 'INACTIVE'
 }
 

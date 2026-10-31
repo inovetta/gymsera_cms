@@ -21,7 +21,7 @@ import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { classifyBranchError } from '@/lib/branches/errors'
 import { resolveApiError } from '@/lib/api/error-copy'
 import { EmptyState } from '@/components/features/empty-state'
-import { MapPicker } from '@/components/features/map-picker'
+import { BranchLocationFields, BranchLocationValue, locationValid } from '@/components/features/places/branch-location-fields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +53,10 @@ interface BranchFormState {
   facilities: string[]
   latitude?: number
   longitude?: number
+  // NEW-140: the Google place the address was picked from, and the names shown in the search fields
+  googlePlaceId?: string
+  cityName?: string
+  areaName?: string
   status?: string
   initialPlanName?: string
   initialPlanPrice?: number
@@ -62,8 +66,9 @@ interface BranchFormState {
 const defaultForm = (): BranchFormState => ({
   branchName: '', address: '', cityId: 0, phone: '',
   openingTime: '06:00', closingTime: '22:00', facilities: [],
-  initialPlanName: 'Standard Membership',
-  initialPlanPrice: 5000,
+  // No plan is invented (NEW-146 / NEW-157 in the CMS): the host types the first plan.
+  initialPlanName: '',
+  initialPlanPrice: undefined,
   initialPlanDuration: 'MONTHLY',
 })
 
@@ -215,14 +220,39 @@ export default function BranchesPage() {
     queryFn: () => citiesApi.getCities(),
   })
 
+  // Names for an existing branch's saved city and area (a new pick carries its own names).
   const { data: areasData } = useQuery({
     queryKey: ['areas', form.cityId],
     queryFn: () => citiesApi.getAreas(form.cityId),
-    enabled: form.cityId > 0,
+    enabled: !!editBranch && form.cityId > 0 && !!form.areaId && !form.areaName,
   })
 
   const cities = parseCities(citiesData?.data)
   const areas = areasData?.data?.areas ?? []
+  const location: BranchLocationValue = {
+    address: form.address,
+    cityId: form.cityId || undefined,
+    cityName: form.cityName ?? cities.find((c: any) => c.id === form.cityId)?.name,
+    areaId: form.areaId,
+    areaName: form.areaName ?? areas.find((a: any) => a.id === form.areaId)?.name,
+    latitude: form.latitude,
+    longitude: form.longitude,
+    googlePlaceId: form.googlePlaceId,
+  }
+  const setLocation = (v: BranchLocationValue) =>
+    setForm((p) => ({
+      ...p,
+      address: v.address,
+      cityId: v.cityId ?? 0,
+      cityName: v.cityName,
+      areaId: v.areaId,
+      areaName: v.areaName,
+      latitude: v.latitude,
+      longitude: v.longitude,
+      googlePlaceId: v.googlePlaceId,
+    }))
+  // A new branch sells in its organization's currency (GLB-02: it inherits the first branch's).
+  const planCurrency = (branchesData?.data?.branches ?? [])[0]?.currency ?? null
 
   // Attempt first: capacity is never checked before sending. The server's 403 is what opens
   // the upsell (mobile add_branch_screen.dart `_createBranchRequest` / `_buyCapacityForThisBranch`).
@@ -359,6 +389,7 @@ export default function BranchesPage() {
       facilities: facs,
       latitude: branch.latitude ? Number(branch.latitude) : undefined,
       longitude: branch.longitude ? Number(branch.longitude) : undefined,
+      googlePlaceId: branch.googlePlaceId ?? undefined,
       status: branch.status,
     })
     setFacilityInput('')
@@ -382,6 +413,9 @@ export default function BranchesPage() {
       return
     }
     const payload = { ...form }
+    delete (payload as any).cityName
+    delete (payload as any).areaName
+    if (!payload.googlePlaceId) delete (payload as any).googlePlaceId
     if (!payload.cityId) delete (payload as any).cityId
     if (!payload.areaId) delete (payload as any).areaId
     if (!payload.latitude) delete (payload as any).latitude
@@ -410,13 +444,13 @@ export default function BranchesPage() {
         facilitiesJson: form.facilities,
         ...(form.latitude ? { latitude: form.latitude } : {}),
         ...(form.longitude ? { longitude: form.longitude } : {}),
+        ...(form.googlePlaceId ? { googlePlaceId: form.googlePlaceId } : {}),
         packages: [
           {
             name: form.initialPlanName.trim(),
             price: Number(form.initialPlanPrice),
             durationType: form.initialPlanDuration || 'MONTHLY',
             durationValue: form.initialPlanDuration === 'YEARLY' ? 12 : (form.initialPlanDuration === 'QUARTERLY' ? 3 : 1),
-            description: 'Standard access to branch facilities',
           },
         ],
       }
@@ -427,7 +461,7 @@ export default function BranchesPage() {
   }
 
   const branches = branchesData?.data?.branches ?? []
-  const canSubmit = form.branchName.trim().length > 0 &&
+  const canSubmit = form.branchName.trim().length > 0 && locationValid(location) &&
     (!!editBranch || (form.cityId > 0 && form.address.trim().length > 0 && !!form.initialPlanName?.trim() && (form.initialPlanPrice ?? 0) > 0))
 
   return (
@@ -534,50 +568,12 @@ export default function BranchesPage() {
               />
             </div>
 
-            {/* Address */}
-            <div>
-              <Label className="mb-2 block">Address {!editBranch && '*'}</Label>
-              <Input
-                value={form.address}
-                onChange={(e) => setForm(p => ({ ...p, address: e.target.value }))}
-                placeholder="Street address, Building no."
-              />
-            </div>
-
-            {/* City + Area */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-2 block">City {!editBranch && '*'}</Label>
-                <Select
-                  value={form.cityId ? String(form.cityId) : ''}
-                  onValueChange={(v) => setForm(p => ({ ...p, cityId: Number(v), areaId: undefined }))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select city" /></SelectTrigger>
-                  <SelectContent>
-                    {cities.map((c: any) => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="mb-2 block">Area</Label>
-                <Select
-                  value={form.areaId ? String(form.areaId) : ''}
-                  onValueChange={(v) => setForm(p => ({ ...p, areaId: v ? Number(v) : undefined }))}
-                  disabled={!areas.length}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={form.cityId > 0 ? (areas.length ? 'Select area' : 'No areas') : 'Select city first'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {areas.map((a: any) => (
-                      <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Location: city, area and address from Google through our API (NEW-140) */}
+            <BranchLocationFields
+              value={location}
+              onChange={setLocation}
+              addressError={!editBranch && !form.address.trim() ? 'Address is required.' : null}
+            />
 
             {/* Phone */}
             <div>
@@ -598,39 +594,6 @@ export default function BranchesPage() {
               <div>
                 <Label className="mb-2 block">Closing Time</Label>
                 <Input type="time" value={form.closingTime} onChange={(e) => setForm(p => ({ ...p, closingTime: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Location Map */}
-            <div>
-              <Label className="mb-2 block">Location on Map</Label>
-              <MapPicker
-                latitude={form.latitude ?? null}
-                longitude={form.longitude ?? null}
-                cityName={cities.find((c: any) => c.id === form.cityId)?.name}
-                onChange={(lat, lng) => setForm(p => ({ ...p, latitude: lat, longitude: lng }))}
-              />
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <div>
-                  <Label className="mb-1 block text-xs text-muted-foreground">Latitude</Label>
-                  <Input
-                    type="number" step="any"
-                    value={form.latitude ?? ''}
-                    onChange={(e) => setForm(p => ({ ...p, latitude: e.target.value ? Number(e.target.value) : undefined }))}
-                    placeholder="e.g. 31.5204"
-                    className="h-8 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs text-muted-foreground">Longitude</Label>
-                  <Input
-                    type="number" step="any"
-                    value={form.longitude ?? ''}
-                    onChange={(e) => setForm(p => ({ ...p, longitude: e.target.value ? Number(e.target.value) : undefined }))}
-                    placeholder="e.g. 74.3587"
-                    className="h-8 text-sm"
-                  />
-                </div>
               </div>
             </div>
 
@@ -683,8 +646,9 @@ export default function BranchesPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <Label className="mb-1 block text-xs">Plan Name *</Label>
+                    <Label htmlFor="initial-plan-name" className="mb-1 block text-xs">Plan Name *</Label>
                     <Input
+                      id="initial-plan-name"
                       value={form.initialPlanName ?? ''}
                       onChange={(e) => setForm(p => ({ ...p, initialPlanName: e.target.value }))}
                       placeholder="e.g. Standard Monthly"
@@ -692,8 +656,9 @@ export default function BranchesPage() {
                     />
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs">Price (PKR) *</Label>
+                    <Label htmlFor="initial-plan-price" className="mb-1 block text-xs">Price{planCurrency ? ` (${planCurrency})` : ''} *</Label>
                     <Input
+                      id="initial-plan-price"
                       type="number"
                       min={0}
                       value={form.initialPlanPrice ?? ''}

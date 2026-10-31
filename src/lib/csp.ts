@@ -52,6 +52,7 @@ export const buildCsp = ({ nonce, development = false, api = apiOrigin() }: CspO
     "'strict-dynamic'",
     // Ignored by browsers that understand 'strict-dynamic'; fallback for the rest.
     'https://accounts.google.com/gsi/client',
+    'https://maps.googleapis.com',
   ]
   // React refresh in `next dev` needs eval. Production never does.
   if (development) script.push("'unsafe-eval'")
@@ -60,6 +61,8 @@ export const buildCsp = ({ nonce, development = false, api = apiOrigin() }: CspO
     "'self'",
     api,
     socketOrigin(api),
+    // The Google map (Maps JavaScript API, web key). Place search goes through our API, never here.
+    'https://maps.googleapis.com',
     'https://accounts.google.com',
     ...SENTRY_CONNECT_HOSTS,
   ]
@@ -68,10 +71,10 @@ export const buildCsp = ({ nonce, development = false, api = apiOrigin() }: CspO
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'script-src': script,
-    // unpkg.com: the Leaflet stylesheet (map picker).
-    'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com/gsi/style', 'https://unpkg.com'],
+    // fonts.googleapis.com / fonts.gstatic.com: the Google map's own font.
+    'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com/gsi/style', 'https://fonts.googleapis.com'],
     'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-    'font-src': ["'self'", 'data:'],
+    'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'connect-src': connect,
     // blob: is the KYC document preview (overview-tab.tsx), a same-origin object URL.
     'frame-src': ['https://accounts.google.com', 'blob:'],

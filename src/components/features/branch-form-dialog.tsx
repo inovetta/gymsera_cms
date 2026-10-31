@@ -5,11 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
 import { TenantBranch, CreateTenantBranchPayload, UpdateTenantBranchPayload } from '@/lib/api/admin'
-import { MapPicker } from './map-picker'
+import { BranchLocationFields, BranchLocationValue, locationValid } from './places/branch-location-fields'
 
 const COMMON_FACILITIES = [
   'AC', 'Wi-Fi', 'Parking', 'Lockers', 'Showers', 'Pool', 'Sauna', 'Café',
@@ -27,7 +26,8 @@ interface Props {
   onOpenChange: (open: boolean) => void
   mode: 'create' | 'edit'
   branch?: TenantBranch
-  cities: City[]
+  /** Our cities, for the names of an existing branch's saved city and area. */
+  cities?: City[]
   onSubmit: (payload: CreateTenantBranchPayload | UpdateTenantBranchPayload) => void
   loading?: boolean
 }
@@ -38,8 +38,10 @@ const defaultForm = (): CreateTenantBranchPayload => ({
   cityId: 0,
 })
 
-export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onSubmit, loading }: Props) {
+export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = [], onSubmit, loading }: Props) {
   const [form, setForm] = useState<CreateTenantBranchPayload & UpdateTenantBranchPayload>(defaultForm())
+  // NEW-140: the location block's own fields (names shown in the searches, the Google place id).
+  const [location, setLocation] = useState<BranchLocationValue>({ address: '' })
   const [facilityInput, setFacilityInput] = useState('')
 
   useEffect(() => {
@@ -58,15 +60,23 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
           longitude: branch.longitude ? Number(branch.longitude) : undefined,
           status: branch.status,
         })
+        const city = cities.find((c) => c.id === branch.cityId)
+        setLocation({
+          address: branch.address ?? '',
+          cityId: branch.cityId ?? undefined,
+          cityName: city?.name,
+          areaId: branch.areaId ?? undefined,
+          areaName: city?.areas?.find((a) => a.id === branch.areaId)?.name,
+          latitude: branch.latitude ? Number(branch.latitude) : undefined,
+          longitude: branch.longitude ? Number(branch.longitude) : undefined,
+        })
       } else {
         setForm(defaultForm())
+        setLocation({ address: '' })
       }
       setFacilityInput('')
     }
-  }, [open, mode, branch])
-
-  const selectedCity = cities.find((c) => c.id === form.cityId)
-  const areas = selectedCity?.areas ?? []
+  }, [open, mode, branch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFacility = (name: string) => {
     const trimmed = name.trim()
@@ -83,7 +93,16 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
   }
 
   const handleSubmit = () => {
-    const payload: any = { ...form }
+    const payload: any = {
+      ...form,
+      address: location.address,
+      cityId: location.cityId,
+      areaId: location.areaId,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      googlePlaceId: location.googlePlaceId,
+    }
+    if (!payload.googlePlaceId) delete payload.googlePlaceId
     if (!payload.cityId) delete payload.cityId
     if (!payload.areaId) delete payload.areaId
     if (!payload.phone) delete payload.phone
@@ -94,7 +113,10 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
     onSubmit(payload)
   }
 
-  const canSubmit = form.branchName.trim().length > 0 && (mode === 'edit' || (form.cityId && form.address.trim().length > 0))
+  const canSubmit =
+    form.branchName.trim().length > 0 &&
+    locationValid(location) &&
+    (mode === 'edit' || (!!location.cityId && location.address.trim().length > 0))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -109,31 +131,12 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
             <Input value={form.branchName} onChange={(e) => setForm((p) => ({ ...p, branchName: e.target.value }))} placeholder="e.g. Main Branch" />
           </div>
 
-          <div>
-            <Label className="mb-2 block">Address {mode === 'create' && '*'}</Label>
-            <Input value={form.address ?? ''} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} placeholder="Street address" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="mb-2 block">City {mode === 'create' && '*'}</Label>
-              <Select value={String(form.cityId || '')} onValueChange={(v) => setForm((p) => ({ ...p, cityId: Number(v), areaId: undefined }))}>
-                <SelectTrigger><SelectValue placeholder="Select city" /></SelectTrigger>
-                <SelectContent>
-                  {cities.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="mb-2 block">Area</Label>
-              <Select value={String(form.areaId ?? '')} onValueChange={(v) => setForm((p) => ({ ...p, areaId: v ? Number(v) : undefined }))} disabled={!areas.length}>
-                <SelectTrigger><SelectValue placeholder={areas.length ? 'Select area' : 'Select city first'} /></SelectTrigger>
-                <SelectContent>
-                  {areas.map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <BranchLocationFields
+            idPrefix="admin-branch"
+            value={location}
+            onChange={setLocation}
+            addressError={mode === 'create' && !location.address.trim() ? 'Address is required.' : null}
+          />
 
           <div>
             <Label className="mb-2 block">Phone</Label>
@@ -148,40 +151,6 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities, onS
             <div>
               <Label className="mb-2 block">Closing Time</Label>
               <Input type="time" value={form.closingTime ?? ''} onChange={(e) => setForm((p) => ({ ...p, closingTime: e.target.value }))} />
-            </div>
-          </div>
-
-          <div>
-            <Label className="mb-2 block">Location on Map</Label>
-            <MapPicker
-              latitude={form.latitude ?? null}
-              longitude={form.longitude ?? null}
-              cityName={cities.find((c) => c.id === form.cityId)?.name}
-              onChange={(lat, lng) => setForm((p) => ({ ...p, latitude: lat, longitude: lng }))}
-            />
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <div>
-                <Label className="mb-1 block text-xs text-muted-foreground">Latitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.latitude ?? ''}
-                  onChange={(e) => setForm((p) => ({ ...p, latitude: e.target.value ? Number(e.target.value) : undefined }))}
-                  placeholder="e.g. 31.4150"
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs text-muted-foreground">Longitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.longitude ?? ''}
-                  onChange={(e) => setForm((p) => ({ ...p, longitude: e.target.value ? Number(e.target.value) : undefined }))}
-                  placeholder="e.g. 73.0740"
-                  className="h-8 text-sm"
-                />
-              </div>
             </div>
           </div>
 

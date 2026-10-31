@@ -198,6 +198,10 @@ export interface Branch {
   status: string
   city?: City
   area?: Area
+  /** GLB-02: the currency the branch sells in. */
+  currency?: string | null
+  /** NEW-140: the Google place the address was picked from. */
+  googlePlaceId?: string | null
 }
 
 export interface MembershipPlan {
