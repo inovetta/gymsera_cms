@@ -15,6 +15,7 @@ import { adminApi, TenantSubscription, AssignSubscriptionPayload } from '@/lib/a
 import { packagesApi } from '@/lib/api/packages'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useTierLabel, branchCountLabel } from '@/hooks/use-tier-names'
 
 const SUB_STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -38,6 +39,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 export function SubscriptionTab({ tenantId }: { tenantId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const tierLabel = useTierLabel()
   const [assignSubDialog, setAssignSubDialog] = useState(false)
   const [subForm, setSubForm] = useState<AssignSubscriptionPayload>({ packageId: '', billingCycle: 'MONTHLY', createInvoice: true, autoRenew: true })
 
@@ -135,7 +137,10 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
                           {/* Store-verified (IOS/ANDROID/STRIPE) rows never have a `package` —
                               branchCount is the real entitlement instead (see
                               TenantSubscription.model.js on the backend). */}
-                          {sub.package?.name ?? (sub.branchCount ? `${sub.branchCount} branch${sub.branchCount !== 1 ? 'es' : ''}` : 'Unknown Package')}
+                          {/* BUG-24: a branch-count plan is named by its tier, as the app names it. */}
+                          {sub.branchCount
+                            ? `${tierLabel(sub.branchCount) ? `${tierLabel(sub.branchCount)} · ` : ''}${branchCountLabel(sub.branchCount)}`
+                            : sub.package?.name ?? 'Unknown Package'}
                         </span>
                         {sub.platform && sub.platform !== 'MANUAL' && (
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">
@@ -148,7 +153,7 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
                       </div>
                       <div className="grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-3">
                         <span>Billing: {sub.billingCycle}</span>
-                        <span>Amount (locked-in): {formatCurrency(sub.amount)}</span>
+                        <span>Amount (locked-in): {formatCurrency(sub.amount, sub.currency || undefined)}</span>
                         <span>Auto-renew: {sub.autoRenew ? 'Yes' : 'No'}</span>
                         <span>Start: {formatDate(sub.startDate)}</span>
                         <span className={isExpiringSoon ? 'text-yellow-600 font-medium' : isExpired ? 'text-red-600 font-medium' : ''}>Expires: {formatDate(sub.endDate)}</span>

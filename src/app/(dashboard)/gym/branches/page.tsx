@@ -37,6 +37,7 @@ import { citiesApi, parseCities } from '@/lib/api/cities'
 import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { useGymAccess } from '@/hooks/use-gym-access'
+import { firstPlanPackage } from '@/lib/plans/plan-display'
 
 const COMMON_FACILITIES = [
   'AC', 'Wi-Fi', 'Parking', 'Lockers', 'Showers', 'Pool', 'Sauna', 'Café',
@@ -497,14 +498,8 @@ export default function BranchesPage() {
         ...(form.latitude ? { latitude: form.latitude } : {}),
         ...(form.longitude ? { longitude: form.longitude } : {}),
         ...(form.googlePlaceId ? { googlePlaceId: form.googlePlaceId } : {}),
-        packages: [
-          {
-            name: form.initialPlanName.trim(),
-            price: Number(form.initialPlanPrice),
-            durationType: form.initialPlanDuration || 'MONTHLY',
-            durationValue: form.initialPlanDuration === 'YEARLY' ? 12 : (form.initialPlanDuration === 'QUARTERLY' ? 3 : 1),
-          },
-        ],
+        // One period of the chosen type (R-80): the API counts QUARTERLY n as 3n months, YEARLY n as n years.
+        packages: [firstPlanPackage(form.initialPlanName.trim(), Number(form.initialPlanPrice), form.initialPlanDuration || 'MONTHLY')],
       }
       setFormError(null)
       setLastCreate(hostPayload)

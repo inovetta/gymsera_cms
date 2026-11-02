@@ -8,6 +8,8 @@ import { ApiResponse, TenantSubscription } from '@/types'
 export interface CatalogPlan {
   id: string
   branchCount: number
+  /** BUG-24: the tier label from the API's one table (constants/plan-tiers.js). */
+  tierName?: string | null
   monthlyPrice: number
   annualPrice: number
   currency: string

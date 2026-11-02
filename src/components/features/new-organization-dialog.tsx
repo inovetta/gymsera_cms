@@ -13,6 +13,7 @@ import { BranchLocationFields, BranchLocationValue, locationValid } from '@/comp
 import { useBranchQuota, invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { hostApi, CreateListingPayload } from '@/lib/api/host'
 import { classifyBranchError } from '@/lib/branches/errors'
+import { firstPlanPackage } from '@/lib/plans/plan-display'
 
 interface NewOrganizationDialogProps {
   open: boolean
@@ -97,14 +98,8 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
       ...(location.latitude !== undefined ? { latitude: location.latitude } : {}),
       ...(location.longitude !== undefined ? { longitude: location.longitude } : {}),
       ...(location.googlePlaceId ? { googlePlaceId: location.googlePlaceId } : {}),
-      packages: [
-        {
-          name: planName.trim(),
-          price,
-          durationType: planDuration,
-          durationValue: planDuration === 'YEARLY' ? 12 : planDuration === 'QUARTERLY' ? 3 : 1,
-        },
-      ],
+      // One period of the chosen type (R-80): the API counts QUARTERLY n as 3n months, YEARLY n as n years.
+      packages: [firstPlanPackage(planName.trim(), price, planDuration)],
     }
     setLastBody(body)
     buildMutation.mutate(body)
@@ -157,7 +152,7 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
                 <Label htmlFor="org-plan-duration">Billing</Label>
                 <select id="org-plan-duration" className={selectClass} value={planDuration} onChange={(e) => setPlanDuration(e.target.value)}>
                   <option value="MONTHLY">Monthly</option>
-                  <option value="QUARTERLY">Quarterly</option>
+                  <option value="QUARTERLY">Quarterly (3 months)</option>
                   <option value="YEARLY">Yearly</option>
                 </select>
               </div>

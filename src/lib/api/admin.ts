@@ -15,6 +15,7 @@ export interface TenantSubscription {
   branchCount?: number | null
   startDate: string
   endDate: string
+  currency?: string | null
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
   // GRACE on a MANUAL row is a pay-later plan waiting for the bank transfer; endDate is the pay-by date (BILL-13, R-17).
@@ -168,6 +169,10 @@ export interface TenantPlan {
   joiningFee: number
   createdAt: string
   branch?: { id: string; branchName: string }
+  /** R-80: the plan's currency and traveller visibility, as the API sends them. */
+  currency?: string | null
+  isPublic?: boolean
+  isDeactivated?: boolean
 }
 
 export interface GetTenantsParams {

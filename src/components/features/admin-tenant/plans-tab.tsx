@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { adminApi } from '@/lib/api/admin'
 import { formatCurrency } from '@/lib/utils'
+import { isTravellerVisible, planDisplayName, planDurationLabel } from '@/lib/plans/plan-display'
 import type { Tenant } from '@/types'
 
 /** Membership plans of one tenant. Mounted only while its tab is open, so it only fetches then (PERF-10). */
@@ -33,19 +34,22 @@ export function PlansTab({ tenant, tenantId }: { tenant: Tenant; tenantId: strin
       ) : (
         <div className="space-y-3">
           {plansData.data.plans.map((plan) => (
-            <div key={plan.id} className="flex items-center gap-4 p-3 rounded-lg border">
+            <div key={plan.id} data-testid={`admin-plan-${plan.id}`} className="flex items-center gap-4 p-3 rounded-lg border">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">{plan.name}</p>
+                  <p className="text-sm font-medium">{planDisplayName(plan.name)}</p>
                   <StatusBadge status={plan.status} />
+                  <span className="text-xs text-muted-foreground">
+                    {isTravellerVisible({ status: plan.status, isPublic: plan.isPublic, isDeactivated: plan.isDeactivated }) ? 'Shown to travellers' : 'Hidden from travellers'}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {plan.branch?.branchName ?? 'Gym-wide'} · {plan.durationValue} {plan.durationType.toLowerCase()}
+                  {plan.branch?.branchName ?? 'Gym-wide'} · {planDurationLabel(plan.durationType, plan.durationValue)}
                   {plan.isTrial ? ' · Trial' : ''}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold">{formatCurrency(plan.price)}</p>
+                <p className="text-sm font-semibold">{formatCurrency(plan.price, plan.currency || undefined)}</p>
                 {plan.freezeLimitDays > 0 && <p className="text-xs text-muted-foreground">Freeze: {plan.freezeLimitDays}d</p>}
               </div>
             </div>
