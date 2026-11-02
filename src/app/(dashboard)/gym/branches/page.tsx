@@ -38,6 +38,7 @@ import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { firstPlanPackage } from '@/lib/plans/plan-display'
+import { branchStates } from '@/lib/branches/states'
 
 const COMMON_FACILITIES = [
   'AC', 'Wi-Fi', 'Parking', 'Lockers', 'Showers', 'Pool', 'Sauna', 'Café',
@@ -74,6 +75,13 @@ const defaultForm = (): BranchFormState => ({
   initialPlanDuration: 'MONTHLY',
 })
 
+const STATE_CLASS: Record<string, string> = {
+  ok: 'border-success/50 bg-success/10 text-success',
+  warning: 'border-warning/50 bg-warning/10 text-warning',
+  danger: 'border-destructive/50 bg-destructive/10 text-destructive',
+  info: 'border-primary/40 bg-primary/10 text-primary',
+}
+
 function BranchCard({ branch, onEdit, onDeactivate, canDelete, canPause, onTogglePause }: {
   branch: Branch
   onEdit: (b: Branch) => void
@@ -84,6 +92,8 @@ function BranchCard({ branch, onEdit, onDeactivate, canDelete, canPause, onToggl
 }) {
   const router = useRouter()
   const paused = !!branch.pausedAt
+  // P9b item 4: paused, locked, in review or hidden by GymsEra, each with why (one rule, lib/branches/states).
+  const states = branchStates(branch)
   const facilities = Array.isArray(branch.facilities)
     ? branch.facilities
     : Object.keys((branch.facilities as unknown as Record<string, boolean>) || {}).filter(k => (branch.facilities as unknown as Record<string, boolean>)[k])
@@ -96,10 +106,13 @@ function BranchCard({ branch, onEdit, onDeactivate, canDelete, canPause, onToggl
             <h3 className="font-semibold text-lg">{branch.branchName}</h3>
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={branch.status} />
-              {/* P5b (R-81, NEW-167): paused by the host, hidden from travellers, nothing else changes. */}
-              {paused && <Badge variant="outline" className="border-warning/50 bg-warning/10 text-warning">Paused</Badge>}
+              {states.map((s) => (
+                <Badge key={s.key} variant="outline" className={STATE_CLASS[s.tone]}>{s.label}</Badge>
+              ))}
             </div>
-            {paused && <p className="mt-1 text-xs text-muted-foreground">Hidden from travellers. Members, plans and history stay.</p>}
+            {states.filter((s) => s.reason).map((s) => (
+              <p key={s.key} className="mt-1 text-xs text-muted-foreground">{s.reason}</p>
+            ))}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

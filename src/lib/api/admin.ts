@@ -126,6 +126,10 @@ export interface TenantBranch {
   deactivationReason?: string | null
   deactivatedAt?: string | null
   deactivatedBy?: string | null
+  /** P5b pause and R-82 billing lock. */
+  pausedAt?: string | null
+  billingLockedAt?: string | null
+  billingLockReason?: string | null
   createdAt: string
   gym?: { id: string; name: string }
 }

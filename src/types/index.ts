@@ -214,6 +214,12 @@ export interface Branch {
   googlePlaceId?: string | null
   /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
   pausedAt?: string | null
+  /** R-82: locked for billing (over the plan's limit, or the plan ended), and why. */
+  billingLockedAt?: string | null
+  billingLockReason?: string | null
+  /** pending = in review, active = visible, deactivated = hidden by GymsEra. */
+  travelerVisibilityStatus?: string | null
+  deactivationReason?: string | null
 }
 
 export interface MembershipPlan {

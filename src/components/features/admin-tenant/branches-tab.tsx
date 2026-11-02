@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Building2, Clock, GitBranch, History, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
 import { StatusBadge } from '@/components/features/status-badge'
+import { branchStates } from '@/lib/branches/states'
 import { ErrorState } from '@/components/features/error-state'
 import { BranchFormDialog } from '@/components/features/branch-form-dialog'
 import { Button } from '@/components/ui/button'
@@ -152,7 +153,7 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
             )}
             <div className="space-y-3">
           {branches.map((branch) => (
-            <Card key={branch.id}>
+            <Card key={branch.id} data-testid={`admin-branch-${branch.id}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -182,6 +183,13 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
                         <History className="h-3 w-3" /> History
                       </Button>
                     </div>
+                    {/* P9b item 4: the host's pause and the billing lock (R-81, R-82), with why. */}
+                    {branchStates(branch).filter((s) => s.key === 'paused' || s.key === 'locked').map((s) => (
+                      <p key={s.key} className={`mb-1 text-xs ${s.key === 'locked' ? 'text-destructive' : 'text-warning'}`}>
+                        <span className="mr-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold">{s.label}</span>
+                        {s.reason}
+                      </p>
+                    ))}
                     <p className="text-xs text-muted-foreground">{branch.address || '—'}</p>
                     {(branch.openingTime || branch.closingTime) && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
