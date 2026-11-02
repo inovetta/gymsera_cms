@@ -419,7 +419,8 @@ export const adminApi = {
   },
 
   moderateReview: async (id: string, action: 'APPROVE' | 'REJECT'): Promise<ApiResponse<GymReview>> => {
-    const { data } = await apiClient.patch(`/admin/reviews/${id}/moderate`, { action })
+    // NEW-194: the API accepts only "approve" / "reject" (discovery.service.js moderateReview).
+    const { data } = await apiClient.patch(`/admin/reviews/${id}/moderate`, { action: action.toLowerCase() })
     return data
   },
 

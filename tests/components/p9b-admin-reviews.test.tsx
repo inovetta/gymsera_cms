@@ -1,9 +1,10 @@
 import React from 'react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ReviewsPage from '@/app/(dashboard)/admin/reviews/page'
 import { adminApi } from '@/lib/api/admin'
+import apiClient from '@/lib/api/client'
 import { ok } from '../fixtures/team'
 
 /**
@@ -11,6 +12,8 @@ import { ok } from '../fixtures/team'
  * BUG-29 (item 5): the list read `review.gymListing.name` and `review.user`; GET /admin/reviews sends
  * `gym: { id, title }`, `reviewer` and (P9b) `gymTitle`, the traveller name rule ("Organization ·
  * Branch", or the name once when they match). The gym line and the reviewer's name never showed.
+ * NEW-194: Approve / Reject sent action "APPROVE" / "REJECT"; the API accepts only "approve" /
+ * "reject" (discovery.service.js moderateReview), so every moderation answered 400.
  */
 vi.mock('@/components/layout/header', () => ({ Header: () => <div /> }))
 const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }))
@@ -41,5 +44,16 @@ describe('admin reviews: names', () => {
     vi.spyOn(adminApi, 'getReviews').mockResolvedValue(ok({ reviews: [{ ...review, gymTitle: undefined }] }) as never)
     mount()
     expect(await screen.findByText('Iron Gym')).toBeInTheDocument()
+  })
+})
+
+describe('NEW-194: moderation sends the action the API accepts', () => {
+  it.each([['Approve', 'approve'], ['Reject', 'reject']])('%s sends "%s"', async (button, action) => {
+    const patch = vi.spyOn(apiClient, 'patch').mockResolvedValue({ data: ok({ review }) } as never)
+    mount()
+    await screen.findByText('Great place')
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(button, 'i') }))
+    await waitFor(() => expect(patch).toHaveBeenCalled())
+    expect(patch.mock.calls[0][1]).toEqual({ action })
   })
 })
