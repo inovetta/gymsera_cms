@@ -118,6 +118,8 @@ export interface TenantSubscription {
   environment?: 'SANDBOX' | 'PRODUCTION' | null
   startDate: string
   endDate: string
+  /** The currency the plan was charged in (p004; a store row in the store's currency, BUG-10). */
+  currency?: string | null
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
   // PENDING_MIGRATION/PENDING_CANCEL/SCHEDULED are real transitional states
@@ -229,6 +231,11 @@ export interface MembershipPlan {
   freezeLimitDays: number
   isTrial: boolean
   status: string
+  /** Shown to travellers (POST /membership-plans/:id/public toggles it). */
+  isPublic?: boolean
+  isDeactivated?: boolean
+  /** BUG-09 / R-80: the currency the plan sells in (its branch's, or the first branch's). */
+  currency?: string
   posterUrl?: string
   branch?: Branch
 }

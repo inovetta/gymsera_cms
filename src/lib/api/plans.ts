@@ -13,6 +13,8 @@ export interface CreatePlanPayload {
   visitLimit?: number
   freezeLimitDays: number
   isTrial: boolean
+  /** Show to Travellers (NEW-112). Absent = the API's default. */
+  isPublic?: boolean
 }
 
 export interface UpdatePlanPayload extends Partial<CreatePlanPayload> {
@@ -43,6 +45,12 @@ export const plansApi = {
 
   togglePlanStatus: async (id: string): Promise<ApiResponse<{ plan: MembershipPlan }>> => {
     const { data } = await apiClient.post(`/membership-plans/${id}/status`)
+    return data
+  },
+
+  /** POST /membership-plans/:id/public: show to / hide from travellers (422 `last_visible_plan` on the last one). */
+  togglePlanPublic: async (id: string): Promise<ApiResponse<{ isPublic: boolean }>> => {
+    const { data } = await apiClient.post(`/membership-plans/${id}/public`)
     return data
   },
 
