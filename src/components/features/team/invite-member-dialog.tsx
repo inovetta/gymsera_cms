@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { CheckCircle2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -44,7 +45,8 @@ export function InviteMemberDialog({ open, onOpenChange, onAdded, restoreFrom = 
   const rolesQuery = useQuery({ queryKey: ['team-meta', 'roles'], queryFn: () => teamApi.getRoles(), enabled: open })
   const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => gymApi.getBranches(), enabled: open })
   const roles = (rolesQuery.data?.data?.roles ?? []).filter((r) => r.assignable)
-  const branches = branchesQuery.data?.data?.branches ?? []
+  // Only branches that are open can be given (mobile hostBranchesProvider); a deleted branch is history.
+  const branches = (branchesQuery.data?.data?.branches ?? []).filter((b) => !b.status || b.status.toUpperCase() === 'ACTIVE')
   const role = roles.find((r) => r.key === roleKey)
 
   React.useEffect(() => {
@@ -232,9 +234,7 @@ export function InviteMemberDialog({ open, onOpenChange, onAdded, restoreFrom = 
             {rolesQuery.isLoading ? (
               <Skeleton className="h-32 w-full" />
             ) : rolesQuery.error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{teamErrorMessage(rolesQuery.error).message}</AlertDescription>
-              </Alert>
+              <ErrorState error={rolesQuery.error} what="the roles" onRetry={() => rolesQuery.refetch()} compact />
             ) : (
               <div role="radiogroup" aria-label="Role" className="max-h-80 space-y-2 overflow-y-auto pr-1">
                 {roles.map((r) => {
@@ -297,7 +297,16 @@ export function InviteMemberDialog({ open, onOpenChange, onAdded, restoreFrom = 
                 <span className="block text-xs text-muted-foreground">Includes any branch you open later</span>
               </span>
             </label>
-            {!allBranches && (
+            {!allBranches && branchesQuery.isLoading && <Skeleton className="h-20 w-full" />}
+            {!allBranches && branchesQuery.error && (
+              <ErrorState error={branchesQuery.error} what="the branches" onRetry={() => branchesQuery.refetch()} compact />
+            )}
+            {!allBranches && !branchesQuery.isLoading && !branchesQuery.error && branches.length === 0 && (
+              <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                No branches yet. Choose All branches, which includes any branch you open later.
+              </p>
+            )}
+            {!allBranches && branches.length > 0 && (
               <fieldset className="space-y-1.5">
                 <legend className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                   Select branches

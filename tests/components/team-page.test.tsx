@@ -121,11 +121,12 @@ describe('TeamPage (UX-12)', () => {
     expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument()
   })
 
-  it('shows an error state with Try again when the list fails for another reason', async () => {
+  // P9b: the shared ErrorState (app ErrorStateView) names its button "Retry"; the behaviour is the same.
+  it('shows an error state with Retry when the list fails for another reason', async () => {
     const getTeam = vi.spyOn(teamApi, 'getTeam').mockRejectedValue(apiError(500, 'Server error'))
     withClient(<TeamPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /try again/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
     await waitFor(() => expect(getTeam).toHaveBeenCalledTimes(2))
   })
 
