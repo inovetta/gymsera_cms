@@ -248,6 +248,11 @@ export interface MembershipPlan {
 
 export interface MemberSubscription {
   id: string
+  /** BUG-31: who created it (MEMBER = a request that starts on approval) and a scheduled plan change. */
+  createdByRole?: string | null
+  pendingPlanId?: string | null
+  pendingPlan?: { id?: string; name?: string | null } | null
+  pendingChangeEffectiveDate?: string | null
   userId: string
   branchId: string
   membershipPlanId: string
