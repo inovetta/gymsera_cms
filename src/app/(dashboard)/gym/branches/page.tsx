@@ -60,7 +60,6 @@ interface BranchFormState {
   googlePlaceId?: string
   cityName?: string
   areaName?: string
-  status?: string
   initialPlanName?: string
   initialPlanPrice?: number
   initialPlanDuration?: string
@@ -456,7 +455,6 @@ export default function BranchesPage() {
       latitude: branch.latitude ? Number(branch.latitude) : undefined,
       longitude: branch.longitude ? Number(branch.longitude) : undefined,
       googlePlaceId: branch.googlePlaceId ?? undefined,
-      status: branch.status,
     })
     setFacilityInput('')
     setDialogOpen(true)
@@ -753,19 +751,8 @@ export default function BranchesPage() {
               </div>
             )}
 
-            {/* Status (edit only) */}
-            {editBranch && (
-              <div>
-                <Label className="mb-2 block">Status</Label>
-                <Select value={form.status ?? 'ACTIVE'} onValueChange={(v) => setForm(p => ({ ...p, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* NEW-193: no Status select. The API refuses a status change here (branch_status_immutable_here);
+                a branch is paused / resumed or deleted / restored from the card, which also settle capacity. */}
           </div>
 
           {formError && (
