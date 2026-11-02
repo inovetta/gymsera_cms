@@ -370,6 +370,10 @@ export interface GymReview {
   createdAt: string
   user?: User
   gymListing?: GymListing
+  /** GET /admin/reviews: the reviewer, the organization, and the gym name by the traveller rule (P9b). */
+  reviewer?: Pick<User, 'id' | 'fullName' | 'email'>
+  gym?: { id: string; title: string | null }
+  gymTitle?: string | null
 }
 
 export interface PlatformPackage {
