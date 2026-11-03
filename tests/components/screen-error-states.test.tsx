@@ -11,6 +11,7 @@ import CitiesPage from '@/app/(dashboard)/admin/cities/page'
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page'
 import TenantsPage from '@/app/(dashboard)/admin/tenants/page'
 import { gymApi } from '@/lib/api/gym'
+import { hostApi } from '@/lib/api/host'
 import { plansApi } from '@/lib/api/plans'
 import { usersApi } from '@/lib/api/users'
 import { citiesApi } from '@/lib/api/cities'
@@ -97,9 +98,12 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
   })
 
   it('gym profile: the edit form is not shown over data that never loaded', async () => {
-    vi.spyOn(gymApi, 'getGymProfile').mockRejectedValue(serverDown)
+    // NEW-196: the page loads the chosen organization (GET /host/listings/:id), not /gyms/profile;
+    // its name field is "Organization Name".
+    vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'org-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+    vi.spyOn(hostApi, 'getOrganization').mockRejectedValue(serverDown)
     renderPage(<GymProfilePage />)
-    await expectRetryableError(/gym name/i)
+    await expectRetryableError(/organization name/i)
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull()
   })
 

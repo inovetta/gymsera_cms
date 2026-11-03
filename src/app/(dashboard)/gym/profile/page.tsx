@@ -10,7 +10,9 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { FileUpload } from '@/components/features/file-upload'
 import { MultiImageUpload } from '@/components/features/multi-image-upload'
-import { MapPicker } from '@/components/features/map-picker'
+import { OrganizationStrip } from '@/components/features/organization-strip'
+import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,147 +20,167 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ErrorState } from '@/components/features/error-state'
-import { gymApi } from '@/lib/api/gym'
+import { hostApi } from '@/lib/api/host'
+import { resolveApiError } from '@/lib/api/error-copy'
+import {
+  GENDER_TYPES,
+  ORGANIZATION_CATEGORIES,
+  OrganizationImages,
+  formFromOrganization,
+  imagesFromOrganization,
+  payloadFromForm,
+  visibleOrganizations,
+} from '@/lib/organizations/profile'
 import { useToast } from '@/hooks/use-toast'
 
+/**
+ * Gym Profile: one organization at a time, as the mobile Edit Organization (NEW-196). It used to edit
+ * /gyms/profile, which is the tenant's first organization whichever one the host meant. A host with
+ * several organizations picks one in the strip; addresses and map locations belong to branches
+ * (Branches page), as on mobile.
+ */
 const profileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  description: z.string().optional(),
-  genderType: z.enum(['MALE', 'FEMALE', 'MIXED']),
-  phone: z.string().optional(),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  address: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters'),
+  category: z.string(),
+  establishedYear: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^\d{4}$/.test(v) && Number(v) >= 1800 && Number(v) <= 2100), 'Enter a year such as 2018'),
+  description: z.string(),
+  phone: z.string(),
+  email: z.string().trim().email('Enter a valid email address').or(z.literal('')),
+  website: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || /^https?:\/\/\S+\.\S+/.test(v), 'Enter a full address such as https://www.gymname.com'),
+  genderType: z.enum(['MIXED', 'MALE_ONLY', 'FEMALE_ONLY']),
 })
 
 type ProfileForm = z.infer<typeof profileSchema>
 
+const EMPTY_FORM: ProfileForm = {
+  name: '',
+  category: '',
+  establishedYear: '',
+  description: '',
+  phone: '',
+  email: '',
+  website: '',
+  genderType: 'MIXED',
+}
+
+const NO_IMAGES: OrganizationImages = { logoUrl: null, coverImageUrl: null, gallery: [] }
+
 export default function GymProfilePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [selectedId, setSelectedId] = useState<string | undefined>()
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
-  const [newGalleryFiles, setNewGalleryFiles] = useState<File[]>([])
+  const [images, setImages] = useState<OrganizationImages>(NO_IMAGES)
   const [galleryUploading, setGalleryUploading] = useState(false)
 
-  const { data, isLoading, error: loadError, refetch } = useQuery({
-    queryKey: ['gym-profile'],
-    queryFn: () => gymApi.getGymProfile(),
+  const listingsQuery = useQuery({
+    queryKey: ['host-listings'],
+    queryFn: () => hostApi.getListings(),
   })
+  const organizations = visibleOrganizations(listingsQuery.data?.data ?? [])
+  const organizationId = organizations.find((o) => o.id === selectedId)?.id ?? organizations[0]?.id
 
-  const form = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      genderType: 'MIXED',
-      phone: '',
-      email: '',
-      address: '',
-      latitude: undefined,
-      longitude: undefined,
-    },
+  const organizationQuery = useQuery({
+    queryKey: ['host-organization', organizationId],
+    queryFn: () => hostApi.getOrganization(organizationId as string),
+    enabled: !!organizationId,
   })
+  const organization = organizationQuery.data?.data
+
+  const form = useForm<ProfileForm>({ resolver: zodResolver(profileSchema), defaultValues: EMPTY_FORM })
 
   useEffect(() => {
-    if (data?.data?.gym) {
-      const gym = data.data.gym
-      form.reset({
-        name: gym.name || '',
-        description: gym.description || '',
-        genderType: gym.genderType || 'MIXED',
-        phone: gym.phone || '',
-        email: gym.email || '',
-        address: gym.address || '',
-        latitude: gym.latitude ? Number(gym.latitude) : undefined,
-        longitude: gym.longitude ? Number(gym.longitude) : undefined,
-      })
-    }
-  }, [data, form])
+    if (!organization) return
+    form.reset(formFromOrganization(organization))
+    setImages(imagesFromOrganization(organization))
+    setLogoFile(null)
+    setCoverFile(null)
+  }, [organization, form])
 
-  const updateMutation = useMutation({
-    mutationFn: (payload: ProfileForm) => gymApi.updateGymProfile(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-      toast({ title: 'Success', description: 'Gym profile updated successfully', variant: 'default' })
-    },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to update gym profile', variant: 'destructive' })
-    },
-  })
-
-  const logoMutation = useMutation({
-    mutationFn: (file: File) => gymApi.uploadGymLogo(file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-      toast({ title: 'Logo updated successfully' })
-    },
-  })
-
-  const coverMutation = useMutation({
-    mutationFn: (file: File) => gymApi.uploadGymCover(file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-      toast({ title: 'Cover image updated successfully' })
-    },
-  })
-
-  const deleteGymImageMutation = useMutation({
-    mutationFn: (imageUrl: string) => gymApi.deleteGymImage(imageUrl),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-      toast({ title: 'Image removed' })
-    },
-  })
-
-  const onSubmit = async (values: ProfileForm) => {
-    await updateMutation.mutateAsync(values)
-    if (logoFile) await logoMutation.mutateAsync(logoFile)
-    if (coverFile) await coverMutation.mutateAsync(coverFile)
-    if (newGalleryFiles.length > 0) {
-      setGalleryUploading(true)
-      try {
-        await gymApi.uploadGymImages(newGalleryFiles)
-        setNewGalleryFiles([])
-        queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-        toast({ title: 'Gallery images uploaded' })
-      } finally {
-        setGalleryUploading(false)
-      }
-    }
+  const showError = (title: string, err: unknown) => {
+    const { message, requestId } = resolveApiError(err)
+    toast({ title, description: requestId ? `${message} (Reference: ${requestId})` : message, variant: 'destructive' })
   }
 
-  const handleGalleryFilesSelected = async (files: File[]) => {
+  const saveMutation = useMutation({
+    mutationFn: async (values: ProfileForm) => {
+      const id = organizationId as string
+      // New logo or cover: stored first, then saved on this organization only.
+      const upload = async (file: File) => {
+        const [url] = await hostApi.uploadOrganizationPhotos([file])
+        if (!url) throw new Error('The photo could not be uploaded. Please try again.')
+        return url
+      }
+      const next: OrganizationImages = {
+        ...images,
+        logoUrl: logoFile ? await upload(logoFile) : images.logoUrl,
+        coverImageUrl: coverFile ? await upload(coverFile) : images.coverImageUrl,
+      }
+      await hostApi.updateOrganization(id, payloadFromForm(values, next))
+      return next
+    },
+    onSuccess: (next) => {
+      setImages(next)
+      setLogoFile(null)
+      setCoverFile(null)
+      queryClient.invalidateQueries({ queryKey: ['host-organization', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      toast({ title: 'Saved', description: 'The organization profile was updated.' })
+    },
+    onError: (err) => showError('Could not save the profile', err),
+  })
+
+  const addGalleryPhotos = async (files: File[]) => {
+    if (files.length === 0) return
     setGalleryUploading(true)
     try {
-      await gymApi.uploadGymImages(files)
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
-      toast({ title: `${files.length} image${files.length > 1 ? 's' : ''} uploaded` })
-    } catch {
-      toast({ title: 'Upload failed', variant: 'destructive' })
+      const urls = await hostApi.uploadOrganizationPhotos(files)
+      setImages((prev) => ({ ...prev, gallery: [...prev.gallery, ...urls] }))
+      toast({ title: 'Photos added', description: 'Save Changes to keep them on this organization.' })
+    } catch (err) {
+      showError('Upload failed', err)
     } finally {
       setGalleryUploading(false)
     }
   }
 
+  const removeGalleryPhoto = (url: string) =>
+    setImages((prev) => ({ ...prev, gallery: prev.gallery.filter((u) => u !== url) }))
+
+  const pick = (id: string) => {
+    if (id === organizationId) return
+    setSelectedId(id)
+  }
+
+  const loadError = listingsQuery.error || organizationQuery.error
   if (loadError) {
     return (
       <>
         <Header title="Gym Profile" />
         <div className="p-6">
-          <ErrorState error={loadError} what="your gym profile" onRetry={() => refetch()} />
+          <ErrorState
+            error={loadError}
+            what="the organization profile"
+            onRetry={() => (listingsQuery.error ? listingsQuery.refetch() : organizationQuery.refetch())}
+          />
         </div>
       </>
     )
   }
 
-  if (isLoading) {
+  const loading = listingsQuery.isLoading || (!!organizationId && organizationQuery.isLoading)
+  if (loading) {
     return (
       <>
         <Header title="Gym Profile" />
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6" data-testid="profile-loading">
           <Skeleton className="h-8 w-48" />
           <div className="grid gap-6 lg:grid-cols-3">
             <Skeleton className="h-64 rounded-lg" />
@@ -171,35 +193,55 @@ export default function GymProfilePage() {
     )
   }
 
+  if (!organizationId || !organization) {
+    return (
+      <>
+        <Header title="Gym Profile" />
+        <div className="p-6">
+          <EmptyState
+            icon={Building2}
+            title="No organization yet"
+            description="An organization appears here once it is created. Add one from the Branches page."
+          />
+        </div>
+      </>
+    )
+  }
+
+  const categories: string[] = [...ORGANIZATION_CATEGORIES]
+  const currentCategory = form.watch('category')
+  if (currentCategory && !categories.includes(currentCategory)) categories.push(currentCategory)
+
   return (
     <>
-      <Header title="Gym Profile" description="Manage your gym's public information" />
+      <Header title="Gym Profile" description="Manage each organization's public information" />
       <div className="p-6 animate-fade-in">
         <PageHeader
           title="Gym Profile"
-          description="Update your gym details and branding"
+          description="Update this organization's details and branding"
           action={
-            <Button
-              onClick={form.handleSubmit(onSubmit)}
-              loading={updateMutation.isPending}
-            >
+            <Button onClick={form.handleSubmit((v) => saveMutation.mutate(v))} loading={saveMutation.isPending}>
               <Save className="h-4 w-4 mr-2" />
               Save Changes
             </Button>
           }
         />
 
+        {organizations.length > 1 && (
+          <OrganizationStrip listings={organizations} selectedId={organizationId} onSelect={pick} />
+        )}
+
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Logo Upload */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Gym Logo</CardTitle>
+                <CardTitle className="text-base">Logo</CardTitle>
               </CardHeader>
               <CardContent>
                 <FileUpload
+                  key={`logo-${organizationId}`}
                   onFileSelect={setLogoFile}
-                  currentImageUrl={data?.data?.gym?.logoUrl}
+                  currentImageUrl={images.logoUrl ?? undefined}
                   label="Upload Logo"
                 />
               </CardContent>
@@ -211,8 +253,9 @@ export default function GymProfilePage() {
               </CardHeader>
               <CardContent>
                 <FileUpload
+                  key={`cover-${organizationId}`}
                   onFileSelect={setCoverFile}
-                  currentImageUrl={data?.data?.gym?.coverImageUrl}
+                  currentImageUrl={images.coverImageUrl ?? undefined}
                   label="Upload Cover"
                 />
               </CardContent>
@@ -224,9 +267,9 @@ export default function GymProfilePage() {
               </CardHeader>
               <CardContent>
                 <MultiImageUpload
-                  existingUrls={Array.isArray(data?.data?.gym?.imagesJson) ? data.data.gym.imagesJson : []}
-                  onFilesSelected={handleGalleryFilesSelected}
-                  onRemoveExisting={(url) => deleteGymImageMutation.mutate(url)}
+                  existingUrls={images.gallery}
+                  onFilesSelected={addGalleryPhotos}
+                  onRemoveExisting={removeGalleryPhoto}
                   uploading={galleryUploading}
                   maxCount={10}
                 />
@@ -241,29 +284,28 @@ export default function GymProfilePage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Status:</span>
-                  <span className="font-medium">{data?.data?.gym?.status || 'N/A'}</span>
+                  <span className="font-medium">{organization.status || '—'}</span>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Form */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="text-base">Business Details</CardTitle>
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Gym Name *</FormLabel>
+                          <FormLabel>Organization Name *</FormLabel>
                           <FormControl>
-                            <Input placeholder="My Awesome Gym" {...field} />
+                            <Input placeholder="e.g. PowerGym Fitness Club" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -275,19 +317,62 @@ export default function GymProfilePage() {
                       name="genderType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Gender Type *</FormLabel>
+                          <FormLabel>Who can join *</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select gender type" />
+                              <SelectTrigger aria-label="Who can join">
+                                <SelectValue placeholder="Choose" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="MALE">Male Only</SelectItem>
-                              <SelectItem value="FEMALE">Female Only</SelectItem>
-                              <SelectItem value="MIXED">Mixed (Co-ed)</SelectItem>
+                              {GENDER_TYPES.map((g) => (
+                                <SelectItem key={g.value} value={g.value}>
+                                  {g.label}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger aria-label="Category">
+                                <SelectValue placeholder="Choose a category" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {categories.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="establishedYear"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Established Year</FormLabel>
+                          <FormControl>
+                            <Input inputMode="numeric" placeholder="e.g. 2018" {...field} />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -301,11 +386,7 @@ export default function GymProfilePage() {
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea
-                            placeholder="Tell members about your gym..."
-                            rows={4}
-                            {...field}
-                          />
+                          <Textarea placeholder="Tell members about this organization..." rows={4} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -318,9 +399,9 @@ export default function GymProfilePage() {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
+                          <FormLabel>Contact Phone</FormLabel>
                           <FormControl>
-                            <Input placeholder="+92 300 0000000" {...field} />
+                            <Input placeholder="e.g. +92 300 1234567" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -332,9 +413,9 @@ export default function GymProfilePage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Business Email</FormLabel>
+                          <FormLabel>Contact Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="gym@example.com" type="email" {...field} />
+                            <Input placeholder="e.g. info@gymname.com" type="email" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -344,73 +425,20 @@ export default function GymProfilePage() {
 
                   <FormField
                     control={form.control}
-                    name="address"
+                    name="website"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Address</FormLabel>
+                        <FormLabel>Website</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Full address..." rows={2} {...field} />
+                          <Input placeholder="e.g. https://www.gymname.com" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  {/* Map location picker */}
-                  <div>
-                    <p className="text-sm font-medium mb-2">Location on Map</p>
-                    <MapPicker
-                      latitude={form.watch('latitude') ?? null}
-                      longitude={form.watch('longitude') ?? null}
-                      onChange={(lat, lng) => {
-                        form.setValue('latitude', lat, { shouldDirty: true })
-                        form.setValue('longitude', lng, { shouldDirty: true })
-                      }}
-                    />
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <FormField
-                        control={form.control}
-                        name="latitude"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">Latitude</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="any"
-                                placeholder="e.g. 31.5204"
-                                className="h-8 text-sm"
-                                value={field.value ?? ''}
-                                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="longitude"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground">Longitude</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="any"
-                                placeholder="e.g. 74.3587"
-                                className="h-8 text-sm"
-                                value={field.value ?? ''}
-                                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
                   <div className="flex justify-end pt-2">
-                    <Button type="submit" loading={updateMutation.isPending}>
+                    <Button type="submit" loading={saveMutation.isPending}>
                       <Save className="h-4 w-4 mr-2" />
                       Save Changes
                     </Button>
