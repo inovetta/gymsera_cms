@@ -9,3 +9,6 @@ build/
 test-results/
 playwright-report/
 .env*.local
+
+# iisnode writes its logs here on the server; never commit or serve them (NEW-125)
+iisnode/
