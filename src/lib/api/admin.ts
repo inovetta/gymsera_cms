@@ -15,6 +15,7 @@ export interface TenantSubscription {
   branchCount?: number | null
   startDate: string
   endDate: string
+  currency?: string | null
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
   // GRACE on a MANUAL row is a pay-later plan waiting for the bank transfer; endDate is the pay-by date (BILL-13, R-17).
@@ -125,6 +126,10 @@ export interface TenantBranch {
   deactivationReason?: string | null
   deactivatedAt?: string | null
   deactivatedBy?: string | null
+  /** P5b pause and R-82 billing lock. */
+  pausedAt?: string | null
+  billingLockedAt?: string | null
+  billingLockReason?: string | null
   createdAt: string
   gym?: { id: string; name: string }
 }
@@ -168,6 +173,10 @@ export interface TenantPlan {
   joiningFee: number
   createdAt: string
   branch?: { id: string; branchName: string }
+  /** R-80: the plan's currency and traveller visibility, as the API sends them. */
+  currency?: string | null
+  isPublic?: boolean
+  isDeactivated?: boolean
 }
 
 export interface GetTenantsParams {
@@ -410,7 +419,8 @@ export const adminApi = {
   },
 
   moderateReview: async (id: string, action: 'APPROVE' | 'REJECT'): Promise<ApiResponse<GymReview>> => {
-    const { data } = await apiClient.patch(`/admin/reviews/${id}/moderate`, { action })
+    // NEW-194: the API accepts only "approve" / "reject" (discovery.service.js moderateReview).
+    const { data } = await apiClient.patch(`/admin/reviews/${id}/moderate`, { action: action.toLowerCase() })
     return data
   },
 

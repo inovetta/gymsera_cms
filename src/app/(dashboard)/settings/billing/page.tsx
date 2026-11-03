@@ -19,6 +19,7 @@ import { hostBillingApi, CatalogPlan, SubscriptionLapse } from '@/lib/api/host-b
 import { LapsedPlanCard } from '@/components/features/lapsed-plan-card'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { TenantSubscription } from '@/types'
+import { useTierLabel, branchCountLabel } from '@/hooks/use-tier-names'
 
 const PLATFORM_LABEL: Record<TenantSubscription['platform'], string> = {
   IOS: 'Apple App Store',
@@ -38,6 +39,7 @@ const STATUS_LABEL: Record<TenantSubscription['status'], string> = {
 
 export default function BillingPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const tierLabel = useTierLabel()
 
   const { data: tenantData, isLoading: tenantLoading } = useQuery({
     queryKey: ['my-tenant'],
@@ -144,16 +146,20 @@ export default function BillingPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Plan</p>
+                    {/* BUG-24: the tier the app shows (API tierName), then the branch count it covers. */}
                     <p className="font-semibold text-lg">
                       {sub.branchCount != null
-                        ? `${sub.branchCount} ${sub.branchCount === 1 ? 'Branch' : 'Branches'}`
+                        ? tierLabel(sub.branchCount) ?? branchCountLabel(sub.branchCount)
                         : sub.package?.name || 'Subscription'}
                     </p>
+                    {sub.branchCount != null && tierLabel(sub.branchCount) && (
+                      <p className="text-xs text-muted-foreground">{branchCountLabel(sub.branchCount)}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="font-bold text-xl text-primary">{formatCurrency(sub.amount)}</p>
+                    <p className="font-bold text-xl text-primary">{formatCurrency(sub.amount, sub.currency || undefined)}</p>
                     <p className="text-xs text-muted-foreground">per {sub.billingCycle.toLowerCase()}</p>
                   </div>
                   <Badge variant="outline" className={cn(
@@ -272,7 +278,7 @@ export default function BillingPage() {
                       return (
                         <tr key={plan.id} className={cn('border-b last:border-0', isCurrent && 'bg-primary/5')}>
                           <td className="px-4 py-2.5 font-medium flex items-center gap-2">
-                            {plan.branchCount} {plan.branchCount === 1 ? 'branch' : 'branches'}
+                            {plan.tierName ? `${plan.tierName} · ` : ''}{branchCountLabel(plan.branchCount)}
                             {isCurrent && <Badge className="bg-primary text-primary-foreground text-xs">Current</Badge>}
                           </td>
                           <td className="px-4 py-2.5">{formatCurrency(plan.monthlyPrice, plan.currency)}</td>

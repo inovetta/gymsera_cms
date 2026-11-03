@@ -118,6 +118,8 @@ export interface TenantSubscription {
   environment?: 'SANDBOX' | 'PRODUCTION' | null
   startDate: string
   endDate: string
+  /** The currency the plan was charged in (p004; a store row in the store's currency, BUG-10). */
+  currency?: string | null
   amount: number
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
   // PENDING_MIGRATION/PENDING_CANCEL/SCHEDULED are real transitional states
@@ -212,6 +214,12 @@ export interface Branch {
   googlePlaceId?: string | null
   /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
   pausedAt?: string | null
+  /** R-82: locked for billing (over the plan's limit, or the plan ended), and why. */
+  billingLockedAt?: string | null
+  billingLockReason?: string | null
+  /** pending = in review, active = visible, deactivated = hidden by GymsEra. */
+  travelerVisibilityStatus?: string | null
+  deactivationReason?: string | null
 }
 
 export interface MembershipPlan {
@@ -229,12 +237,22 @@ export interface MembershipPlan {
   freezeLimitDays: number
   isTrial: boolean
   status: string
+  /** Shown to travellers (POST /membership-plans/:id/public toggles it). */
+  isPublic?: boolean
+  isDeactivated?: boolean
+  /** BUG-09 / R-80: the currency the plan sells in (its branch's, or the first branch's). */
+  currency?: string
   posterUrl?: string
   branch?: Branch
 }
 
 export interface MemberSubscription {
   id: string
+  /** BUG-31: who created it (MEMBER = a request that starts on approval) and a scheduled plan change. */
+  createdByRole?: string | null
+  pendingPlanId?: string | null
+  pendingPlan?: { id?: string; name?: string | null } | null
+  pendingChangeEffectiveDate?: string | null
   userId: string
   branchId: string
   membershipPlanId: string
@@ -352,6 +370,10 @@ export interface GymReview {
   createdAt: string
   user?: User
   gymListing?: GymListing
+  /** GET /admin/reviews: the reviewer, the organization, and the gym name by the traveller rule (P9b). */
+  reviewer?: Pick<User, 'id' | 'fullName' | 'email'>
+  gym?: { id: string; title: string | null }
+  gymTitle?: string | null
 }
 
 export interface PlatformPackage {

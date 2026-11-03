@@ -26,6 +26,7 @@ import { MemberSubscription, Payment, Invoice } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
+import { pendingPlanChange, startsOnApproval } from '@/lib/subscriptions/dates'
 
 const recordPaymentSchema = z.object({
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET']),
@@ -203,11 +204,22 @@ export default function SubscriptionsPage() {
     {
       key: 'dates',
       header: 'Period',
-      cell: (row) => (
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatDate(row.startDate)} → {formatDate(row.endDate)}
-        </span>
-      ),
+      // BUG-31: a member's request starts on the day it is approved; its row dates are only an estimate.
+      cell: (row) => {
+        const change = pendingPlanChange(row)
+        return (
+          <div className="text-xs text-muted-foreground">
+            <span className="whitespace-nowrap">
+              {startsOnApproval(row) ? 'Starts when approved' : `${formatDate(row.startDate)} → ${formatDate(row.endDate)}`}
+            </span>
+            {change && (
+              <p className="whitespace-nowrap">
+                {change.planName ? `Changes to ${change.planName} on ${formatDate(change.date)}` : `Plan changes on ${formatDate(change.date)}`}
+              </p>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -288,14 +300,35 @@ export default function SubscriptionsPage() {
                   <p className="text-muted-foreground text-xs">Branch</p>
                   <p className="font-medium">{detail.subscription.branch?.branchName ?? '—'}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Start Date</p>
-                  <p className="font-medium">{formatDate(detail.subscription.startDate)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">End Date</p>
-                  <p className="font-medium">{formatDate(detail.subscription.endDate)}</p>
-                </div>
+                {startsOnApproval(detail.subscription) ? (
+                  <div>
+                    <p className="text-muted-foreground text-xs">Dates</p>
+                    <p className="font-medium">Starts when approved</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Start Date</p>
+                      <p className="font-medium">{formatDate(detail.subscription.startDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">End Date</p>
+                      <p className="font-medium">{formatDate(detail.subscription.endDate)}</p>
+                    </div>
+                  </>
+                )}
+                {(() => {
+                  // The list row carries the pending plan's name; the detail has the date.
+                  const change = pendingPlanChange({ ...selectedSub, ...detail.subscription })
+                  return change ? (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Scheduled change</p>
+                      <p className="font-medium">
+                        {change.planName ? `${change.planName} from ${formatDate(change.date)}` : `From ${formatDate(change.date)}`}
+                      </p>
+                    </div>
+                  ) : null
+                })()}
                 <div>
                   <p className="text-muted-foreground text-xs">Channel</p>
                   <p className="font-medium capitalize">{detail.subscription.sourceChannel?.toLowerCase() ?? '—'}</p>

@@ -1,4 +1,4 @@
-import { resolveApiError } from '@/lib/api/error-copy'
+import { ERROR_COPY_FALLBACK, resolveApiError } from '@/lib/api/error-copy'
 
 interface ApiErrorShape {
   response?: {
@@ -53,4 +53,14 @@ export function describeRequestError(
   const resolved = resolveApiError(error)
   if (resolved.code && !GENERIC_CODES.has(resolved.code) && resolved.message) return resolved.message
   return fallback
+}
+
+/**
+ * The shared plain copy for a code the catalog knows (the same sentence the app shows), else
+ * `describeRequestError`. For refusals whose server text is a developer sentence (P9b).
+ */
+export function plainRequestError(error: unknown, fallback: string): string {
+  const code = serverCode(error)
+  if (code && ERROR_COPY_FALLBACK[code]) return ERROR_COPY_FALLBACK[code].en
+  return describeRequestError(error, fallback)
 }

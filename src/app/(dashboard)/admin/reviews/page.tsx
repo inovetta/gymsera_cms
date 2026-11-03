@@ -36,6 +36,10 @@ function ReviewCard({ review, onAction }: {
   review: GymReview
   onAction: (id: string, action: 'APPROVE' | 'REJECT') => void
 }) {
+  // BUG-29: the API names the gym by the traveller rule (gymTitle); an older API sends only the
+  // organization (gym.title). The reviewer comes as `reviewer` (discovery.service.js adminListReviews).
+  const gymName = review.gymTitle || review.gym?.title || null
+  const reviewer = review.reviewer ?? review.user
   return (
     <Card>
       <CardContent className="p-6">
@@ -43,11 +47,11 @@ function ReviewCard({ review, onAction }: {
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="text-sm bg-primary/10 text-primary">
-                {review.user?.fullName ? getInitials(review.user.fullName) : 'U'}
+                {reviewer?.fullName ? getInitials(reviewer.fullName) : 'U'}
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-medium text-sm">{review.user?.fullName ?? '—'}</p>
+              <p className="font-medium text-sm">{reviewer?.fullName ?? '—'}</p>
               <p className="text-xs text-muted-foreground">{formatDate(review.createdAt)}</p>
             </div>
           </div>
@@ -84,10 +88,10 @@ function ReviewCard({ review, onAction }: {
           <p className="text-sm text-muted-foreground mt-1">{review.body}</p>
         </div>
 
-        {review.gymListing && (
+        {gymName && (
           <div className="mt-3 pt-3 border-t">
             <p className="text-xs text-muted-foreground">
-              Gym: <span className="font-medium text-foreground">{review.gymListing.name}</span>
+              Gym: <span className="font-medium text-foreground">{gymName}</span>
             </p>
           </div>
         )}

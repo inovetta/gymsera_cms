@@ -7,6 +7,7 @@ import { Building2, Plus, Search, ShieldAlert, SlidersHorizontal, Store, UserMin
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { EmptyState } from '@/components/features/empty-state'
+import { ErrorState } from '@/components/features/error-state'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { InviteMemberDialog } from '@/components/features/team/invite-member-dialog'
 import { MemberAccessPanel } from '@/components/features/team/member-access-panel'
@@ -112,16 +113,8 @@ function TeamPageContent() {
         ) : error?.status === 403 ? (
           <EmptyState icon={ShieldAlert} title="You do not have access to the team" description={error.message} />
         ) : error ? (
-          <EmptyState
-            icon={ShieldAlert}
-            title="The team could not be loaded"
-            description={error.message}
-            action={
-              <Button variant="outline" onClick={() => teamQuery.refetch()}>
-                Try again
-              </Button>
-            }
-          />
+          // As the app's ErrorStateView: plain copy, the request reference, Retry only when it can help.
+          <ErrorState error={teamQuery.error} what="the team" onRetry={() => teamQuery.refetch()} />
         ) : (
           <div className={cn('grid items-start gap-6', selectedId && 'xl:grid-cols-[minmax(0,1fr)_440px]')}>
             <div className="min-w-0 space-y-4">
