@@ -36,6 +36,9 @@ const httpError = (status: number, data: Record<string, unknown>) =>
 
 const balance = { branchId: null, totalCollected: 10000, totalRefunded: 500, totalExpenses: 1000.25, totalPayouts: 2000, availableBalance: 6499.75, currency: 'PKR' }
 const bank = { bankName: 'Meezan Bank', accountTitle: 'Iron Gym Pvt Ltd', accountNumber: '1234010998877', iban: 'PK49MEZN001234010998877' }
+const account = (details: Record<string, string>, detailsUpdatedAt: string | null) => ({
+  id: 'pa1', scope: 'TENANT', organizationId: null, provider: 'BANK_TRANSFER', status: 'ACTIVE', details, detailsUpdatedAt,
+})
 
 // An owner holds everything; an org admin here holds payouts.view and the request key only.
 const withPayoutKeys = (keys: string[]): MyContext => ({
@@ -44,7 +47,7 @@ const withPayoutKeys = (keys: string[]): MyContext => ({
 })
 
 let requestPayout: ReturnType<typeof vi.spyOn>
-let updateProfile: ReturnType<typeof vi.spyOn>
+let saveAccount: ReturnType<typeof vi.spyOn>
 
 const renderPage = (context: MyContext = ownerContext) => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
@@ -62,10 +65,13 @@ beforeEach(() => {
   vi.spyOn(payoutsApi, 'list').mockResolvedValue(ok({ payouts: [
     { id: 'po1', branchId: null, amount: 2000, currency: 'PKR', status: 'PENDING', notes: 'October', createdAt: '2026-10-05T10:00:00Z' },
   ] }) as never)
-  vi.spyOn(gymApi, 'getGymProfile').mockResolvedValue(ok({ gym: { id: 'g1', paymentDetailsJson: bank } }) as never)
+  // P7b (NEW-217, R-94): the tenant's payout account, never the organization profile.
+  vi.spyOn(payoutsApi, 'getAccount').mockResolvedValue(ok({ account: account(bank, null) }) as never)
+  vi.spyOn(gymApi, 'getGymProfile').mockRejectedValue(new Error('GET /gyms/profile must not be called by Payouts'))
+  vi.spyOn(gymApi, 'updateGymProfile').mockRejectedValue(new Error('PATCH /gyms/profile must not be called by Payouts'))
   requestPayout = vi.spyOn(payoutsApi, 'request').mockResolvedValue({ status: 201, data: { success: true, data: { id: 'po2' } } } as never)
-  updateProfile = vi.spyOn(gymApi, 'updateGymProfile').mockResolvedValue(
-    ok({ gym: { id: 'g1', paymentDetailsJson: bank, paymentDetailsUpdatedAt: '2026-10-10T08:00:00Z' } }) as never
+  saveAccount = vi.spyOn(payoutsApi, 'saveAccount').mockResolvedValue(
+    ok({ account: account(bank, '2026-10-10T08:00:00Z') }) as never
   )
 })
 afterEach(() => vi.restoreAllMocks())
@@ -154,9 +160,9 @@ describe('Payouts', () => {
     expect(payoutsApi.balance).not.toHaveBeenCalled()
   })
 
-  it('permission missing: someone who may view but not manage bank details sees no bank card and no profile request', async () => {
+  it('permission missing: someone who may view but not manage bank details sees no bank card and no payout-account request', async () => {
     accountRole = 'MEMBER'
-    const getProfile = vi.spyOn(gymApi, 'getGymProfile')
+    const getProfile = vi.spyOn(payoutsApi, 'getAccount')
     renderPage(withPayoutKeys(['payouts.view']))
     await screen.findByTestId('payout-balance')
     expect(screen.queryByText('Bank details')).not.toBeInTheDocument()
@@ -189,29 +195,27 @@ describe('Bank details need re-authentication (SEC-13, NEW-35)', () => {
 
   it('nothing is sent until the person confirms; then the password goes with the new details', async () => {
     const reauth = await editAndContinue()
-    expect(updateProfile).not.toHaveBeenCalled()
+    expect(saveAccount).not.toHaveBeenCalled()
 
     fireEvent.change(within(reauth).getByLabelText('Account password'), { target: { value: 'correct horse' } })
     fireEvent.click(within(reauth).getByRole('button', { name: 'Save bank details' }))
 
-    await waitFor(() => expect(updateProfile).toHaveBeenCalled())
-    expect(updateProfile.mock.calls[0][0]).toMatchObject({
-      password: 'correct horse',
-      paymentDetailsJson: expect.objectContaining({ accountNumber: '9998887776665', bankName: 'Meezan Bank' }),
-    })
+    await waitFor(() => expect(saveAccount).toHaveBeenCalled())
+    expect(saveAccount.mock.calls[0][0]).toMatchObject({ accountNumber: '9998887776665', bankName: 'Meezan Bank' })
+    expect(saveAccount.mock.calls[0][1]).toMatchObject({ password: 'correct horse' })
   })
 
   it('a Google-only account confirms with Google instead of a password', async () => {
     const reauth = await editAndContinue()
     fireEvent.click(within(reauth).getByRole('button', { name: 'Google confirm' }))
 
-    await waitFor(() => expect(updateProfile).toHaveBeenCalled())
-    expect(updateProfile.mock.calls[0][0]).toMatchObject({ provider: 'GOOGLE', idToken: 'google-id-token' })
-    expect(updateProfile.mock.calls[0][0]).not.toHaveProperty('password')
+    await waitFor(() => expect(saveAccount).toHaveBeenCalled())
+    expect(saveAccount.mock.calls[0][1]).toMatchObject({ provider: 'GOOGLE', idToken: 'google-id-token' })
+    expect(saveAccount.mock.calls[0][1]).not.toHaveProperty('password')
   })
 
   it('re-auth required: the server’s message stays in the dialog and nothing is reported saved', async () => {
-    updateProfile.mockRejectedValue(httpError(401, { code: 'invalid_credentials', message: 'Incorrect password' }))
+    saveAccount.mockRejectedValue(httpError(401, { code: 'invalid_credentials', message: 'Incorrect password' }))
     const reauth = await editAndContinue()
     fireEvent.change(within(reauth).getByLabelText('Account password'), { target: { value: 'wrong' } })
     fireEvent.click(within(reauth).getByRole('button', { name: 'Save bank details' }))
@@ -234,5 +238,37 @@ describe('Bank details need re-authentication (SEC-13, NEW-35)', () => {
 
     expect(await within(dialog).findByText(/Fill in: Bank name/)).toBeInTheDocument()
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+})
+
+describe('NEW-217 (R-94): the payout account belongs to the business, not to one organization', () => {
+  it('reads and saves through /host/payout-account; the organization profile is never called', async () => {
+    renderPage()
+    expect(await screen.findByTestId('bank-details')).toBeInTheDocument()
+    expect(payoutsApi.getAccount).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+    const reauth = await screen.findByRole('alertdialog')
+    fireEvent.change(within(reauth).getByLabelText('Account password'), { target: { value: 'correct horse' } })
+    fireEvent.click(within(reauth).getByRole('button', { name: 'Save bank details' }))
+
+    await waitFor(() => expect(saveAccount).toHaveBeenCalled())
+    expect(gymApi.getGymProfile).not.toHaveBeenCalled()
+    expect(gymApi.updateGymProfile).not.toHaveBeenCalled()
+  })
+
+  it('says the account is used for every organization and branch', async () => {
+    renderPage()
+    await screen.findByTestId('bank-details')
+    expect(screen.getByText(/every organization and branch of your business/i)).toBeInTheDocument()
+  })
+
+  it('shows when the details last changed, from the account\'s detailsUpdatedAt', async () => {
+    vi.spyOn(payoutsApi, 'getAccount').mockResolvedValue(ok({ account: account(bank, new Date().toISOString()) }) as never)
+    renderPage()
+    await screen.findByTestId('bank-details')
+    expect(await screen.findByText(/Bank details last changed .*New payout requests wait 24 hours/)).toBeInTheDocument()
   })
 })

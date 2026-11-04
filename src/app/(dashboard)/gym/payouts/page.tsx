@@ -18,7 +18,6 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { BankDetails, Payout, payoutsApi } from '@/lib/api/payouts'
-import { gymApi } from '@/lib/api/gym'
 import { ApprovalOutcome, readApprovalOutcome } from '@/lib/api/approvals'
 import { newIdempotencyKey } from '@/lib/api/idempotency'
 import { describeRequestError, isReauthChallenge } from '@/lib/api/request-errors'
@@ -58,6 +57,12 @@ const maskTail = (value?: string) => {
 const asBankDetails = (value: unknown): BankDetails =>
   value && typeof value === 'object' ? (value as BankDetails) : {}
 
+/** Only the fields with a value, trimmed: the API accepts the known bank / wallet fields as text. */
+const filledBankFields = (d: BankDetails): BankDetails =>
+  Object.fromEntries(
+    Object.entries(d).filter(([, v]) => typeof v === 'string' && v.trim() !== '').map(([k, v]) => [k, (v as string).trim()])
+  ) as BankDetails
+
 const hasDestination = (d: BankDetails) => Object.values(d).some((v) => typeof v === 'string' && v.trim() !== '')
 
 export default function PayoutsPage() {
@@ -87,10 +92,11 @@ export default function PayoutsPage() {
     queryFn: () => payoutsApi.list({ ...(branchId ? { branchId } : {}), page, limit: 20 }),
     enabled: mayView && !!organization,
   })
-  // The profile carries the bank details, and only for someone who may manage them.
-  const profileQuery = useQuery({
-    queryKey: ['gym-profile'],
-    queryFn: () => gymApi.getGymProfile(),
+  // P7b (NEW-217, R-94): the tenant's payout account (every organization and branch), read only by
+  // someone who may manage it. It used to come from the organization profile (/gyms/profile).
+  const accountQuery = useQuery({
+    queryKey: ['payout-account'],
+    queryFn: () => payoutsApi.getAccount(),
     enabled: mayView && mayManageBank && !!organization,
   })
 
@@ -98,8 +104,8 @@ export default function PayoutsPage() {
   const payouts = listQuery.data?.data?.payouts ?? []
   const totalPages = (listQuery.data?.pagination as { pages?: number; totalPages?: number } | undefined)?.pages
     ?? listQuery.data?.pagination?.totalPages ?? 1
-  const bank = asBankDetails(profileQuery.data?.data?.gym?.paymentDetailsJson)
-  const bankUpdatedAt = profileQuery.data?.data?.gym?.paymentDetailsUpdatedAt ?? null
+  const bank = asBankDetails(accountQuery.data?.data?.account?.details)
+  const bankUpdatedAt = accountQuery.data?.data?.account?.detailsUpdatedAt ?? null
 
   // ── Request a payout ──────────────────────────────────────────────────────
   const [requestOpen, setRequestOpen] = useState(false)
@@ -150,7 +156,7 @@ export default function PayoutsPage() {
     requestMutation.mutate(minor)
   }
 
-  // ── Bank details: edit → re-authenticate → PATCH /gyms/profile ─────────────
+  // ── Bank details: edit → re-authenticate → PUT /host/payout-account ───────
   const [bankOpen, setBankOpen] = useState(false)
   const [bankForm, setBankForm] = useState<BankDetails>({})
   const [bankFormError, setBankFormError] = useState<string | null>(null)
@@ -159,14 +165,13 @@ export default function PayoutsPage() {
   const [justUpdatedAt, setJustUpdatedAt] = useState<string | null>(null)
 
   const bankMutation = useMutation({
-    mutationFn: (credential: ReauthCredential) =>
-      gymApi.updateGymProfile({ paymentDetailsJson: { ...bankForm }, ...credential }),
+    mutationFn: (credential: ReauthCredential) => payoutsApi.saveAccount(filledBankFields(bankForm), credential),
     onSuccess: (response) => {
       setReauthOpen(false)
       setBankOpen(false)
       setReauthError(null)
-      setJustUpdatedAt(response.data?.gym?.paymentDetailsUpdatedAt ?? new Date().toISOString())
-      queryClient.invalidateQueries({ queryKey: ['gym-profile'] })
+      setJustUpdatedAt(response.data?.account?.detailsUpdatedAt ?? new Date().toISOString())
+      queryClient.invalidateQueries({ queryKey: ['payout-account'] })
       toast({
         title: 'Bank details updated',
         description: 'You were notified by email and in the app. New payout requests are paused for 24 hours.',
@@ -312,19 +317,19 @@ export default function PayoutsPage() {
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
               <div>
                 <CardTitle className="text-base">Bank details</CardTitle>
-                <CardDescription>Where payouts are sent. Changing them needs your password and pauses new payout requests for 24 hours.</CardDescription>
+                <CardDescription>Where payouts are sent and what travellers see when they pay by bank transfer, for every organization and branch of your business. Changing them needs your password and pauses new payout requests for 24 hours.</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={openBankEditor} disabled={profileQuery.isLoading}>
+              <Button variant="outline" size="sm" onClick={openBankEditor} disabled={accountQuery.isLoading}>
                 <Pencil className="mr-2 h-4 w-4" />
                 {hasDestination(bank) ? 'Change' : 'Set up'}
               </Button>
             </CardHeader>
             <CardContent>
-              {profileQuery.isLoading ? (
+              {accountQuery.isLoading ? (
                 <Skeleton className="h-16 w-full" />
-              ) : profileQuery.error ? (
+              ) : accountQuery.error ? (
                 <p className="text-sm text-destructive" role="alert">
-                  {describeRequestError(profileQuery.error, 'Could not load your bank details. Try again.')}
+                  {describeRequestError(accountQuery.error, 'Could not load your bank details. Try again.')}
                 </p>
               ) : hasDestination(bank) ? (
                 <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2" data-testid="bank-details">
