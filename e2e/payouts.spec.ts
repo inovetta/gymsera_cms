@@ -42,20 +42,25 @@ test.describe('Payouts', () => {
 
   test('changing bank details needs a password; a wrong one shows the server message and saves nothing', async ({ page }) => {
     const patches: any[] = [];
+    const profileCalls: string[] = [];
     await page.route('**/api/v1/**', async (route) => {
       const path = apiPath(route);
       const method = route.request().method();
       if (await answerShell(route, path, contextFor(true, ['*']))) return;
       if (path === '/host/payouts/balance') return json(route, balance);
       if (path === '/host/payouts') return json(route, { payouts: [] }, 200, { pagination: { page: 1, limit: 20, total: 0, pages: 1 } });
-      if (path === '/gyms/profile' && method === 'GET') return json(route, { gym: { id: 'g1', name: 'Iron Gym', paymentDetailsJson: bank } });
-      if (path === '/gyms/profile' && method === 'PATCH') {
+      // P7b (NEW-217, R-94): the tenant's payout account; the organization profile is never used here.
+      if (path === '/gyms/profile') profileCalls.push(method);
+      const account = (details: unknown, detailsUpdatedAt: string | null) =>
+        ({ id: 'pa1', scope: 'TENANT', organizationId: null, provider: 'BANK_TRANSFER', status: 'ACTIVE', details, detailsUpdatedAt });
+      if (path === '/host/payout-account' && method === 'GET') return json(route, { account: account(bank, null) });
+      if (path === '/host/payout-account' && method === 'PUT') {
         const body = route.request().postDataJSON();
         patches.push(body);
         if (body.password !== 'right-password') {
           return fail(route, 401, { code: 'invalid_credentials', message: 'Incorrect password' });
         }
-        return json(route, { gym: { id: 'g1', paymentDetailsJson: body.paymentDetailsJson, paymentDetailsUpdatedAt: '2026-10-10T08:00:00Z' } });
+        return json(route, { account: account(body.details, '2026-10-10T08:00:00Z') });
       }
       return json(route, {});
     });
@@ -85,8 +90,9 @@ test.describe('Payouts', () => {
     expect(patches).toHaveLength(2);
     expect(patches[1]).toMatchObject({
       password: 'right-password',
-      paymentDetailsJson: { accountNumber: '9998887776665', bankName: 'Meezan Bank' },
+      details: { accountNumber: '9998887776665', bankName: 'Meezan Bank' },
     });
+    expect(profileCalls).toEqual([]);
   });
 
   test('without payouts.view the URL shows a no-access state', async ({ page }) => {

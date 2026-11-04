@@ -55,7 +55,44 @@ export interface BankDetails {
   additionalInstructions?: string
 }
 
+/**
+ * P7b (R-94, NEW-217): the tenant's payout account. It belongs to the business (every organization
+ * and branch), not to one organization. The API also supports an organization override, which is
+ * not exposed at launch.
+ */
+export interface PayoutAccount {
+  id: string
+  scope: 'TENANT' | 'ORGANIZATION'
+  organizationId: string | null
+  provider: 'BANK_TRANSFER'
+  status: string
+  details: BankDetails | null
+  detailsUpdatedAt: string | null
+}
+
+/** What the server accepts to confirm the change (`assertReauth`): a password or a fresh provider token. */
+export interface PayoutAccountCredential {
+  password?: string
+  provider?: string
+  idToken?: string
+}
+
 export const payoutsApi = {
+  /** GET /host/payout-account: the tenant default (owner only, `payouts.bank.manage`); null when none. */
+  getAccount: async (): Promise<ApiResponse<{ account: PayoutAccount | null }>> => {
+    const { data } = await apiClient.get('/host/payout-account')
+    return data
+  },
+
+  /**
+   * PUT /host/payout-account: needs re-authentication; starts the SEC-13 24-hour pause on payout
+   * requests and alerts the owner. Only the known bank / wallet fields are accepted.
+   */
+  saveAccount: async (details: BankDetails, credential: PayoutAccountCredential): Promise<ApiResponse<{ account: PayoutAccount }>> => {
+    const { data } = await apiClient.put('/host/payout-account', { details, ...credential })
+    return data
+  },
+
   balance: async (branchId?: string): Promise<ApiResponse<PayoutBalance>> => {
     const { data } = await apiClient.get('/host/payouts/balance', { params: branchId ? { branchId } : undefined })
     return data
