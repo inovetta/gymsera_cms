@@ -42,6 +42,46 @@ export interface HostListing {
   reservedSlots?: number
 }
 
+/** GET /host/listings/:id: one organization and its own gym details (NEW-196; mobile P5 BUG-22). */
+export interface HostOrganization extends HostListing {
+  shortDescription?: string | null
+  genderType?: string | null
+  contactPhone?: string | null
+  logoUrl?: string | null
+  coverImageUrl?: string | null
+  imagesJson?: string[] | null
+  category?: string | null
+  establishedYear?: number | null
+  website?: string | null
+  gym: {
+    id?: string
+    name?: string | null
+    description?: string | null
+    genderType?: string | null
+    contactPhone?: string | null
+    contactEmail?: string | null
+    website?: string | null
+    logoUrl?: string | null
+    coverImageUrl?: string | null
+    imagesJson?: string[] | null
+  } | null
+}
+
+/** PATCH /host/listings/:id. Empty text clears a field; establishedYear null clears it. */
+export interface UpdateOrganizationPayload {
+  gymName?: string
+  gymDescription?: string
+  category?: string | null
+  establishedYear?: number | null
+  contactPhone?: string
+  contactEmail?: string
+  website?: string
+  genderType?: string
+  logoUrl?: string
+  coverImageUrl?: string
+  imagesJson?: string[]
+}
+
 export interface HostBranch {
   id: string
   branchName: string
@@ -186,6 +226,33 @@ export const hostApi = {
   getListings: async (): Promise<ApiResponse<HostListing[]>> => {
     const { data } = await apiClient.get('/host/listings')
     return data
+  },
+
+  /** GET /host/listings/:id — one organization and its own gym (NEW-196: every organization, not only the first). */
+  getOrganization: async (listingId: string): Promise<ApiResponse<HostOrganization>> => {
+    const { data } = await apiClient.get(`/host/listings/${listingId}`)
+    return data
+  },
+
+  /** PATCH /host/listings/:id — this organization only (the owner, or listing.manage org-wide: R-89). */
+  updateOrganization: async (listingId: string, payload: UpdateOrganizationPayload): Promise<ApiResponse<HostListing>> => {
+    const { data } = await apiClient.patch(`/host/listings/${listingId}`, payload)
+    return data
+  },
+
+  /**
+   * POST /host/listings/staging-images — stores the photos and answers their URLs, writing to no
+   * organization; the URLs are saved with updateOrganization. (/gyms/profile/logo and /cover wrote
+   * to the first organization and deleted its old logo.)
+   */
+  uploadOrganizationPhotos: async (files: File[]): Promise<string[]> => {
+    const formData = new FormData()
+    files.forEach((f) => formData.append('images', f))
+    const { data } = await apiClient.post('/host/listings/staging-images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    const urls = (data?.data?.urls ?? []) as unknown[]
+    return urls.map(String)
   },
 
   /** GET /host/listings/:id/branches — one organization's branches. */

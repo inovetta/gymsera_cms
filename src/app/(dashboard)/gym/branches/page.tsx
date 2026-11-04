@@ -11,6 +11,7 @@ import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { CapacityBanner } from '@/components/features/capacity-banner'
 import { BillingNotices } from '@/components/features/billing-notices'
 import { OrganizationStrip } from '@/components/features/organization-strip'
+import { visibleOrganizations } from '@/lib/organizations/profile'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { LastBranchDialog } from '@/components/features/last-branch-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
@@ -228,9 +229,7 @@ export default function BranchesPage() {
     queryFn: () => hostApi.getListings(),
     enabled: isTenantOwner,
   })
-  const rawListings = listingsQuery.data?.data ?? []
-  const activeListings = rawListings.filter((l) => l.status?.toUpperCase() === 'ACTIVE')
-  const displayListings = activeListings.length > 0 ? activeListings : rawListings
+  const displayListings = visibleOrganizations(listingsQuery.data?.data ?? [])
   const listingId =
     displayListings.find((l) => l.id === selectedListingId)?.id ?? displayListings[0]?.id
 

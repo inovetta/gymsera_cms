@@ -19,6 +19,9 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      # NEW-204: errors fail the build, warnings do not.
+      - name: Lint
+        run: npm run lint
       - name: Run component tests
         run: npm test
       - name: Install Playwright browsers
