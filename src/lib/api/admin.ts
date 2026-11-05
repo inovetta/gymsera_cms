@@ -1,4 +1,5 @@
 import apiClient from './client'
+import { fetchPrivateFile } from './private-file'
 import { ApiResponse, Tenant, TenantProvisioning, GymReview, PlatformStats } from '@/types'
 
 export interface TenantSubscription {
@@ -605,10 +606,8 @@ export const adminApi = {
     return data
   },
 
-  downloadKycDocumentBlob: async (streamUrl: string): Promise<Blob> => {
-    const { data } = await apiClient.get(streamUrl, { responseType: 'blob' })
-    return data
-  },
+  // NEW-222: through fetchPrivateFile, which drops the `/api/v1` the API puts in streamUrl.
+  downloadKycDocumentBlob: (streamUrl: string): Promise<Blob> => fetchPrivateFile(streamUrl),
 }
 
 export interface KycDocument {
