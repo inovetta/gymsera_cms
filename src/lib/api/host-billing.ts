@@ -69,3 +69,63 @@ export const hostBillingApi = {
     return data
   },
 }
+
+// ── P9c item D (R-95): paying for a GymsEra plan by bank transfer ───────────────
+export type PlanPaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type PlanPaymentCycle = 'MONTHLY' | 'YEARLY'
+
+export interface PlanPaymentRequest {
+  id: string
+  tenantId: string
+  billingPlanId: string
+  branchCount: number
+  billingCycle: PlanPaymentCycle
+  amount: string
+  currency: string
+  method: string
+  status: PlanPaymentStatus
+  hasProof: boolean
+  payerReference?: string | null
+  rejectionReason?: string | null
+  reviewedAt?: string | null
+  periodStart?: string | null
+  periodEnd?: string | null
+  createdAt: string
+  tenantName?: string | null
+}
+
+/** The server's own terms per cycle: the CMS never computes a duration or a price. */
+export interface PlanPaymentCycleTerms {
+  cycle: PlanPaymentCycle
+  months: number
+  amount: number
+  currency: string
+}
+
+export interface PlanPaymentOverview {
+  plans: Array<{ id: string; branchCount: number; currency: string; cycles: PlanPaymentCycleTerms[] }>
+  methods: Array<{ key: string; label: string; requiresProof: boolean; available: boolean; instructions: BankTransferInstructions | null }>
+  requests: PlanPaymentRequest[]
+  pending: PlanPaymentRequest | null
+  blocked: { code: string; platform: string; manageUrl?: string | null; message: string } | null
+  canSubmit: boolean
+}
+
+export const planPaymentsApi = {
+  getOverview: async (): Promise<ApiResponse<PlanPaymentOverview>> => {
+    const { data } = await apiClient.get('/host/plan-payments')
+    return data
+  },
+
+  /** Only the plan, the cycle and the receipt are sent; the server prices it from the catalog. */
+  submit: async (input: { billingPlanId: string; billingCycle: PlanPaymentCycle; proof: File; payerReference?: string }): Promise<ApiResponse<{ request: PlanPaymentRequest }>> => {
+    const form = new FormData()
+    form.append('billingPlanId', input.billingPlanId)
+    form.append('billingCycle', input.billingCycle)
+    form.append('method', 'BANK_TRANSFER')
+    if (input.payerReference) form.append('payerReference', input.payerReference)
+    form.append('proof', input.proof)
+    const { data } = await apiClient.post('/host/plan-payments', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return data
+  },
+}

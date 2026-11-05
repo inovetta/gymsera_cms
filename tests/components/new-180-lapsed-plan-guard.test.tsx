@@ -4,9 +4,10 @@ import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BillingPage from '@/app/(dashboard)/settings/billing/page'
 import { billingNoticesFrom } from '@/lib/billing-notices'
-import { hostBillingApi } from '@/lib/api/host-billing'
+import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
 import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
+import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 
 vi.mock('@/components/layout/header', () => ({ Header: () => <div data-testid="header" /> }))
 vi.mock('next/link', () => ({ default: ({ href, children, ...r }: any) => <a href={href} {...r}>{children}</a> }))
@@ -46,6 +47,8 @@ describe('NEW-180: a plan that does not entitle is never shown as the current pl
     vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 0, activeBranches: 3, usedBranches: 3, buildableBranches: 0, remainingBranches: 0 }) as never)
     vi.spyOn(hostBillingApi, 'getCatalog').mockResolvedValue(ok({ plans: [] }) as never)
     vi.spyOn(hostBillingApi, 'getBankInstructions').mockResolvedValue(ok({ bankName: null, accountTitle: null, accountNumber: null, iban: null, swiftCode: null, currency: 'PKR', instructions: null }) as never)
+    // P9c item D: the bank transfer section is the plan payment form (GET /host/plan-payments).
+    vi.spyOn(planPaymentsApi, 'getOverview').mockResolvedValue(ok(PLAN_PAYMENT_OVERVIEW) as never)
 
     renderPage()
 
@@ -53,7 +56,7 @@ describe('NEW-180: a plan that does not entitle is never shown as the current pl
     expect(screen.queryByText('Current Plan')).toBeNull()
     expect(screen.queryByText(/Renews on/)).toBeNull()
     expect(screen.queryByTestId('billing-notices')).toBeNull()
-    expect(screen.getByText('Bank Transfer Details')).toBeInTheDocument()
+    expect(await screen.findByText('Bank Transfer Details')).toBeInTheDocument()
   })
 
   it('notices: nothing for a plan that does not entitle (no "0 days left" countdown)', () => {

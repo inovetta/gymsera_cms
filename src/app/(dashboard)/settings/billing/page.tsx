@@ -1,14 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  CheckCircle, Layers, Clock, CreditCard, Copy, Check, AlertCircle,
-  Store, Smartphone, Building2, Info,
-} from 'lucide-react'
+import { Layers, Clock, Store, Smartphone, Info } from 'lucide-react'
 import { Header } from '@/components/layout/header'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/features/error-state'
@@ -17,6 +12,7 @@ import { httpStatus } from '@/lib/api/request-errors'
 import { tenantsApi } from '@/lib/api/tenants'
 import { hostBillingApi, CatalogPlan, SubscriptionLapse } from '@/lib/api/host-billing'
 import { LapsedPlanCard } from '@/components/features/lapsed-plan-card'
+import { HostPlanPayment } from '@/components/features/host-plan-payment'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
 import { TenantSubscription } from '@/types'
 import { useTierLabel, branchCountLabel } from '@/hooks/use-tier-names'
@@ -38,7 +34,6 @@ const STATUS_LABEL: Record<TenantSubscription['status'], string> = {
 }
 
 export default function BillingPage() {
-  const [copiedField, setCopiedField] = useState<string | null>(null)
   const tierLabel = useTierLabel()
 
   const { data: tenantData, isLoading: tenantLoading } = useQuery({
@@ -60,22 +55,6 @@ export default function BillingPage() {
     queryKey: ['host-branch-quota'],
     queryFn: () => hostBillingApi.getBranchQuota(),
   })
-
-  // R-86: the platform bank account comes from the API's environment, never from this page.
-  const { data: bankData, isLoading: bankLoading, error: bankError, refetch: refetchBank } = useQuery({
-    queryKey: ['billing-bank-instructions'],
-    queryFn: () => hostBillingApi.getBankInstructions(),
-  })
-  const bank = bankData?.data
-  const bankRows: Array<[string, string]> = bank
-    ? ([
-        ['Bank Name', bank.bankName],
-        ['Account Title', bank.accountTitle],
-        ['Account Number', bank.accountNumber],
-        ['IBAN', bank.iban],
-        ['SWIFT', bank.swiftCode],
-      ].filter(([, v]) => !!v) as Array<[string, string]>)
-    : []
 
   const { data: catalogData, isLoading: catalogLoading } = useQuery({
     queryKey: ['billing-catalog'],
@@ -100,20 +79,6 @@ export default function BillingPage() {
     : (rawCatalog && typeof rawCatalog === 'object' && 'plans' in rawCatalog && Array.isArray((rawCatalog as { plans: unknown }).plans)
       ? (rawCatalog as { plans: CatalogPlan[] }).plans
       : [])
-
-  // host.controller.js#upgradeSubscription's own guard, mirrored here: the
-  // manual/invoice path only ever applies while there's no real,
-  // store-verified subscription in the way. A manual-plan tenant (or one
-  // with no plan at all) can still use it; an IAP tenant can't — the
-  // backend refuses that request with 409 iap_subscription_active anyway,
-  // this just avoids showing an option that would fail.
-  const hasRealSubscription = !!sub && sub.branchCount != null
-
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(field)
-    setTimeout(() => setCopiedField(null), 2000)
-  }
 
   const isLoading = tenantLoading || subLoading
 
@@ -148,9 +113,10 @@ export default function BillingPage() {
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Plan</p>
                     {/* BUG-24: the tier the app shows (API tierName), then the branch count it covers. */}
                     <p className="font-semibold text-lg">
+                      {/* P9c: a legacy package plan now arrives with its package name. */}
                       {sub.branchCount != null
                         ? tierLabel(sub.branchCount) ?? branchCountLabel(sub.branchCount)
-                        : sub.package?.name || 'Subscription'}
+                        : sub.package?.name ? `${sub.package.name} (legacy package)` : 'Legacy package'}
                     </p>
                     {sub.branchCount != null && tierLabel(sub.branchCount) && (
                       <p className="text-xs text-muted-foreground">{branchCountLabel(sub.branchCount)}</p>
@@ -257,7 +223,7 @@ export default function BillingPage() {
             <h2 className="text-base font-semibold">GymsEra Plan Catalog</h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Branch-count pricing — the same catalog the mobile app purchases from. Purchasing itself happens in the app.
+            Branch-count pricing — the same catalog the mobile app purchases from. Buy in the app, or pay by bank transfer below.
           </p>
           {catalogLoading ? (
             <Skeleton className="h-24 rounded-lg" />
@@ -293,63 +259,9 @@ export default function BillingPage() {
           )}
         </div>
 
-        {/* Manual / invoice plans — only while there's no real (store-
-            verified) subscription in the way; host.controller.js's own
-            guard refuses this request otherwise, so this stays hidden
-            rather than offering something that would just fail. */}
-        {!hasRealSubscription && (
-          <>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-base font-semibold">Pay by bank transfer</h2>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                For tenants billed by invoice or bank transfer instead of a store purchase. GymsEra support activates the plan after the payment is confirmed; a plan cannot be requested from this page.
-              </p>
-
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-primary" />
-                    Bank Transfer Details
-                  </CardTitle>
-                  <CardDescription>Send payment, then email the proof</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm">
-                  {bankLoading ? (
-                    <Skeleton className="h-24 rounded-lg" />
-                  ) : bankError ? (
-                    <ErrorState error={bankError} what="the bank details" onRetry={() => refetchBank()} compact />
-                  ) : bankRows.length === 0 ? (
-                    <p className="text-muted-foreground">
-                      The bank details are not available here yet. Contact support@gymsera.com for the bank details.
-                    </p>
-                  ) : (
-                  <div className="bg-muted p-3 rounded-lg space-y-2 font-mono text-xs">
-                    {bankRows.map(([label, value]) => (
-                      <div key={label} className="flex justify-between gap-2 items-center">
-                        <span className="text-muted-foreground">{label}:</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-right select-all">{value}</span>
-                          <button onClick={() => copyToClipboard(value, label)} className="text-muted-foreground hover:text-primary transition-colors">
-                            {copiedField === label ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  )}
-                  {bank?.instructions && <p className="text-xs">{bank.instructions}</p>}
-                  <div className="flex gap-2 items-start text-xs text-muted-foreground">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-primary mt-0.5" />
-                    <span>Please email your transaction proof with your Tenant ID to support@gymsera.com after transfer.</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </>
-        )}
+        {/* P9c item D (R-95): pay for a plan by bank transfer here; the API decides when it is
+            refused (a store plan that renews) and what it costs. */}
+        <HostPlanPayment />
       </div>
     </>
   )
