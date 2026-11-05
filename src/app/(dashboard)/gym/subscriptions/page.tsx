@@ -27,6 +27,7 @@ import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
 import { pendingPlanChange, startsOnApproval } from '@/lib/subscriptions/dates'
+import { PaymentProofView } from '@/components/features/payment-proof-view'
 
 const recordPaymentSchema = z.object({
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET']),
@@ -389,15 +390,12 @@ export default function SubscriptionsPage() {
                         <p className="font-medium">{formatDate(latestPayment.createdAt)}</p>
                       </div>
                     </div>
-                    {latestPayment.proofUrl && (
-                      <a
-                        href={latestPayment.proofUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-primary underline"
-                      >
-                        View payment proof
-                      </a>
+                    {(latestPayment.proofUrl || latestPayment.proofMissing) && (
+                      <PaymentProofView
+                        proofUrl={latestPayment.proofUrl}
+                        proofMissing={latestPayment.proofMissing}
+                        label="View payment proof"
+                      />
                     )}
                     {latestPayment.rejectedReason && (
                       <p className="text-xs text-destructive">Rejected: {latestPayment.rejectedReason}</p>
