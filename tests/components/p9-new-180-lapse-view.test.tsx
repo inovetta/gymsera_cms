@@ -3,9 +3,10 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BillingPage from '@/app/(dashboard)/settings/billing/page'
-import { hostBillingApi } from '@/lib/api/host-billing'
+import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
 import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
+import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 
 /**
  * Phase 7 P9, NEW-180 (lapse view, R-82) and R-86 (bank details from the API).
@@ -43,6 +44,8 @@ beforeEach(() => {
   vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 0, activeBranches: 3, usedBranches: 3, buildableBranches: 0, remainingBranches: 0 }) as never)
   vi.spyOn(hostBillingApi, 'getCatalog').mockResolvedValue(ok({ plans: [] }) as never)
   bank = vi.spyOn(hostBillingApi, 'getBankInstructions').mockResolvedValue(ok(BANK) as never)
+  // P9c item D: the bank transfer section is the plan payment form (GET /host/plan-payments).
+  vi.spyOn(planPaymentsApi, 'getOverview').mockResolvedValue(ok(PLAN_PAYMENT_OVERVIEW) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -55,7 +58,7 @@ describe('NEW-180: the lapsed plan, as the mobile My Subscription', () => {
     expect(card).toHaveTextContent(/Your branches stay open until Nov 04, 2026\. After that they're locked/)
     expect(screen.queryByText('Current Plan')).toBeNull()
     expect(screen.queryByText(/Renews on/)).toBeNull()
-    expect(screen.getByText('Bank Transfer Details')).toBeInTheDocument()
+    expect(await screen.findByText('Bank Transfer Details')).toBeInTheDocument()
   })
 
   it('on hold at the App Store: the store fixes it, with its link', async () => {

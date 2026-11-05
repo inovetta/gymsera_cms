@@ -296,7 +296,10 @@ export interface Payment {
   currency: string
   method: PaymentMethod
   status: PaymentStatus
-  proofUrl?: string
+  /** P9c (A): the authenticated proof route (`/api/v1/payments/<id>/proof`), never a public URL. */
+  proofUrl?: string | null
+  /** P9c (A): a proof was sent before uploads were stored; the file does not exist. */
+  proofMissing?: boolean
   notes?: string
   rejectedReason?: string
   createdBy?: string

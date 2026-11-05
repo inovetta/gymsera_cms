@@ -31,6 +31,7 @@ import { attendanceApi } from '@/lib/api/attendance'
 import { MemberSubscription, AttendanceLog, Payment } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { PaymentProofView } from '@/components/features/payment-proof-view'
 
 const recordPaymentSchema = z.object({
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET']),
@@ -229,9 +230,7 @@ export default function MemberDetailPage() {
     {
       key: 'proof',
       header: 'Proof',
-      cell: (row) => row.proofUrl
-        ? <a href={row.proofUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline">View</a>
-        : <span className="text-xs text-muted-foreground">—</span>,
+      cell: (row) => <PaymentProofView proofUrl={row.proofUrl} proofMissing={row.proofMissing} />,
     },
     {
       key: 'actions',

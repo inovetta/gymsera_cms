@@ -6,7 +6,7 @@ import BillingPage from '@/app/(dashboard)/settings/billing/page'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { PlansTab } from '@/components/features/admin-tenant/plans-tab'
 import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
-import { hostBillingApi } from '@/lib/api/host-billing'
+import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
 import { tenantsApi } from '@/lib/api/tenants'
 import { adminApi } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
@@ -16,6 +16,7 @@ import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
 import { firstPlanPackage } from '@/lib/plans/plan-display'
 import { ok } from '../fixtures/team'
+import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 import { ownerContext } from '../fixtures/context'
 import { fakePlaces, pickPlace } from '../fixtures/places'
 
@@ -55,6 +56,7 @@ describe('Subscription & Billing: tier name and currency from the server', () =>
     vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
     vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 1, activeBranches: 1, usedBranches: 1, buildableBranches: 0, remainingBranches: 0 }) as never)
     vi.spyOn(hostBillingApi, 'getBankInstructions').mockResolvedValue(ok(null) as never)
+    vi.spyOn(planPaymentsApi, 'getOverview').mockResolvedValue(ok(PLAN_PAYMENT_OVERVIEW) as never)
     vi.spyOn(hostBillingApi, 'getCurrentSubscription').mockResolvedValue(ok({
       id: 's1', status: 'ACTIVE', platform: 'IOS', branchCount: 1, amount: 6.99, currency: 'USD', billingCycle: 'MONTHLY',
       startDate: '2026-10-01', endDate: '2026-11-01', entitled: true, package: { name: 'Gold Package' },

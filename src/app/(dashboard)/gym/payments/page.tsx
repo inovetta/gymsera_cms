@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
 import { tierAt } from '@/lib/access/tier'
+import { PaymentProofView } from '@/components/features/payment-proof-view'
 
 // NEW-57: the staff member types the member's email; the member lookup turns it into the userId
 // the server wants. The server needs a branch for every payment recorded this way, and the lookup
@@ -346,9 +347,7 @@ export default function PaymentsPage() {
     {
       key: 'proof',
       header: 'Proof',
-      cell: (row) => row.proofUrl
-        ? <a href={row.proofUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline">View</a>
-        : <span className="text-xs text-muted-foreground">—</span>,
+      cell: (row) => <PaymentProofView proofUrl={row.proofUrl} proofMissing={row.proofMissing} />,
     },
     {
       key: 'date',
