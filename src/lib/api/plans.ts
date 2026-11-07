@@ -54,9 +54,10 @@ export const plansApi = {
     return data
   },
 
+  /** The API reads the file from the multipart field `image` (`upload.image('image')`, NEW-227). */
   uploadPlanPoster: async (id: string, file: File): Promise<ApiResponse<{ posterUrl: string }>> => {
     const formData = new FormData()
-    formData.append('poster', file)
+    formData.append('image', file)
     const { data } = await apiClient.post(`/membership-plans/${id}/poster`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
