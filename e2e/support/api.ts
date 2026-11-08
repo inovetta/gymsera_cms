@@ -57,7 +57,17 @@ export async function answerShell(route: Route, path: string, context: unknown):
   if (path === '/approvals') { await json(route, []); return true; }
   if (path === '/notifications/unread-count') { await json(route, { unreadCount: 0 }); return true; }
   if (path === '/notifications') { await json(route, { notifications: [] }); return true; }
+  // R-99 (P11d): payouts on here, as the payout specs test the payout pages; p11d-payouts-flag.spec.ts
+  // answers this call itself (before the shell) to test them hidden.
+  if (path === '/meta/app-config') { await json(route, appConfig(true)); return true; }
   return false;
 }
+
+/** GET /meta/app-config as the API answers it (R-99 `features.payouts`). */
+export const appConfig = (payouts: boolean) => ({
+  minAppVersion: { ios: null, android: null },
+  storeUrls: { ios: null, android: null },
+  features: { payouts },
+});
 
 export const apiPath = (route: Route) => new URL(route.request().url()).pathname.replace('/api/v1', '');
