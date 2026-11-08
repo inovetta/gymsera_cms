@@ -11,6 +11,15 @@ export const lapseTitle = (reason: string) =>
 const storeName = (provider: string) =>
   ({ IOS: 'the App Store', ANDROID: 'Google Play', STRIPE: 'your card provider' } as Record<string, string>)[provider] ?? 'the payment provider'
 
+// NEW-233: the channel the plan was bought through, named on the card (unknown: no line, nothing guessed).
+const channelLine = (provider: string) =>
+  ({
+    IOS: 'Bought through the App Store.',
+    ANDROID: 'Bought through Google Play.',
+    MANUAL: 'Paid by bank transfer.',
+    STRIPE: 'Paid by card.',
+  } as Record<string, string>)[provider] ?? null
+
 const date = (v?: string | null) => (v ? formatDate(v) : null)
 
 /**
@@ -41,7 +50,8 @@ export function LapsedPlanCard({ lapse, endDate, platform }: { lapse: Subscripti
       : 'Your branches are locked: no new members, sales or plans. Members can check in for 7 days after the lock.'
 
   const manageUrl = lapse.manageUrl && /^https:\/\//i.test(lapse.manageUrl) ? lapse.manageUrl : null
-  const storeLabel = provider === 'IOS' ? 'App Store' : 'Google Play'
+  const storeLabel = provider === 'IOS' ? 'the App Store' : 'Google Play'
+  const channel = channelLine(provider)
   const storeFix =
     manageUrl && (provider === 'IOS' || provider === 'ANDROID')
       ? reason === 'on_hold'
@@ -61,6 +71,7 @@ export function LapsedPlanCard({ lapse, endDate, platform }: { lapse: Subscripti
         <AlertCircle className="h-5 w-5 text-warning" />
         <p className="text-lg font-semibold">{lapseTitle(reason)}</p>
       </div>
+      {channel && <p data-testid="lapsed-plan-channel" className="font-medium">{channel}</p>}
       <p>{what}</p>
       <p>{branches}</p>
       {storeFix ? (

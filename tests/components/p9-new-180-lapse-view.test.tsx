@@ -66,7 +66,8 @@ describe('NEW-180: the lapsed plan, as the mobile My Subscription', () => {
     const card = await screen.findByTestId('lapsed-plan')
     expect(within(card).getByText('On hold')).toBeInTheDocument()
     expect(card).toHaveTextContent("The App Store couldn't take your renewal payment, so your plan is on hold.")
-    expect(screen.getByRole('link', { name: 'Fix payment in App Store' })).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions')
+    // P11c, NEW-233: "in the App Store".
+    expect(screen.getByRole('link', { name: 'Fix payment in the App Store' })).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions')
   })
 
   it('paused in Google Play: "Resume in Google Play"', async () => {
