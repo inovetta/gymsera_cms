@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { approvalsApi, APPROVALS_WAITING_KEY } from '@/lib/api/approvals'
 import { useGymAccess } from '@/hooks/use-gym-access'
+import { usePayoutsEnabled } from '@/hooks/use-payouts-enabled'
 import { OrganizationSwitcher } from '@/components/layout/organization-switcher'
 import { holdsPermission, PermissionScope } from '@/lib/access/menu'
 import {
@@ -57,6 +58,11 @@ interface NavItem {
    */
   permission?: string
   scope?: PermissionScope
+  /**
+   * R-99 (P11d): shown only while the API offers payouts ('on') or only while it does not ('off'),
+   * from GET /meta/app-config `features.payouts`. Unknown counts as off.
+   */
+  payouts?: 'on' | 'off'
 }
 
 interface NavSection {
@@ -90,7 +96,9 @@ const navSections: NavSection[] = [
       { title: 'Invoices', href: '/gym/invoices', icon: Receipt, permission: 'invoices.view', scope: 'branch' },
       { title: 'Ledger', href: '/gym/ledger', icon: Wallet, permission: 'ledger.today.view', scope: 'branch' },
       // payouts.view is organization-wide (the owner by default); the endpoints resolve org grants only.
-      { title: 'Payouts', href: '/gym/payouts', icon: Landmark, permission: 'payouts.view', scope: 'org' },
+      { title: 'Payouts', href: '/gym/payouts', icon: Landmark, permission: 'payouts.view', scope: 'org', payouts: 'on' },
+      // While payouts are hidden the owner still manages the bank details travellers pay into.
+      { title: 'Bank details', href: '/gym/bank-details', icon: Landmark, permission: 'payouts.bank.manage', scope: 'org', payouts: 'off' },
       { title: 'Trainers', href: '/gym/trainers', icon: Dumbbell, permission: 'schedule.trainer.assign', scope: 'branch' },
       { title: 'Reports', href: '/gym/reports', icon: BarChart3, permission: 'dashboard.revenue.view', scope: 'branch' },
     ],
@@ -158,8 +166,11 @@ export function Sidebar() {
   const { organization, isTenantOwner, gymPagesOpen, roleLabel, contextLoading, tenantLoading } = useGymAccess()
   const isAccessLoading = contextLoading || tenantLoading
 
+  const { payoutsEnabled } = usePayoutsEnabled()
+  const featureOn = (item: NavItem) => !item.payouts || item.payouts === (payoutsEnabled ? 'on' : 'off')
   const canSee = (item: NavItem) =>
-    !item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch'))
+    featureOn(item) &&
+    (!item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch')))
   const canSeeApprovals = gymPagesOpen && holdsPermission(organization, 'approvals.view', 'org')
 
   // Requests waiting on this user, from the same list the Approvals page shows.
