@@ -37,7 +37,7 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const GYM_PAGES = [
   'Gym Profile', 'Branches', 'Plans', 'Members', 'Team & access', 'Approvals',
-  'Subscriptions', 'Attendance', 'Payments', 'Invoices', 'Ledger', 'Payouts', 'Trainers', 'Reports',
+  'Subscriptions', 'Attendance', 'Access devices', 'Payments', 'Invoices', 'Ledger', 'Payouts', 'Trainers', 'Reports',
 ]
 
 let getContext: ReturnType<typeof vi.spyOn>
@@ -97,7 +97,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     renderSidebar(branchManagerContext)
 
     expect(await menu()).toEqual([
-      'Dashboard', 'Plans', 'Members', 'Subscriptions', 'Attendance', 'Payments', 'Invoices', 'Trainers', 'Reports',
+      'Dashboard', 'Plans', 'Members', 'Subscriptions', 'Attendance', 'Access devices', 'Payments', 'Invoices', 'Trainers', 'Reports',
     ])
     // No org-wide approvals.view: the inbox would answer 403, so it is not asked.
     expect(listApprovals).not.toHaveBeenCalled()

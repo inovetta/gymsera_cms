@@ -18,12 +18,14 @@ const ORG_ADMIN_KEYS = [
   'dashboard.view', 'dashboard.revenue.view', 'members.view', 'checkins.view', 'schedule.view',
   'schedule.trainer.assign', 'subscriptions.view', 'payments.view', 'invoices.view', 'plans.view',
   'team.view', 'team.invite', 'approvals.view', 'approvals.decide', 'branch.settings', 'listing.manage',
+  'devices.view', 'devices.manage',
 ]
 
 const MANAGER_KEYS = [
   'dashboard.view', 'dashboard.revenue.view', 'members.view', 'checkins.view', 'schedule.view',
   'schedule.trainer.assign', 'subscriptions.view', 'payments.view', 'invoices.view', 'plans.view',
   'team.view', 'team.invite', 'approvals.view', 'approvals.decide', 'branch.settings',
+  'devices.view', 'devices.manage',
 ]
 
 /** An Org Admin: assigned to the whole organization. Account role MEMBER. */
@@ -80,6 +82,7 @@ export const plainMemberContext = context([])
 const DESK_KEYS = [
   'dashboard.view', 'members.view', 'members.create', 'checkins.view', 'schedule.view',
   'subscriptions.view', 'subscriptions.create', 'payments.view', 'payments.record', 'invoices.view', 'plans.view',
+  'devices.view',
 ]
 
 /**
