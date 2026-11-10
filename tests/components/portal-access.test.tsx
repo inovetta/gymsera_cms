@@ -137,7 +137,7 @@ describe('Dashboard layout — the guard behind every portal page (NEW-43)', () 
     const nav = (await screen.findAllByRole('navigation'))[0]
     await waitFor(() => expect(within(nav).getByRole('link', { name: 'Members' })).toBeInTheDocument())
     const titles = within(nav).getAllByRole('link').map((a) => a.textContent?.trim())
-    expect(titles).toEqual(['Dashboard', 'Plans', 'Members', 'Subscriptions', 'Attendance', 'Payments', 'Invoices'])
+    expect(titles).toEqual(['Dashboard', 'Plans', 'Members', 'Subscriptions', 'Attendance', 'Access devices', 'Payments', 'Invoices'])
   })
 
   it('stops a plain member who already has a session: refusal, no pages, no menu', async () => {

@@ -37,6 +37,7 @@ import {
   Wallet,
   Landmark,
   Webhook,
+  ScanFace,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
@@ -92,6 +93,8 @@ const navSections: NavSection[] = [
       { title: 'Approvals', href: '/gym/approvals', icon: ClipboardCheck, permission: 'approvals.view', scope: 'org' },
       { title: 'Subscriptions', href: '/gym/subscriptions', icon: Layers, permission: 'subscriptions.view', scope: 'branch' },
       { title: 'Attendance', href: '/gym/attendance', icon: CalendarCheck, permission: 'checkins.view', scope: 'branch' },
+      // ZKTeco face / fingerprint / card terminals (gymsera_be docs/ZKTECO_PUSH_DEVICE_SYNC.md §10).
+      { title: 'Access devices', href: '/gym/devices', icon: ScanFace, permission: 'devices.view', scope: 'branch' },
       { title: 'Payments', href: '/gym/payments', icon: Receipt, permission: 'payments.view', scope: 'branch' },
       { title: 'Invoices', href: '/gym/invoices', icon: Receipt, permission: 'invoices.view', scope: 'branch' },
       { title: 'Ledger', href: '/gym/ledger', icon: Wallet, permission: 'ledger.today.view', scope: 'branch' },
