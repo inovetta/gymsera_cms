@@ -32,6 +32,9 @@ import { MemberSubscription, AttendanceLog, Payment } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { PaymentProofView } from '@/components/features/payment-proof-view'
+import { MemberDevicesPanel } from '@/components/features/devices/member-devices-panel'
+import { holdsPermission } from '@/lib/access/menu'
+import { useGymAccess } from '@/hooks/use-gym-access'
 
 const recordPaymentSchema = z.object({
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET']),
@@ -45,6 +48,9 @@ export default function MemberDetailPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const userId = params.id as string
+  const { organization } = useGymAccess()
+  // ZKTeco spec §10.4: the Devices tab for people who may see access devices.
+  const mayViewDevices = holdsPermission(organization, 'devices.view', 'branch')
 
   const [suspendDialog, setSuspendDialog] = useState(false)
   const [activateDialog, setActivateDialog] = useState(false)
@@ -349,6 +355,7 @@ export default function MemberDetailPage() {
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            {mayViewDevices && <TabsTrigger value="devices">Devices</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="subscriptions" className="mt-4">
@@ -404,6 +411,12 @@ export default function MemberDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {mayViewDevices && (
+            <TabsContent value="devices" className="mt-4">
+              <MemberDevicesPanel memberId={userId} />
+            </TabsContent>
+          )}
         </Tabs>
 
         <ConfirmDialog

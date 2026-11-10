@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
+import { StaffDoorAccess } from '@/components/features/devices/staff-door-access'
 import { gymApi } from '@/lib/api/gym'
 import { teamApi, PermissionDef, PermissionModule, TeamMemberDetail, TeamRole } from '@/lib/api/team'
 import {
@@ -348,6 +349,8 @@ export function MemberAccessPanel({ assignmentId, onClose }: MemberAccessPanelPr
                 Save role & branches
               </Button>
             </section>
+
+            {detail.userId && <StaffDoorAccess userId={detail.userId} />}
 
             {/* Permissions */}
             <div className="flex items-start gap-2 rounded-md border p-3 text-xs text-muted-foreground">
