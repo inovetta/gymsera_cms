@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ClipboardCheck, RefreshCw } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { ErrorState } from '@/components/features/error-state'
@@ -15,7 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConnectionBadge, DeviceStatusBadge, DIRECTION_LABEL, SetupCard, agoText } from '@/components/features/devices/device-ui'
+import { DeviceAuditTab, DeviceErrorsTab, DeviceMembersTab, LiveFeed } from '@/components/features/devices/device-tabs'
+import { PushProgress } from '@/components/features/devices/push-progress'
 import { AccessDevice, DeviceDirection, DeviceSetup, devicesApi } from '@/lib/api/devices'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
@@ -35,8 +38,9 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 /**
- * Device page (ZKTeco spec §10.3, Phase 1: status only). Sync health, the command log and the live
- * feed come with the sync engine (Phase 2 and 3).
+ * Device page (ZKTeco spec §9.1, §10.3): status, Sync now (15-second answer) and Full audit, and the
+ * tabs Members on device, Live feed (3-second refresh), Errors and Audit. Remove can wipe the device
+ * (every GymsEra user deleted from it) after the person types the device name.
  */
 export default function DeviceDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -45,6 +49,9 @@ export default function DeviceDetailPage() {
   const queryClient = useQueryClient()
   const { organization } = useGymAccess()
   const [confirm, setConfirm] = useState<'repair' | 'remove' | null>(null)
+  const [wipe, setWipe] = useState(false)
+  const [confirmName, setConfirmName] = useState('')
+  const [push, setPush] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [direction, setDirection] = useState<DeviceDirection>('in')
 
@@ -84,14 +91,31 @@ export default function DeviceDetailPage() {
     onError: onError('A new key could not be created.'),
   })
   const remove = useMutation({
-    mutationFn: () => devicesApi.remove(id),
-    onSuccess: () => {
+    mutationFn: () => devicesApi.remove(id, wipe ? { confirmName } : undefined),
+    onSuccess: (res) => {
       setConfirm(null)
       void queryClient.invalidateQueries({ queryKey: ['devices'] })
+      if (res.data.status === 'wiping') {
+        void queryClient.invalidateQueries({ queryKey: ['device', id] })
+        toast({ title: 'The device deletes its GymsEra users the next time it connects, then it is removed.' })
+        return
+      }
       toast({ title: 'Device removed from GymsEra' })
       router.push('/gym/devices')
     },
     onError: onError('The device could not be removed.'),
+  })
+  const sync = useMutation({
+    mutationFn: (mode: 'quick' | 'audit') => devicesApi.sync(id, mode),
+    onSuccess: (res, mode) => {
+      if (mode === 'audit') {
+        toast({ title: 'Full audit asked. The report appears in the Audit tab in 1 to 3 minutes.' })
+        void queryClient.invalidateQueries({ queryKey: ['device-audits', id] })
+        return
+      }
+      setPush(res.data.requestId)
+    },
+    onError: onError('The device could not be synced.'),
   })
 
   const back = (
@@ -118,6 +142,8 @@ export default function DeviceDetailPage() {
   }
 
   const mayManage = holdsAtBranch(organization, device.branchId, 'devices.manage')
+  const mayPush = holdsAtBranch(organization, device.branchId, 'devices.push')
+  const wiping = device.connection === 'wiping'
   const mayRepair = holdsPermission(organization, 'devices.manage', 'org') && device.linkMode !== 'serial'
   const caps = device.capabilities
   const capList = caps ? [caps.face && 'Face', caps.fingerprint && 'Fingerprint', caps.palm && 'Palm'].filter(Boolean).join(', ') : null
@@ -140,75 +166,116 @@ export default function DeviceDetailPage() {
           </Alert>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Status</CardTitle></CardHeader>
-            <CardContent>
-              <Field label="Status" value={<DeviceStatusBadge device={device} />} />
-              <Field label="Last seen" value={device.lastSeenAt ? `${formatDate(device.lastSeenAt)}${seen ? ` (${seen})` : ''}` : 'Never'} />
-              <Field label="IP address" value={device.lastIp} />
-              <Field label="Connection" value={<ConnectionBadge encrypted={device.encrypted} />} />
-              <Field label="Serial number" value={device.serialNumber} />
-              <Field label="Device key" value={<span className="font-mono">{device.key}</span>} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Device</CardTitle></CardHeader>
-            <CardContent>
-              <Field label="Model" value={device.model} />
-              <Field label="Firmware" value={device.firmware} />
-              <Field label="Protocol" value={device.pushVersion} />
-              <Field label="Can read" value={capList || null} />
-              <Field label="Users on device" value={device.counts.users !== null ? `${device.counts.users}${device.counts.maxUsers ? ` of ${device.counts.maxUsers}` : ''}` : null} />
-              <Field label="Faces" value={device.counts.faces} />
-              <Field label="Fingerprints" value={device.counts.fingerprints} />
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Settings on the device</CardTitle>
-            <CardDescription>What was entered on the device to connect it to GymsEra.</CardDescription>
-          </CardHeader>
-          <CardContent><SetupCard setup={setup} /></CardContent>
-        </Card>
-
-        {mayManage && (
-          <Card>
-            <CardHeader><CardTitle>Manage</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <form
-                className="grid gap-3 sm:grid-cols-[1fr_12rem_auto] sm:items-end"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  save.mutate({ name: name.trim(), direction })
-                }}
-              >
-                <div className="space-y-1">
-                  <Label htmlFor="device-name">Device name</Label>
-                  <Input id="device-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="device-direction">Direction</Label>
-                  <select id="device-direction" className={selectClass} value={direction} onChange={(e) => setDirection(e.target.value as DeviceDirection)}>
-                    <option value="in">Check-in</option>
-                    <option value="out">Check-out</option>
-                    <option value="both">Check-in and out</option>
-                  </select>
-                </div>
-                <Button type="submit" loading={save.isPending}>Save</Button>
-              </form>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => save.mutate({ enabled: !device.enabled })}>
-                  {device.enabled ? 'Disable' : 'Enable'}
-                </Button>
-                {mayRepair && <Button variant="outline" onClick={() => setConfirm('repair')}>Re-pair</Button>}
-                <Button variant="destructive" onClick={() => setConfirm('remove')}>Remove</Button>
-              </div>
-            </CardContent>
-          </Card>
+        {wiping && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>Wiping this device</AlertTitle>
+            <AlertDescription>
+              The device deletes every GymsEra user the next time it connects, then it is removed from GymsEra. If it never connects again it is removed after 7 days.
+            </AlertDescription>
+          </Alert>
         )}
+
+        {!wiping && (mayPush || mayManage) && device.enabled && (
+          <div className="flex flex-wrap items-center gap-2">
+            {mayPush && (
+              <Button size="sm" loading={sync.isPending && sync.variables === 'quick'} onClick={() => sync.mutate('quick')}>
+                <RefreshCw className="mr-1 h-4 w-4" aria-hidden="true" />Sync now
+              </Button>
+            )}
+            {mayManage && (
+              <Button size="sm" variant="outline" loading={sync.isPending && sync.variables === 'audit'} onClick={() => sync.mutate('audit')}>
+                <ClipboardCheck className="mr-1 h-4 w-4" aria-hidden="true" />Run full audit
+              </Button>
+            )}
+          </div>
+        )}
+        {push && <PushProgress requestId={push} title="Sync now" />}
+
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="members">Members on device</TabsTrigger>
+            <TabsTrigger value="feed">Live feed</TabsTrigger>
+            <TabsTrigger value="errors">Errors</TabsTrigger>
+            <TabsTrigger value="audit">Audit</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview" className="mt-4 space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle>Status</CardTitle></CardHeader>
+                <CardContent>
+                  <Field label="Status" value={<DeviceStatusBadge device={device} />} />
+                  <Field label="Last seen" value={device.lastSeenAt ? `${formatDate(device.lastSeenAt)}${seen ? ` (${seen})` : ''}` : 'Never'} />
+                  <Field label="IP address" value={device.lastIp} />
+                  <Field label="Connection" value={<ConnectionBadge encrypted={device.encrypted} />} />
+                  <Field label="Serial number" value={device.serialNumber} />
+                  <Field label="Device key" value={<span className="font-mono">{device.key}</span>} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>Device</CardTitle></CardHeader>
+                <CardContent>
+                  <Field label="Model" value={device.model} />
+                  <Field label="Firmware" value={device.firmware} />
+                  <Field label="Protocol" value={device.pushVersion} />
+                  <Field label="Can read" value={capList || null} />
+                  <Field label="Users on device" value={device.counts.users !== null ? `${device.counts.users}${device.counts.maxUsers ? ` of ${device.counts.maxUsers}` : ''}` : null} />
+                  <Field label="Faces" value={device.counts.faces} />
+                  <Field label="Fingerprints" value={device.counts.fingerprints} />
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Settings on the device</CardTitle>
+                <CardDescription>What was entered on the device to connect it to GymsEra.</CardDescription>
+              </CardHeader>
+              <CardContent><SetupCard setup={setup} /></CardContent>
+            </Card>
+
+            {mayManage && !wiping && (
+              <Card>
+                <CardHeader><CardTitle>Manage</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <form
+                    className="grid gap-3 sm:grid-cols-[1fr_12rem_auto] sm:items-end"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      save.mutate({ name: name.trim(), direction })
+                    }}
+                  >
+                    <div className="space-y-1">
+                      <Label htmlFor="device-name">Device name</Label>
+                      <Input id="device-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="device-direction">Direction</Label>
+                      <select id="device-direction" className={selectClass} value={direction} onChange={(e) => setDirection(e.target.value as DeviceDirection)}>
+                        <option value="in">Check-in</option>
+                        <option value="out">Check-out</option>
+                        <option value="both">Check-in and out</option>
+                      </select>
+                    </div>
+                    <Button type="submit" loading={save.isPending}>Save</Button>
+                  </form>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => save.mutate({ enabled: !device.enabled })}>
+                      {device.enabled ? 'Disable' : 'Enable'}
+                    </Button>
+                    {mayRepair && <Button variant="outline" onClick={() => setConfirm('repair')}>Re-pair</Button>}
+                    <Button variant="destructive" onClick={() => setConfirm('remove')}>Remove</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          <TabsContent value="members" className="mt-4"><DeviceMembersTab deviceId={device.id} /></TabsContent>
+          <TabsContent value="feed" className="mt-4"><LiveFeed deviceId={device.id} /></TabsContent>
+          <TabsContent value="errors" className="mt-4"><DeviceErrorsTab deviceId={device.id} /></TabsContent>
+          <TabsContent value="audit" className="mt-4"><DeviceAuditTab deviceId={device.id} /></TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
@@ -231,12 +298,31 @@ export default function DeviceDetailPage() {
               <DialogHeader>
                 <DialogTitle>Remove this device?</DialogTitle>
                 <DialogDescription>
-                  The device stops talking to GymsEra and its key stops working. Users already on the device stay there until you delete them on the device.
+                  The device stops talking to GymsEra and its key stops working. Without a wipe, users already on the device stay there until you delete them on the device.
                 </DialogDescription>
               </DialogHeader>
+              <div className="space-y-3">
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" className="mt-1" checked={wipe} onChange={(e) => { setWipe(e.target.checked); setConfirmName('') }} />
+                  <span>Also delete every user, face, fingerprint and palm from the device (wipe). Use this before giving the device away or moving it to another gym.</span>
+                </label>
+                {wipe && (
+                  <div className="space-y-1">
+                    <Label htmlFor="wipe-confirm">Type the device name to confirm: <span className="font-semibold">{device.name}</span></Label>
+                    <Input id="wipe-confirm" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" />
+                  </div>
+                )}
+              </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
-                <Button variant="destructive" loading={remove.isPending} onClick={() => remove.mutate()}>Remove device</Button>
+                <Button
+                  variant="destructive"
+                  loading={remove.isPending}
+                  disabled={wipe && confirmName.trim().toLowerCase() !== (device.name ?? '').trim().toLowerCase()}
+                  onClick={() => remove.mutate()}
+                >
+                  {wipe ? 'Wipe and remove' : 'Remove device'}
+                </Button>
               </DialogFooter>
             </>
           )}

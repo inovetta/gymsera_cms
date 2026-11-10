@@ -223,7 +223,8 @@ describe('Device page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(remove).not.toHaveBeenCalled()
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove device' }))
-    await waitFor(() => expect(remove).toHaveBeenCalledWith('d1'))
+    // Phase 3: no wipe unless asked (the second argument is the typed-name wipe).
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('d1', undefined))
     await waitFor(() => expect(push).toHaveBeenCalledWith('/gym/devices'))
   })
 

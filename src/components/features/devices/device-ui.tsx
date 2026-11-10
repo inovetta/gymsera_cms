@@ -25,6 +25,8 @@ export const statusText = (d: Pick<AccessDevice, 'connection' | 'lastSeenSeconds
       return 'Disabled'
     case 'removed':
       return 'Removed'
+    case 'wiping':
+      return 'Wiping: waiting for the device to delete its users'
     default: {
       const ago = agoText(d.lastSeenSecondsAgo)
       return ago ? `Offline · last seen ${ago}` : 'Offline'
@@ -38,6 +40,7 @@ const STATUS_TONE: Record<string, string> = {
   offline: 'bg-red-100 text-red-800',
   disabled: 'bg-gray-100 text-gray-800',
   removed: 'bg-gray-100 text-gray-800',
+  wiping: 'bg-amber-100 text-amber-900',
 }
 
 export function DeviceStatusBadge({ device }: { device: Pick<AccessDevice, 'connection' | 'lastSeenSecondsAgo'> }) {
