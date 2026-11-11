@@ -32,6 +32,7 @@ async function mockApi(page: Page, permissions: string[], isOwner = true, { held
   let status = 'ready';
   let remove1001 = false;
   let live = false;
+  let created: boolean | null = null; // importFirst of a device added in this test (the wizard then polls it)
   const counts = () => ({ users: 4, templates: 4, templatesTooLarge: 0, admins: 1, matched: 2, unmatched: 1, conflicts: remove1001 ? 0 : 1, removeAtGoLive: remove1001 ? 1 : 0 });
   const imp = () => ({
     id: IMPORT_ID, deviceId: DOOR, status, startedAt: '2026-11-10T09:00:00Z', readyAt: '2026-11-10T09:01:00Z', appliedAt: status === 'applied' ? '2026-11-10T09:05:00Z' : null,
@@ -63,7 +64,7 @@ async function mockApi(page: Page, permissions: string[], isOwner = true, { held
     if (await answerShell(route, path, contextFor(isOwner, permissions))) return;
 
     const base = `/host/devices/${DOOR}`;
-    if (path === base && method === 'GET') return json(route, { device: device({ importHold: held && !live }), setup });
+    if (path === base && method === 'GET') return json(route, { device: device({ importHold: created ?? (held && !live), ...(created !== null && { connection: 'awaiting_connection' }) }), setup });
     if (path === `${base}/imports` && method === 'GET') return json(route, { imports: [imp()] });
     if (path === `${base}/imports/${IMPORT_ID}/users`) return json(route, { users: users(), total: 4, limit: 50, offset: 0 });
     if (path === `${base}/imports/${IMPORT_ID}/preview`) {
@@ -90,6 +91,14 @@ async function mockApi(page: Page, permissions: string[], isOwner = true, { held
       ] });
     }
     if (path === `${base}/move` && method === 'POST') return json(route, { device: device({ importHold: false }), setup, sync: { queued: 2 } });
+    if (path === '/host/devices' && method === 'POST') {
+      const importFirst = (body as { importFirst?: boolean })?.importFirst;
+      if (typeof importFirst !== 'boolean') {
+        return json(route, { success: false, code: 'validation_error', message: 'Validation failed', errors: [{ field: 'importFirst', message: 'Say whether this device already has members from GymBioSync.' }] }, 422);
+      }
+      created = importFirst;
+      return json(route, { device: device({ connection: 'awaiting_connection', importHold: importFirst }), setup }, 201);
+    }
     for (const tab of ['members', 'access-events', 'errors', 'audits']) {
       if (path === `${base}/${tab}`) return json(route, tab === 'members' ? { counts: { inSync: 0, pending: 0, failed: 0, removed: 0 }, members: [] } : tab === 'audits' ? { reports: [], activity: [] } : tab === 'errors' ? { errors: [] } : { events: [], latestId: null });
     }
@@ -166,6 +175,35 @@ test.describe('Leaving GymBioSync', () => {
     await page.goto(`/gym/devices/${DOOR}/cutover`);
     await expect(page.getByTestId('cutover-steps')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Go live' })).toHaveCount(0);
+  });
+});
+
+test.describe('Add device: the GymBioSync question', () => {
+  test('required with no default; Yes adds the device in import hold and points to the import', async ({ page }) => {
+    await signIn(page);
+    const calls = await mockApi(page, OWNER);
+    await page.goto('/gym/devices/new');
+    await page.getByLabel('Device name').fill('GBS Door');
+    const group = page.getByRole('group', { name: /Does this device already have members from GymBioSync\?/ });
+    await expect(group.getByRole('radio')).toHaveCount(2);
+    for (const r of await group.getByRole('radio').all()) await expect(r).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Create device' })).toBeDisabled();
+    await group.getByRole('radio', { name: /Yes, it has GymBioSync members/ }).check();
+    await page.getByRole('button', { name: 'Create device' }).click();
+    await expect(page.getByTestId('import-next').getByRole('link', { name: 'import page' })).toHaveAttribute('href', `/gym/devices/${DOOR}/import`);
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/host/devices')?.body).toMatchObject({ name: 'GBS Door', importFirst: true });
+  });
+
+  test('No sends importFirst false; no import pointer', async ({ page }) => {
+    await signIn(page);
+    const calls = await mockApi(page, OWNER);
+    await page.goto('/gym/devices/new');
+    await page.getByLabel('Device name').fill('New Door');
+    await page.getByRole('radio', { name: /No, it is new or empty/ }).check();
+    await page.getByRole('button', { name: 'Create device' }).click();
+    await expect(page.getByTestId('setup-card')).toBeVisible();
+    await expect(page.getByTestId('import-next')).toHaveCount(0);
+    expect(calls.find((c) => c.method === 'POST' && c.path === '/host/devices')?.body).toMatchObject({ name: 'New Door', importFirst: false });
   });
 });
 

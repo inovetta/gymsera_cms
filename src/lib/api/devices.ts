@@ -74,8 +74,11 @@ export interface CreateDevicePayload {
   /** Leave out to use the server's default (the Phase 0 decision). */
   linkMode?: DeviceLinkMode
   serialNumber?: string
-  /** Phase 4: the device already has users from GymBioSync; add it in import hold. */
-  importFirst?: boolean
+  /**
+   * Required (the API refuses a new device without it): true = the device already has members from
+   * GymBioSync, so it is added in import hold; false = a new or empty device.
+   */
+  importFirst: boolean
 }
 
 export interface UpdateDevicePayload {
@@ -98,10 +101,9 @@ export const devicesApi = {
   },
 
   create: async (payload: CreateDevicePayload): Promise<ApiResponse<DeviceWithSetup>> => {
-    const body: CreateDevicePayload = { branchId: payload.branchId, name: payload.name, direction: payload.direction }
+    const body: CreateDevicePayload = { branchId: payload.branchId, name: payload.name, direction: payload.direction, importFirst: payload.importFirst }
     if (payload.linkMode) body.linkMode = payload.linkMode
     if (payload.serialNumber) body.serialNumber = payload.serialNumber
-    if (payload.importFirst) body.importFirst = true
     const { data } = await apiClient.post('/host/devices', body)
     return data
   },

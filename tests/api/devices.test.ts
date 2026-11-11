@@ -32,13 +32,13 @@ describe('devicesApi', () => {
     expect(seen[1].url).toMatch(/\/host\/devices\?branchId=branch-1$/)
   })
 
-  it('create: POST /host/devices with branch, name, direction; link mode and serial only when set', async () => {
+  it('create: POST /host/devices with branch, name, direction and the required importFirst; link mode and serial only when set', async () => {
     capture()
-    await devicesApi.create({ branchId: 'b1', name: 'Front door IN', direction: 'in' })
-    await devicesApi.create({ branchId: 'b1', name: 'Gate', direction: 'out', linkMode: 'serial', serialNumber: 'CQZ7224460123' })
-    expect(seen[0]).toMatchObject({ method: 'post', data: { branchId: 'b1', name: 'Front door IN', direction: 'in' } })
-    expect(Object.keys(seen[0].data as object).sort()).toEqual(['branchId', 'direction', 'name'])
-    expect(seen[1].data).toEqual({ branchId: 'b1', name: 'Gate', direction: 'out', linkMode: 'serial', serialNumber: 'CQZ7224460123' })
+    await devicesApi.create({ branchId: 'b1', name: 'Front door IN', direction: 'in', importFirst: false })
+    await devicesApi.create({ branchId: 'b1', name: 'Gate', direction: 'out', linkMode: 'serial', serialNumber: 'CQZ7224460123', importFirst: false })
+    expect(seen[0]).toMatchObject({ method: 'post', data: { branchId: 'b1', name: 'Front door IN', direction: 'in', importFirst: false } })
+    expect(Object.keys(seen[0].data as object).sort()).toEqual(['branchId', 'direction', 'importFirst', 'name'])
+    expect(seen[1].data).toEqual({ branchId: 'b1', name: 'Gate', direction: 'out', linkMode: 'serial', serialNumber: 'CQZ7224460123', importFirst: false })
   })
 
   it('get, update, repair, remove: the device routes', async () => {
@@ -114,12 +114,12 @@ describe('devicesApi', () => {
 })
 
 describe('devicesApi Phase 4 (import, cut-over, move, one template, command log)', () => {
-  it('create sends importFirst only when set', async () => {
+  it('create always sends importFirst (required by the API), true or false', async () => {
     capture()
     await devicesApi.create({ branchId: 'b1', name: 'GBS door', direction: 'in', importFirst: true })
-    await devicesApi.create({ branchId: 'b1', name: 'New door', direction: 'in' })
+    await devicesApi.create({ branchId: 'b1', name: 'New door', direction: 'in', importFirst: false })
     expect(seen[0].data).toEqual({ branchId: 'b1', name: 'GBS door', direction: 'in', importFirst: true })
-    expect(seen[1].data).toEqual({ branchId: 'b1', name: 'New door', direction: 'in' })
+    expect(seen[1].data).toEqual({ branchId: 'b1', name: 'New door', direction: 'in', importFirst: false })
   })
 
   it('import calls: the routes host-devices.routes.js declares, with exactly their fields', async () => {

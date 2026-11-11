@@ -277,14 +277,41 @@ describe('Device page (Phase 4)', () => {
   })
 })
 
-describe('Add device: import first', () => {
-  it('the option sends importFirst', async () => {
-    const create = vi.spyOn(devicesApi, 'create').mockResolvedValue(ok({ device: device({ connection: 'awaiting_connection' }), setup }) as never)
+describe('Add device: "Does this device already have members from GymBioSync?" (required, no default)', () => {
+  it('nothing is chosen at first; Create device stays disabled until it is answered', async () => {
+    const create = vi.spyOn(devicesApi, 'create')
+    renderWith(<NewDevicePage />, withDeviceKeys(ownerContext, []))
+    fireEvent.change(await screen.findByLabelText('Device name'), { target: { value: 'Door' } })
+    const group = screen.getByRole('group', { name: /Does this device already have members from GymBioSync\?/ })
+    for (const r of within(group).getAllByRole('radio')) expect(r).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Create device' })).toBeDisabled()
+    expect(screen.getByText('Answer the GymBioSync question to continue.')).toBeInTheDocument()
+    fireEvent.submit(screen.getByRole('button', { name: 'Create device' }).closest('form') as HTMLFormElement)
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('Yes: importFirst true, and the next screen points to the import page', async () => {
+    const create = vi.spyOn(devicesApi, 'create').mockResolvedValue(ok({ device: device({ connection: 'awaiting_connection', importHold: true }), setup }) as never)
+    vi.mocked(devicesApi.get).mockResolvedValue(ok({ device: device({ connection: 'awaiting_connection', importHold: true }), setup }) as never)
     renderWith(<NewDevicePage />, withDeviceKeys(ownerContext, []))
     fireEvent.change(await screen.findByLabelText('Device name'), { target: { value: 'GBS Door' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: /already has members on it from GymBioSync/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Yes, it has GymBioSync members/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Create device' }))
     await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: 'GBS Door', importFirst: true })))
+    const next = await screen.findByTestId('import-next')
+    expect(within(next).getByRole('link', { name: 'import page' })).toHaveAttribute('href', '/gym/devices/d1/import')
+  })
+
+  it('No: importFirst false, no import pointer', async () => {
+    const create = vi.spyOn(devicesApi, 'create').mockResolvedValue(ok({ device: device({ connection: 'awaiting_connection', importHold: false }), setup }) as never)
+    vi.mocked(devicesApi.get).mockResolvedValue(ok({ device: device({ connection: 'awaiting_connection', importHold: false }), setup }) as never)
+    renderWith(<NewDevicePage />, withDeviceKeys(ownerContext, []))
+    fireEvent.change(await screen.findByLabelText('Device name'), { target: { value: 'New Door' } })
+    fireEvent.click(screen.getByRole('radio', { name: /No, it is new or empty/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create device' }))
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Door', importFirst: false })))
+    await screen.findByTestId('setup-card')
+    expect(screen.queryByTestId('import-next')).toBeNull()
   })
 })
 
