@@ -236,7 +236,7 @@ export const devicesApi = {
   },
   /** Old branch's members are removed from the device, the new branch's are sent. */
   move: async (id: string, branchId: string): Promise<ApiResponse<DeviceWithSetup & { sync: { queued: number } }>> => {
-    const { data } = await apiClient.post(`/host/devices/${id}/move`, { branchId })
+    const { data } = await apiClient.put(`/host/devices/${id}/branch`, { branchId })
     return data
   },
   deleteTemplate: async (memberId: string, bioId: string): Promise<ApiResponse<{ deleted: number; bioId: string; type: number | null }>> => {

@@ -165,7 +165,7 @@ describe('devicesApi Phase 4 (import, cut-over, move, one template, command log)
       'post /host/devices/d1/cutover/go-live',
       'post /host/devices/d1/cutover/go-live',
       'post /host/devices/d1/cutover/gymbiosync-stopped',
-      'post /host/devices/d1/move',
+      'put /host/devices/d1/branch',
       'delete /host/members/m1/biometrics/bio-1',
       'get /host/devices/d1/commands?status=failed',
     ])

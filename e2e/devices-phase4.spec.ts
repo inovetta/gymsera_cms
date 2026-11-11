@@ -90,7 +90,7 @@ async function mockApi(page: Page, permissions: string[], isOwner = true, { held
         { id: 8, kind: 'bio_upsert', status: 'failed', returnCode: -30, memberId: MEMBER_ID, memberName: 'Ayesha Noor', attempts: 1, priority: 5, pushRequestId: null, createdAt: '2026-11-10T08:59:00Z', sentAt: null, ackedAt: null },
       ] });
     }
-    if (path === `${base}/move` && method === 'POST') return json(route, { device: device({ importHold: false }), setup, sync: { queued: 2 } });
+    if (path === `${base}/branch` && method === 'PUT') return json(route, { device: device({ importHold: false }), setup, sync: { queued: 2 } });
     if (path === '/host/devices' && method === 'POST') {
       const importFirst = (body as { importFirst?: boolean })?.importFirst;
       if (typeof importFirst !== 'boolean') {
