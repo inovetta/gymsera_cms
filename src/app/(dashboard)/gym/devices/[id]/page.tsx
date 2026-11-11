@@ -9,6 +9,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { ErrorState } from '@/components/features/error-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { deviceTypeText } from '@/components/features/devices/device-copy'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -161,6 +162,7 @@ export default function DeviceDetailPage() {
   const moveTargets = (organization?.branches ?? []).filter((b) => b.id !== device.branchId && holdsAtBranch(organization, b.id, 'devices.manage'))
   const caps = device.capabilities
   const capList = caps ? [caps.face && 'Face', caps.fingerprint && 'Fingerprint', caps.palm && 'Palm'].filter(Boolean).join(', ') : null
+  const isAtt = device.deviceType === 'att'
   const seen = agoText(device.lastSeenSecondsAgo)
 
   return (
@@ -243,17 +245,52 @@ export default function DeviceDetailPage() {
               </Card>
               <Card>
                 <CardHeader><CardTitle>Device</CardTitle></CardHeader>
-                <CardContent>
+                <CardContent data-testid="device-facts">
                   <Field label="Model" value={device.model} />
                   <Field label="Firmware" value={device.firmware} />
-                  <Field label="Protocol" value={device.pushVersion} />
+                  <Field label="Device type" value={deviceTypeText(device.deviceType)} />
+                  <Field label="Push version" value={device.pushVersion} />
                   <Field label="Can read" value={capList || null} />
                   <Field label="Users on device" value={device.counts.users !== null ? `${device.counts.users}${device.counts.maxUsers ? ` of ${device.counts.maxUsers}` : ''}` : null} />
                   <Field label="Faces" value={device.counts.faces} />
                   <Field label="Fingerprints" value={device.counts.fingerprints} />
+                  {device.counts.palms !== undefined && device.counts.palms !== null && <Field label="Palms" value={device.counts.palms} />}
+                  {device.counts.attendanceRecords !== undefined && device.counts.attendanceRecords !== null && (
+                    <Field label="Attendance records" value={device.counts.attendanceRecords} />
+                  )}
+                  {isAtt && device.poll && (
+                    <Field label="Polls every" value={device.poll.gapSeconds !== null ? `${device.poll.gapSeconds} s` : `${device.poll.delaySeconds} s (asked)`} />
+                  )}
                 </CardContent>
               </Card>
             </div>
+
+            {isAtt && device.attOptions && (
+              <Alert data-testid="att-note">
+                <AlertTitle>This is a T&amp;A PUSH (attendance) device</AlertTitle>
+                <AlertDescription>
+                  <p>It connects without registering and sends no security token, so GymsEra recognises it by its key and serial number only.</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>
+                      {device.attOptions.userAuthorize
+                        ? 'A door permission (userauthorize) is sent with each member.'
+                        : 'No door permission (userauthorize) is sent: a T&A PUSH device lets in every user it holds.'}
+                    </li>
+                    <li>
+                      {device.attOptions.validityMode === 'none'
+                        ? 'No end date is put on the device: GymsEra removes members whose package ended within 15 minutes, while the device is online.'
+                        : 'The package end date is put on the device, so it refuses the member after it even when offline.'}
+                    </li>
+                    <li>
+                      {device.attOptions.userCommandForm === 'userinfo'
+                        ? 'Members are sent in the attendance form (DATA UPDATE USERINFO).'
+                        : 'Members are sent as device users (DATA UPDATE user), as GymBioSync did.'}
+                    </li>
+                    <li>Punches from before the device joined GymsEra are kept as history, not counted as visits.</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Card>
               <CardHeader>
