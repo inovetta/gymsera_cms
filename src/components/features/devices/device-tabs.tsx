@@ -11,10 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState } from '@/components/features/empty-state'
 import { ErrorState } from '@/components/features/error-state'
-import { AccessEvent, devicesApi } from '@/lib/api/devices'
+import { AccessEvent, DeviceCommand, devicesApi } from '@/lib/api/devices'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { formatDate } from '@/lib/utils'
-import { ERROR_KIND_LABEL, reasonText, scanOutcomeText, SYNC_STATE_LABEL } from './device-copy'
+import { COMMAND_KIND_LABEL, COMMAND_STATUS_LABEL, ERROR_KIND_LABEL, reasonText, scanOutcomeText, SYNC_STATE_LABEL } from './device-copy'
 
 const selectClass = 'h-9 rounded-md border border-input bg-background px-3 text-sm'
 
@@ -202,6 +202,15 @@ const ACTION_LABEL: Record<string, string> = {
   'devices.removed': 'Removed',
   'devices.removed_with_wipe': 'Removed with wipe',
   'devices.branch_settings': 'Branch device settings changed',
+  'devices.import_started': 'Import started',
+  'devices.import_matched': 'Device user matched',
+  'devices.import_mapping': 'CSV of matches uploaded',
+  'devices.import_applied': 'Import applied',
+  'devices.import_rolled_back': 'Import rolled back',
+  'devices.import_cancelled': 'Import cancelled',
+  'devices.import_live': 'Gone live',
+  'devices.gymbiosync_stopped': 'GymBioSync stopped',
+  'devices.moved': 'Moved to another branch',
 }
 
 /** Nightly audit reports (layer 3) and who did what to this device. */
@@ -252,6 +261,62 @@ export function DeviceAuditTab({ deviceId }: { deviceId: string }) {
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+/**
+ * Command log (spec §10.3, Phase 4): the last 200 commands GymsEra queued for this device, newest first,
+ * with what the device answered. Never the command text (it can carry a template).
+ */
+export function DeviceCommandsTab({ deviceId }: { deviceId: string }) {
+  const [status, setStatus] = useState<DeviceCommand['status'] | ''>('')
+  const query = useQuery({
+    queryKey: ['device-commands', deviceId, status],
+    queryFn: () => devicesApi.commands(deviceId, status || undefined),
+    refetchInterval: 10000,
+  })
+  if (query.error) return <ErrorState error={query.error} what="the command log" onRetry={() => query.refetch()} />
+  const commands = query.data?.data?.commands
+  return (
+    <div className="space-y-3" data-testid="device-commands">
+      <label className="flex items-center justify-end gap-2 text-sm">
+        <span className="text-muted-foreground">Show</span>
+        <select aria-label="Filter commands" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as DeviceCommand['status'] | '')}>
+          <option value="">Everything</option>
+          <option value="queued">Waiting</option>
+          <option value="sent">Sent</option>
+          <option value="acked">Done</option>
+          <option value="failed">Failed</option>
+          <option value="expired">Expired</option>
+        </select>
+      </label>
+      {!commands ? <Skeleton className="h-32 w-full" /> : commands.length === 0 ? (
+        <EmptyState title="No commands" description="Nothing has been sent to this device yet." />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow><TableHead>Queued</TableHead><TableHead>What</TableHead><TableHead>Member</TableHead><TableHead>Status</TableHead><TableHead>Tries</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
+            {commands.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="whitespace-nowrap text-sm">{formatDate(c.createdAt)}</TableCell>
+                <TableCell className="text-sm">{COMMAND_KIND_LABEL[c.kind] ?? 'Command'}{c.priority === 0 ? <span className="text-muted-foreground"> · Push now</span> : null}</TableCell>
+                <TableCell className="text-sm">
+                  {c.memberId ? <Link className="text-primary hover:underline" href={`/gym/members/${c.memberId}`}>{c.memberName ?? 'Member'}</Link> : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={c.status === 'failed' ? 'bg-red-100 text-red-800' : c.status === 'acked' ? 'bg-green-100 text-green-800' : ''}>
+                    {COMMAND_STATUS_LABEL[c.status] ?? c.status}{c.status === 'failed' && c.returnCode !== null ? ` (code ${c.returnCode})` : ''}
+                  </Badge>
+                </TableCell>
+                <TableCell>{c.attempts}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   )
 }

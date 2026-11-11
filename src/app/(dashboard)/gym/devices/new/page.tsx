@@ -35,6 +35,7 @@ export default function NewDevicePage() {
   const [direction, setDirection] = useState<DeviceDirection>('in')
   const [linkMode, setLinkMode] = useState<DeviceLinkMode | ''>('')
   const [serialNumber, setSerialNumber] = useState('')
+  const [importFirst, setImportFirst] = useState(false)
   const [created, setCreated] = useState<{ device: AccessDevice; setup: DeviceSetup } | null>(null)
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function NewDevicePage() {
         direction,
         ...(linkMode ? { linkMode } : {}),
         ...(linkMode === 'serial' ? { serialNumber: serialNumber.trim() } : {}),
+        ...(importFirst ? { importFirst: true } : {}),
       }),
     onSuccess: (res) => setCreated(res.data ?? null),
   })
@@ -164,6 +166,13 @@ export default function NewDevicePage() {
                   )}
                 </div>
               </details>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1" checked={importFirst} onChange={(e) => setImportFirst(e.target.checked)} />
+                <span>
+                  This device already has members on it from GymBioSync. GymsEra then changes nothing on it until you have imported its users
+                  and gone live, so nobody loses access in between.
+                </span>
+              </label>
               {create.error && (
                 <Alert variant="destructive">
                   <AlertDescription>{describeRequestError(create.error, 'The device could not be added. Please try again.')}</AlertDescription>

@@ -112,3 +112,65 @@ describe('devicesApi', () => {
     ])
   })
 })
+
+describe('devicesApi Phase 4 (import, cut-over, move, one template, command log)', () => {
+  it('create sends importFirst only when set', async () => {
+    capture()
+    await devicesApi.create({ branchId: 'b1', name: 'GBS door', direction: 'in', importFirst: true })
+    await devicesApi.create({ branchId: 'b1', name: 'New door', direction: 'in' })
+    expect(seen[0].data).toEqual({ branchId: 'b1', name: 'GBS door', direction: 'in', importFirst: true })
+    expect(seen[1].data).toEqual({ branchId: 'b1', name: 'New door', direction: 'in' })
+  })
+
+  it('import calls: the routes host-devices.routes.js declares, with exactly their fields', async () => {
+    capture()
+    await devicesApi.startImport('d1')
+    await devicesApi.importUsers('d1', 'IMP', { filter: 'unmatched', limit: 50, offset: 50 })
+    await devicesApi.importUsers('d1', 'IMP')
+    await devicesApi.matchImportUser('d1', 'IMP', '501', { memberId: 'm1' })
+    await devicesApi.matchImportUser('d1', 'IMP', '1001', { removeAtGoLive: true })
+    await devicesApi.uploadImportMapping('d1', 'IMP', 'pin,email\n501,a@b.c')
+    await devicesApi.importPreview('d1', 'IMP')
+    await devicesApi.applyImport('d1', 'IMP')
+    await devicesApi.rollbackImport('d1', 'IMP')
+    await devicesApi.cancelImport('d1', 'IMP')
+    expect(seen.map((s) => `${s.method} ${s.url.replace(/^.*\/api\/v1/, '')}`)).toEqual([
+      'post /host/devices/d1/imports',
+      'get /host/devices/d1/imports/IMP/users?filter=unmatched&limit=50&offset=50',
+      'get /host/devices/d1/imports/IMP/users',
+      'put /host/devices/d1/imports/IMP/users/501',
+      'put /host/devices/d1/imports/IMP/users/1001',
+      'post /host/devices/d1/imports/IMP/mapping',
+      'get /host/devices/d1/imports/IMP/preview',
+      'post /host/devices/d1/imports/IMP/apply',
+      'post /host/devices/d1/imports/IMP/rollback',
+      'post /host/devices/d1/imports/IMP/cancel',
+    ])
+    expect(seen[3].data).toEqual({ memberId: 'm1' })
+    expect(seen[4].data).toEqual({ removeAtGoLive: true })
+    expect(seen[5].data).toEqual({ csv: 'pin,email\n501,a@b.c' })
+  })
+
+  it('cut-over, move, one template, command log', async () => {
+    capture()
+    await devicesApi.cutover('d1')
+    await devicesApi.goLive('d1', false)
+    await devicesApi.goLive('d1', true)
+    await devicesApi.gymBioSyncStopped('d1')
+    await devicesApi.move('d1', 'b2')
+    await devicesApi.deleteTemplate('m1', 'bio-1')
+    await devicesApi.commands('d1', 'failed')
+    expect(seen.map((s) => `${s.method} ${s.url.replace(/^.*\/api\/v1/, '')}`)).toEqual([
+      'get /host/devices/d1/cutover',
+      'post /host/devices/d1/cutover/go-live',
+      'post /host/devices/d1/cutover/go-live',
+      'post /host/devices/d1/cutover/gymbiosync-stopped',
+      'post /host/devices/d1/move',
+      'delete /host/members/m1/biometrics/bio-1',
+      'get /host/devices/d1/commands?status=failed',
+    ])
+    expect(seen[1].data).toEqual({})
+    expect(seen[2].data).toEqual({ removeUnmatched: true })
+    expect(seen[4].data).toEqual({ branchId: 'b2' })
+  })
+})

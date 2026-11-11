@@ -28,6 +28,7 @@ const SOURCE_LABEL: Record<UnlinkedUser['source'], string> = {
   scan: 'Seen at a scan',
   upload: 'Sent by the device',
   audit: 'Found in the nightly audit',
+  import: 'Left on the device at the import',
 }
 
 /**
