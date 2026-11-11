@@ -35,6 +35,8 @@ export default function NewDevicePage() {
   const [direction, setDirection] = useState<DeviceDirection>('in')
   const [linkMode, setLinkMode] = useState<DeviceLinkMode | ''>('')
   const [serialNumber, setSerialNumber] = useState('')
+  // Required, no default (owner, 2026-11-11): the person must say whether GymBioSync members are on it.
+  const [importFirst, setImportFirst] = useState<boolean | null>(null)
   const [created, setCreated] = useState<{ device: AccessDevice; setup: DeviceSetup } | null>(null)
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export default function NewDevicePage() {
         direction,
         ...(linkMode ? { linkMode } : {}),
         ...(linkMode === 'serial' ? { serialNumber: serialNumber.trim() } : {}),
+        importFirst: importFirst === true,
       }),
     onSuccess: (res) => setCreated(res.data ?? null),
   })
@@ -104,6 +107,15 @@ export default function NewDevicePage() {
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Waiting for the device to connect… It turns green within about 10 seconds of saving the settings on the device.
             </p>
+          )}
+          {live.importHold && (
+            <Alert data-testid="import-next">
+              <AlertDescription>
+                GymsEra changes nothing on this device for now: its GymBioSync members keep their access. Once it is connected,
+                read and match its users on the{' '}
+                <Link className="text-primary underline" href={`/gym/devices/${live.id}/import`}>import page</Link>.
+              </AlertDescription>
+            </Alert>
           )}
           <Link href={`/gym/devices/${live.id}`} className={buttonVariants({ variant: 'outline' })}>Open device page</Link>
         </div>
@@ -164,12 +176,27 @@ export default function NewDevicePage() {
                   )}
                 </div>
               </details>
+              <fieldset className="space-y-2 rounded-md border p-3" aria-describedby="gbs-help">
+                <legend className="px-1 text-sm font-medium">Does this device already have members from GymBioSync? <span aria-hidden="true">*</span></legend>
+                <p id="gbs-help" className="text-sm text-muted-foreground">
+                  If yes, GymsEra changes nothing on it until you have imported its users and gone live, so nobody loses access in between.
+                </p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="gbs-members" required checked={importFirst === true} onChange={() => setImportFirst(true)} />
+                  Yes, it has GymBioSync members: import them first
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="gbs-members" required checked={importFirst === false} onChange={() => setImportFirst(false)} />
+                  No, it is new or empty
+                </label>
+              </fieldset>
               {create.error && (
                 <Alert variant="destructive">
                   <AlertDescription>{describeRequestError(create.error, 'The device could not be added. Please try again.')}</AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" loading={create.isPending} disabled={!branchId}>
+              {importFirst === null && <p className="text-sm text-muted-foreground">Answer the GymBioSync question to continue.</p>}
+              <Button type="submit" loading={create.isPending} disabled={!branchId || importFirst === null}>
                 Create device
               </Button>
             </form>

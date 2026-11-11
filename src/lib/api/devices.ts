@@ -47,6 +47,11 @@ export interface AccessDevice {
   deviceType: string | null
   capabilities: { fingerprint: boolean; face: boolean; palm: boolean } | null
   counts: { users: number | null; faces: number | null; fingerprints: number | null; maxUsers: number | null }
+  /** Phase 4: the device is being imported (GymBioSync): it gets nothing from GymsEra until go-live. */
+  importHold?: boolean
+  importHoldSince?: string | null
+  liveAt?: string | null
+  tokenMode?: 'off' | 'log' | 'enforce'
   createdAt: string
 }
 
@@ -69,6 +74,11 @@ export interface CreateDevicePayload {
   /** Leave out to use the server's default (the Phase 0 decision). */
   linkMode?: DeviceLinkMode
   serialNumber?: string
+  /**
+   * Required (the API refuses a new device without it): true = the device already has members from
+   * GymBioSync, so it is added in import hold; false = a new or empty device.
+   */
+  importFirst: boolean
 }
 
 export interface UpdateDevicePayload {
@@ -91,7 +101,7 @@ export const devicesApi = {
   },
 
   create: async (payload: CreateDevicePayload): Promise<ApiResponse<DeviceWithSetup>> => {
-    const body: CreateDevicePayload = { branchId: payload.branchId, name: payload.name, direction: payload.direction }
+    const body: CreateDevicePayload = { branchId: payload.branchId, name: payload.name, direction: payload.direction, importFirst: payload.importFirst }
     if (payload.linkMode) body.linkMode = payload.linkMode
     if (payload.serialNumber) body.serialNumber = payload.serialNumber
     const { data } = await apiClient.post('/host/devices', body)
@@ -218,6 +228,200 @@ export const devicesApi = {
     const { data } = await apiClient.patch(`/host/devices/staff/${staffId}/device-access`, { deviceAccess })
     return data
   },
+
+  // ── Phase 4: command log, move, one template ────────────────────────────────
+  commands: async (id: string, status?: DeviceCommand['status']): Promise<ApiResponse<{ commands: DeviceCommand[] }>> => {
+    const { data } = await apiClient.get(`/host/devices/${id}/commands`, { params: status ? { status } : undefined })
+    return data
+  },
+  /** Old branch's members are removed from the device, the new branch's are sent. */
+  move: async (id: string, branchId: string): Promise<ApiResponse<DeviceWithSetup & { sync: { queued: number } }>> => {
+    const { data } = await apiClient.put(`/host/devices/${id}/branch`, { branchId })
+    return data
+  },
+  deleteTemplate: async (memberId: string, bioId: string): Promise<ApiResponse<{ deleted: number; bioId: string; type: number | null }>> => {
+    const { data } = await apiClient.delete(`/host/members/${memberId}/biometrics/${bioId}`)
+    return data
+  },
+
+  // ── Phase 4: import from device (GymBioSync) and cut-over ───────────────────
+  startImport: async (id: string): Promise<ApiResponse<{ import: DeviceImport; reused: boolean }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports`, {})
+    return data
+  },
+  imports: async (id: string): Promise<ApiResponse<{ imports: DeviceImport[] }>> => {
+    const { data } = await apiClient.get(`/host/devices/${id}/imports`)
+    return data
+  },
+  importUsers: async (id: string, importId: string, opts: { filter?: ImportUserFilter; limit?: number; offset?: number } = {}): Promise<ApiResponse<ImportUsersPage>> => {
+    const params: Record<string, string | number> = {}
+    if (opts.filter && opts.filter !== 'all') params.filter = opts.filter
+    if (opts.limit) params.limit = opts.limit
+    if (opts.offset) params.offset = opts.offset
+    const { data } = await apiClient.get(`/host/devices/${id}/imports/${importId}/users`, { params })
+    return data
+  },
+  /** memberId null: not matched. removeAtGoLive: the device user is deleted at go-live. */
+  matchImportUser: async (id: string, importId: string, pin: string, patch: { memberId?: string | null; removeAtGoLive?: boolean }): Promise<ApiResponse<{ user: ImportUser }>> => {
+    const { data } = await apiClient.put(`/host/devices/${id}/imports/${importId}/users/${encodeURIComponent(pin)}`, patch)
+    return data
+  },
+  uploadImportMapping: async (id: string, importId: string, csv: string): Promise<ApiResponse<{ matched: number; errors: ImportMappingError[] }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/mapping`, { csv })
+    return data
+  },
+  importPreview: async (id: string, importId: string): Promise<ApiResponse<{ preview: ImportPreview }>> => {
+    const { data } = await apiClient.get(`/host/devices/${id}/imports/${importId}/preview`)
+    return data
+  },
+  applyImport: async (id: string, importId: string): Promise<ApiResponse<{ import: DeviceImport; alreadyApplied: boolean }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/apply`, {})
+    return data
+  },
+  rollbackImport: async (id: string, importId: string): Promise<ApiResponse<{ import: DeviceImport }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/rollback`, {})
+    return data
+  },
+  cancelImport: async (id: string, importId: string): Promise<ApiResponse<{ import: DeviceImport }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/cancel`, {})
+    return data
+  },
+  cutover: async (id: string): Promise<ApiResponse<{ cutover: Cutover }>> => {
+    const { data } = await apiClient.get(`/host/devices/${id}/cutover`)
+    return data
+  },
+  goLive: async (id: string, removeUnmatched: boolean): Promise<ApiResponse<{ cutover: Cutover }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/cutover/go-live`, removeUnmatched ? { removeUnmatched: true } : {})
+    return data
+  },
+  gymBioSyncStopped: async (id: string): Promise<ApiResponse<{ cutover: Cutover }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/cutover/gymbiosync-stopped`, {})
+    return data
+  },
+}
+
+export interface DeviceCommand {
+  id: number
+  kind: string
+  status: 'queued' | 'sent' | 'acked' | 'failed' | 'expired' | 'superseded'
+  returnCode: number | null
+  memberId: string | null
+  memberName: string | null
+  attempts: number
+  priority: number
+  pushRequestId: string | null
+  createdAt: string
+  sentAt: string | null
+  ackedAt: string | null
+}
+
+export type ImportStatus = 'querying' | 'ready' | 'applied' | 'live' | 'rolled_back' | 'cancelled' | 'failed'
+export type ImportUserFilter = 'all' | 'matched' | 'unmatched' | 'conflict' | 'admin' | 'remove'
+
+export interface DeviceImport {
+  id: string
+  deviceId: string
+  status: ImportStatus
+  startedAt: string
+  readyAt: string | null
+  appliedAt: string | null
+  liveAt: string | null
+  finishedAt: string | null
+  truncated: boolean
+  types: number[]
+  failedQueries: { kind: string; type: number | null }[]
+  failedReason: string | null
+  result: { identities: number; templates: number; templatesPending: number; alreadyEnrolled: number; cards: number } | null
+  counts: {
+    users: number
+    templates: number
+    templatesTooLarge: number
+    admins: number
+    matched: number
+    unmatched: number
+    conflicts: number
+    removeAtGoLive: number
+  }
+}
+
+export interface ImportUser {
+  pin: string
+  name: string | null
+  cardNo: string | null
+  privilege: number
+  isAdmin: boolean
+  memberId: string | null
+  memberName: string | null
+  memberPin: string | null
+  matchSource: 'manual' | 'csv' | 'carried' | null
+  removeAtGoLive: boolean
+  conflict: 'pin_taken' | 'member_has_pin' | null
+  blocking: boolean
+  /** Template counts by biometric type (1 fingerprint, 9 face, …). */
+  templates: Record<string, number>
+  appliedAt: string | null
+}
+
+export interface ImportUsersPage {
+  users: ImportUser[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface ImportMappingError {
+  line: number
+  pin: string | null
+  reason: string
+}
+
+export interface ImportPreview {
+  willStore: { identities: number; templates: number; templatesPending: number; alreadyEnrolled: number; cards: number }
+  consentNeeded: { memberId: string; memberName: string | null; pin: string; templates: number }[]
+  skipped: { unmatched: number; admins: number; alreadyEnrolled: number; templatesNotImported: number }
+  atGoLive: { removePins: string[]; notEntitled: number; sendUnderOwnPin: { pin: string; memberPin: string | null }[] }
+  blocking: { pin: string; conflict: string | null; memberId: string | null }[]
+  capacity: { users: number; maxUsers: number | null; percent: number | null }
+}
+
+export type CutoverStepKey =
+  | 'connected' | 'imported' | 'matched' | 'conflicts' | 'applied' | 'consent' | 'capacity' | 'live' | 'verified' | 'gymbiosync_stopped'
+
+export interface Cutover {
+  deviceId: string
+  importHold: boolean
+  importHoldSince: string | null
+  liveAt: string | null
+  gbsStoppedAt: string | null
+  import: DeviceImport | null
+  counts: {
+    deviceUsers: number
+    imported: number
+    matched: number
+    unmatched: number
+    admins: number
+    conflicts: number
+    templates: number
+    consentNeeded: number
+    verified: number
+  }
+  unmatchedPins: string[]
+  steps: { key: CutoverStepKey; status: 'done' | 'todo' | 'in_progress' | 'warning' | 'blocked'; count?: number; of?: number; percent?: number | null; connection?: string; at?: string | null }[]
+  canGoLive: boolean
+}
+
+export interface MemberTemplate {
+  id: string
+  type: number
+  no: number
+  index: number
+  version: string
+  /** Waiting for the member's consent (kept on the enrolling device only, 7 days). */
+  pending: boolean
+  /** Imported, not live yet. */
+  held: boolean
+  sourceDeviceId: string | null
+  enrolledAt: string | null
 }
 
 export interface RemoveResult {
@@ -301,6 +505,8 @@ export interface MemberDeviceStatus {
   pin: string | null
   consent: ConsentStatus
   biometrics: { type: number; count: number; lastEnrolledAt: string | null; waitingForConsent: boolean }[]
+  /** Phase 4: each template (never its data), so one can be deleted. */
+  templates?: MemberTemplate[]
   devices: MemberDeviceRow[]
 }
 
@@ -373,7 +579,7 @@ export interface UnlinkedUser {
   pin: string
   name: string | null
   cardNo: string | null
-  source: 'scan' | 'upload' | 'audit'
+  source: 'scan' | 'upload' | 'audit' | 'import'
   firstSeenAt: string
   lastSeenAt: string
   hits: number

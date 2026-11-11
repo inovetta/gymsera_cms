@@ -85,6 +85,16 @@ export function MemberDevicesPanel({ memberId }: { memberId: string }) {
     },
     onError: onError('Consent could not be saved.'),
   })
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const deleteTemplateMut = useMutation({
+    mutationFn: (bioId: string) => devicesApi.deleteTemplate(memberId, bioId),
+    onSuccess: () => {
+      setDeleting(null)
+      toast({ title: 'Deleted here and from the devices.' })
+      void refresh()
+    },
+    onError: onError('That face or fingerprint could not be deleted.'),
+  })
   const enrollMut = useMutation({
     mutationFn: ({ deviceId, type }: { deviceId: string; type: number }) => devicesApi.enroll(memberId, deviceId, type),
     onSuccess: (res) => {
@@ -192,6 +202,31 @@ export function MemberDevicesPanel({ memberId }: { memberId: string }) {
                     {b.type === 1 ? <Fingerprint className="h-3 w-3" aria-hidden="true" /> : <ScanFace className="h-3 w-3" aria-hidden="true" />}
                     {BIO_TYPE_LABEL[b.type] ?? 'Biometric'}{b.lastEnrolledAt ? ` · ${formatDate(b.lastEnrolledAt)}` : ''}{b.waitingForConsent ? ' · waiting for consent' : ''}
                   </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(data.templates?.length ?? 0) > 0 && (
+            <ul className="space-y-1" data-testid="member-templates" aria-label="Faces and fingerprints">
+              {data.templates!.map((t) => (
+                <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>
+                    {BIO_TYPE_LABEL[t.type] ?? 'Biometric'}{t.type === 1 ? ` ${t.no + 1}` : ''}
+                    {t.enrolledAt ? <span className="text-muted-foreground"> · {formatDate(t.enrolledAt)}</span> : null}
+                    {t.pending ? <span className="text-muted-foreground"> · waiting for consent</span> : null}
+                    {t.held ? <span className="text-muted-foreground"> · imported, not live yet</span> : null}
+                  </span>
+                  {mayDelete && (
+                    deleting === t.id ? (
+                      <span className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Delete it here and from every device?</span>
+                        <Button size="sm" variant="destructive" loading={deleteTemplateMut.isPending} onClick={() => deleteTemplateMut.mutate(t.id)}>Delete</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleting(null)}>Keep</Button>
+                      </span>
+                    ) : (
+                      <Button size="sm" variant="ghost" aria-label={`Delete ${BIO_TYPE_LABEL[t.type] ?? 'biometric'} ${t.type === 1 ? t.no + 1 : ''}`.trim()} onClick={() => setDeleting(t.id)}>Delete</Button>
+                    )
+                  )}
                 </li>
               ))}
             </ul>

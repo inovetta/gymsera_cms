@@ -151,9 +151,11 @@ describe('Add device wizard', () => {
 
     fireEvent.change(await screen.findByLabelText('Device name'), { target: { value: 'Front door IN' } })
     fireEvent.change(screen.getByLabelText('Direction'), { target: { value: 'in' } })
+    // Phase 4: the GymBioSync question is required (a new device: No).
+    fireEvent.click(screen.getByRole('radio', { name: /No, it is new or empty/ }))
     fireEvent.click(screen.getByRole('button', { name: /Create device/ }))
 
-    await waitFor(() => expect(create).toHaveBeenCalledWith({ branchId: 'branch-1', name: 'Front door IN', direction: 'in' }))
+    await waitFor(() => expect(create).toHaveBeenCalledWith({ branchId: 'branch-1', name: 'Front door IN', direction: 'in', importFirst: false }))
     const card = await screen.findByTestId('setup-card')
     expect(card).toHaveTextContent('ADMS')
     expect(card).toHaveTextContent('k7qm3xrt.push.gymsera.com')
@@ -173,6 +175,7 @@ describe('Add device wizard', () => {
     }))
     renderWith(<NewDevicePage />)
     fireEvent.change(await screen.findByLabelText('Device name'), { target: { value: 'Gate' } })
+    fireEvent.click(screen.getByRole('radio', { name: /No, it is new or empty/ }))
     fireEvent.click(screen.getByRole('button', { name: /Create device/ }))
     expect(await screen.findByText(/serial number is switched off/)).toBeInTheDocument()
   })

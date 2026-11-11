@@ -9,7 +9,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { ErrorState } from '@/components/features/error-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConnectionBadge, DeviceStatusBadge, DIRECTION_LABEL, SetupCard, agoText } from '@/components/features/devices/device-ui'
-import { DeviceAuditTab, DeviceErrorsTab, DeviceMembersTab, LiveFeed } from '@/components/features/devices/device-tabs'
+import { DeviceAuditTab, DeviceCommandsTab, DeviceErrorsTab, DeviceMembersTab, LiveFeed } from '@/components/features/devices/device-tabs'
 import { PushProgress } from '@/components/features/devices/push-progress'
 import { AccessDevice, DeviceDirection, DeviceSetup, devicesApi } from '@/lib/api/devices'
 import { describeRequestError } from '@/lib/api/request-errors'
@@ -48,7 +48,8 @@ export default function DeviceDetailPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { organization } = useGymAccess()
-  const [confirm, setConfirm] = useState<'repair' | 'remove' | null>(null)
+  const [confirm, setConfirm] = useState<'repair' | 'remove' | 'move' | null>(null)
+  const [moveTo, setMoveTo] = useState('')
   const [wipe, setWipe] = useState(false)
   const [confirmName, setConfirmName] = useState('')
   const [push, setPush] = useState<string | null>(null)
@@ -105,6 +106,16 @@ export default function DeviceDetailPage() {
     },
     onError: onError('The device could not be removed.'),
   })
+  const move = useMutation({
+    mutationFn: () => devicesApi.move(id, moveTo),
+    onSuccess: (res) => {
+      store(res)
+      setConfirm(null)
+      setMoveTo('')
+      toast({ title: `Moved to ${res.data.device.branchName ?? 'the new branch'}. The old branch's members are being removed and the new branch's sent.` })
+    },
+    onError: onError('The device could not be moved.'),
+  })
   const sync = useMutation({
     mutationFn: (mode: 'quick' | 'audit') => devicesApi.sync(id, mode),
     onSuccess: (res, mode) => {
@@ -145,6 +156,9 @@ export default function DeviceDetailPage() {
   const mayPush = holdsAtBranch(organization, device.branchId, 'devices.push')
   const wiping = device.connection === 'wiping'
   const mayRepair = holdsPermission(organization, 'devices.manage', 'org') && device.linkMode !== 'serial'
+  const held = Boolean(device.importHold)
+  // Move: devices.manage at this branch and at the new one.
+  const moveTargets = (organization?.branches ?? []).filter((b) => b.id !== device.branchId && holdsAtBranch(organization, b.id, 'devices.manage'))
   const caps = device.capabilities
   const capList = caps ? [caps.face && 'Face', caps.fingerprint && 'Fingerprint', caps.palm && 'Palm'].filter(Boolean).join(', ') : null
   const seen = agoText(device.lastSeenSecondsAgo)
@@ -176,7 +190,20 @@ export default function DeviceDetailPage() {
           </Alert>
         )}
 
-        {!wiping && (mayPush || mayManage) && device.enabled && (
+        {held && (
+          <Alert data-testid="import-hold">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>Import in progress</AlertTitle>
+            <AlertDescription>
+              This device keeps the users GymBioSync put on it and gets nothing from GymsEra until you go live.{' '}
+              <Link className="text-primary underline" href={`/gym/devices/${device.id}/import`}>Import</Link>
+              {' · '}
+              <Link className="text-primary underline" href={`/gym/devices/${device.id}/cutover`}>Cut-over checklist</Link>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!wiping && !held && (mayPush || mayManage) && device.enabled && (
           <div className="flex flex-wrap items-center gap-2">
             {mayPush && (
               <Button size="sm" loading={sync.isPending && sync.variables === 'quick'} onClick={() => sync.mutate('quick')}>
@@ -197,6 +224,7 @@ export default function DeviceDetailPage() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="members">Members on device</TabsTrigger>
             <TabsTrigger value="feed">Live feed</TabsTrigger>
+            <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="errors">Errors</TabsTrigger>
             <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
@@ -265,6 +293,13 @@ export default function DeviceDetailPage() {
                       {device.enabled ? 'Disable' : 'Enable'}
                     </Button>
                     {mayRepair && <Button variant="outline" onClick={() => setConfirm('repair')}>Re-pair</Button>}
+                    {!held && moveTargets.length > 0 && <Button variant="outline" onClick={() => setConfirm('move')}>Move to another branch</Button>}
+                    {!held && (
+                      <Link className={buttonVariants({ variant: 'outline' })} href={`/gym/devices/${device.id}/import`}>Import from device</Link>
+                    )}
+                    {device.liveAt && !held && (
+                      <Link className={buttonVariants({ variant: 'ghost' })} href={`/gym/devices/${device.id}/cutover`}>Cut-over checklist</Link>
+                    )}
                     <Button variant="destructive" onClick={() => setConfirm('remove')}>Remove</Button>
                   </div>
                 </CardContent>
@@ -273,6 +308,7 @@ export default function DeviceDetailPage() {
           </TabsContent>
           <TabsContent value="members" className="mt-4"><DeviceMembersTab deviceId={device.id} /></TabsContent>
           <TabsContent value="feed" className="mt-4"><LiveFeed deviceId={device.id} /></TabsContent>
+          <TabsContent value="commands" className="mt-4"><DeviceCommandsTab deviceId={device.id} /></TabsContent>
           <TabsContent value="errors" className="mt-4"><DeviceErrorsTab deviceId={device.id} /></TabsContent>
           <TabsContent value="audit" className="mt-4"><DeviceAuditTab deviceId={device.id} /></TabsContent>
         </Tabs>
@@ -280,7 +316,27 @@ export default function DeviceDetailPage() {
 
       <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <DialogContent>
-          {confirm === 'repair' ? (
+          {confirm === 'move' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Move this device to another branch?</DialogTitle>
+                <DialogDescription>
+                  The device then lets in the new branch&apos;s members only. The current branch&apos;s members are removed from it at once, and the new branch&apos;s members are sent. Its key and settings stay the same.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-1">
+                <Label htmlFor="move-branch">New branch</Label>
+                <select id="move-branch" className={selectClass} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                  <option value="">Choose a branch</option>
+                  {moveTargets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+                <Button disabled={!moveTo} loading={move.isPending} onClick={() => move.mutate()}>Move device</Button>
+              </DialogFooter>
+            </>
+          ) : confirm === 'repair' ? (
             <>
               <DialogHeader>
                 <DialogTitle>Re-pair this device?</DialogTitle>

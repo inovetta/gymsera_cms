@@ -114,3 +114,92 @@ export const ERROR_KIND_LABEL: Record<string, string> = {
   denied_but_desired: 'Refused a member with access (sent again)',
   device_errorlog: 'Error reported by the device',
 }
+
+// ── Phase 4: import from GymBioSync, cut-over, command log ────────────────────────────────────────
+export const IMPORT_STATUS_LABEL: Record<string, string> = {
+  querying: 'Reading the device',
+  ready: 'Ready to match',
+  applying: 'Applying',
+  applied: 'Applied, not live yet',
+  live: 'Live',
+  rolled_back: 'Rolled back',
+  cancelled: 'Cancelled',
+  failed: 'Failed: the device did not send its users',
+}
+
+export const IMPORT_CONFLICT_TEXT: Record<string, string> = {
+  pin_taken: 'This PIN belongs to another GymsEra member. Remove this device user at go-live, or match it to that member.',
+  member_has_pin: 'The member already has PIN {pin} in GymsEra. They are sent under that PIN and this device user is removed at go-live.',
+}
+
+export const importConflictText = (conflict: string | null, memberPin?: string | null): string | null =>
+  conflict ? (IMPORT_CONFLICT_TEXT[conflict] ?? 'Needs a decision').replace('{pin}', memberPin ?? '') : null
+
+/** CSV mapping line errors (device-import.service#mapCsv). */
+export const CSV_ERROR_TEXT: Record<string, string> = {
+  invalid_pin: 'The PIN is not a number',
+  pin_not_on_device: 'No user with this PIN on the device',
+  device_admin: 'This is an administrator of the device: it stays as it is',
+  member_missing: 'No member id, e-mail or phone on this line',
+  member_not_found: 'No member of this gym matches',
+  ambiguous_member: 'More than one member matches (use the member id or e-mail)',
+  member_already_matched: 'This member is already matched to another device user',
+}
+
+export const CUTOVER_STEP_LABEL: Record<string, { title: string; help: string }> = {
+  connected: { title: 'Device connected', help: 'The device talks to GymsEra. Until go-live it keeps letting people in exactly as GymBioSync left it.' },
+  imported: { title: 'Users read from the device', help: 'GymsEra reads every user and face or fingerprint on the device. Nothing on the device changes.' },
+  matched: { title: 'Device users matched to members', help: 'Each device user is linked to a GymsEra member, by CSV or one by one. Unmatched users stay on the device as they are.' },
+  conflicts: { title: 'No conflicts left', help: 'A PIN that belongs to another GymsEra member needs a decision before you apply.' },
+  applied: { title: 'Import applied', help: 'Members keep their device PIN; faces and fingerprints are stored, encrypted. Still nothing changes on the device.' },
+  consent: { title: 'Biometric consent', help: 'Members without consent keep their face or fingerprint on this device only, for 7 days after go-live. Record their consent before then.' },
+  capacity: { title: 'Device capacity', help: 'Users after go-live against what the device can hold.' },
+  live: { title: 'Gone live', help: 'GymsEra now decides who the device lets in: packages, freezes and expiries apply from here.' },
+  verified: { title: 'Verified on the device', help: 'Members confirmed by the device, and the audit after go-live finished.' },
+  gymbiosync_stopped: { title: 'GymBioSync stopped', help: 'Stop the GymBioSync service on the gym PC so nothing else sends to this device.' },
+}
+
+export const STEP_STATUS_LABEL: Record<string, string> = {
+  done: 'Done',
+  todo: 'To do',
+  in_progress: 'In progress',
+  warning: 'Check',
+  blocked: 'Blocked',
+}
+
+export const STEP_STATUS_TONE: Record<string, string> = {
+  done: 'bg-green-100 text-green-800',
+  todo: 'bg-gray-100 text-gray-800',
+  in_progress: 'bg-blue-100 text-blue-800',
+  warning: 'bg-amber-100 text-amber-900',
+  blocked: 'bg-red-100 text-red-800',
+}
+
+export const COMMAND_KIND_LABEL: Record<string, string> = {
+  user_upsert: 'Add or update user',
+  user_authorize: 'Door access',
+  bio_upsert: 'Face or fingerprint',
+  bio_photo: 'Comparison photo',
+  user_pic: 'Profile photo',
+  user_delete: 'Remove user',
+  bio_delete: 'Remove face or fingerprint',
+  photo_delete: 'Remove comparison photo',
+  pic_delete: 'Remove profile photo',
+  auth_delete: 'Remove door access',
+  query_users: 'Read users',
+  query_bio: 'Read faces or fingerprints',
+  count: 'Count users',
+  info: 'Device information',
+  check: 'Check',
+  enroll_bio: 'Enrol on the device',
+  wipe: 'Wipe',
+}
+
+export const COMMAND_STATUS_LABEL: Record<string, string> = {
+  queued: 'Waiting',
+  sent: 'Sent, waiting for the answer',
+  acked: 'Done',
+  failed: 'Failed',
+  expired: 'Expired',
+  superseded: 'Replaced by a newer change',
+}
