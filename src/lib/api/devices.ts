@@ -538,7 +538,9 @@ export interface AccessEvent {
   deviceId: string
   deviceName: string | null
   branchId: string
+  /** The scan instant, ISO 8601 UTC ('…Z'). */
   time: string
+  /** The device's wall clock (= the branch's local time) as sent: 'YYYY-MM-DD HH:mm:ss', no zone. Shown as is. */
   localTime: string
   pin: string | null
   memberId: string | null
