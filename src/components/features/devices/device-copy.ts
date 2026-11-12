@@ -123,6 +123,7 @@ export const ERROR_KIND_LABEL: Record<string, string> = {
   granted_retired_pin: 'Let in a deleted member (removed)',
   denied_but_desired: 'Refused a member with access (sent again)',
   device_errorlog: 'Error reported by the device',
+  import_upload_dropped: 'An upload could not be stored in the import',
 }
 
 // ── Phase 4: import from GymBioSync, cut-over, command log ────────────────────────────────────────
@@ -212,4 +213,32 @@ export const COMMAND_STATUS_LABEL: Record<string, string> = {
   failed: 'Failed',
   expired: 'Expired',
   superseded: 'Replaced by a newer change',
+}
+
+// ── NEW-242: "Read all users again" on a T&A PUSH device in import hold ──────────────────────────────────────
+/** Where a re-read stands (gymsera_be device-registry.service#rereadState). */
+export const REREAD_STATE_TEXT: Record<string, { title: string; help: string }> = {
+  waiting: {
+    title: 'Waiting for the device',
+    help: 'GymsEra asked the device to send everything again. It picks this up at its next poll. If nothing changes within 2 minutes, restart the device.',
+  },
+  queried: { title: 'Device asked to send everything', help: 'The device was told to send all its users and templates. Its upload starts in a moment.' },
+  reading: { title: 'Reading users', help: 'The device is sending its users and faces or fingerprints. This takes a few minutes.' },
+  done: { title: 'Done', help: 'The device sent its users again.' },
+  no_upload: { title: 'Nothing sent', help: 'The device sent nothing. Restart it, then press Read all users again.' },
+  ended: { title: 'Stopped', help: 'The import ended before the device finished sending.' },
+}
+
+const STAMP_LABEL: [table: 'OPERLOG' | 'BIODATA' | 'ATTLOG', label: string][] = [
+  ['OPERLOG', 'Users and templates'],
+  ['BIODATA', 'Faces'],
+  ['ATTLOG', 'Punches'],
+]
+
+/**
+ * The upload stamps a T&A PUSH device reported: it sends only records newer than the stamp GymsEra answers.
+ * A table a re-read forces is answered 0 ("0 sent") until the device reports a stamp again.
+ */
+export function attStampsText(s: { ATTLOG: string | null; OPERLOG: string | null; BIODATA: string | null; forced: string[] }): string {
+  return STAMP_LABEL.map(([t, label]) => `${label} ${s[t] ?? 'none yet'}${s.forced.includes(t) ? ' (0 sent)' : ''}`).join(' · ')
 }

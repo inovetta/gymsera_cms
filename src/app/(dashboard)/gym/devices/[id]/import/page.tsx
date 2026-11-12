@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MemberPicker } from '@/components/features/devices/member-picker'
-import { BIO_TYPE_LABEL, CSV_ERROR_TEXT, IMPORT_STATUS_LABEL, importConflictText } from '@/components/features/devices/device-copy'
+import { BIO_TYPE_LABEL, CSV_ERROR_TEXT, IMPORT_STATUS_LABEL, REREAD_STATE_TEXT, importConflictText } from '@/components/features/devices/device-copy'
 import { DeviceImport, ImportMappingError, ImportUser, ImportUserFilter, devicesApi } from '@/lib/api/devices'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { holdsAtBranch } from '@/lib/access/menu'
@@ -53,6 +53,7 @@ export default function DeviceImportPage() {
   const [memberId, setMemberId] = useState('')
   const [csvErrors, setCsvErrors] = useState<ImportMappingError[] | null>(null)
   const [confirm, setConfirm] = useState<'apply' | 'rollback' | 'cancel' | null>(null)
+  const [confirmReread, setConfirmReread] = useState(false)
 
   const deviceQuery = useQuery({ queryKey: ['device', id], queryFn: () => devicesApi.get(id), enabled: !!id && !!organization })
   const device = deviceQuery.data?.data?.device
@@ -118,6 +119,17 @@ export default function DeviceImportPage() {
     onError: onError('That did not work.'),
   })
 
+  // NEW-242: a T&A PUSH device in hold sends all its users and templates again; nothing on it changes.
+  const reread = useMutation({
+    mutationFn: () => devicesApi.rereadImport(id, current!.id),
+    onSuccess: () => {
+      setConfirmReread(false)
+      refresh()
+      toast({ title: 'Asked the device to send all its users again. This takes a few minutes.' })
+    },
+    onError: onError('The device could not be asked.'),
+  })
+
   const readFile = (file: File | undefined) => {
     if (!file) return
     if (file.size > 1024 * 1024) {
@@ -139,6 +151,26 @@ export default function DeviceImportPage() {
   const editable = current?.status === 'ready' && mayManage
   const preview = previewQuery.data?.data?.preview
   const users = usersQuery.data?.data
+  const mayReread = mayManage && device.deviceType === 'att' && Boolean(device.importHold) && (current?.status === 'querying' || current?.status === 'ready')
+  const rereadState = current?.reread?.state ? REREAD_STATE_TEXT[current.reread.state] : undefined
+  const rereadBlock = (mayReread || rereadState) && (
+    <div className="space-y-2 text-sm">
+      {rereadState && (
+        <p data-testid="import-reread">
+          <span className="font-medium">Read all users again: {rereadState.title}.</span>{' '}
+          <span className="text-muted-foreground">{rereadState.help}</span>
+        </p>
+      )}
+      {mayReread && (
+        <div>
+          <Button size="sm" variant="outline" disabled={device.connection !== 'online'} onClick={() => setConfirmReread(true)}>Read all users again</Button>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Fewer users here than on the device? A T&amp;A PUSH device sends only what it has not sent before. This asks it to send everything again.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -179,6 +211,7 @@ export default function DeviceImportPage() {
               <CardTitle>Reading the device…</CardTitle>
               <CardDescription>{current.counts.users} users and {current.counts.templates} faces or fingerprints so far. This page updates by itself.</CardDescription>
             </CardHeader>
+            {rereadBlock && <CardContent>{rereadBlock}</CardContent>}
           </Card>
         ) : (
           <>
@@ -196,6 +229,7 @@ export default function DeviceImportPage() {
               <CardContent className="space-y-2 text-sm">
                 {current.truncated && <p role="alert" className="text-amber-900">The device has more users or templates than one import takes. The rest were not read.</p>}
                 {current.counts.templatesTooLarge > 0 && <p className="text-amber-900">{current.counts.templatesTooLarge} template{current.counts.templatesTooLarge === 1 ? ' was' : 's were'} too large to import.</p>}
+                {rereadBlock}
                 {editable && <Button size="sm" variant="outline" onClick={() => setConfirm('cancel')}>Cancel import</Button>}
               </CardContent>
             </Card>
@@ -342,6 +376,22 @@ export default function DeviceImportPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMatching(null)}>Cancel</Button>
             <Button disabled={!memberId} loading={match.isPending} onClick={() => matching && match.mutate({ pin: matching.pin, memberId })}>Match</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmReread} onOpenChange={(open) => !open && setConfirmReread(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Read all users again?</DialogTitle>
+            <DialogDescription>
+              The device is asked to send every user, face and fingerprint again. Nothing on the device changes, and its punches are not sent again.
+              This takes a few minutes; the users already read stay, and the import is ready again when the device has finished.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmReread(false)}>Back</Button>
+            <Button loading={reread.isPending} onClick={() => reread.mutate()}>Read again</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
