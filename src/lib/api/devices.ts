@@ -46,7 +46,15 @@ export interface AccessDevice {
   pushVersion: string | null
   deviceType: string | null
   capabilities: { fingerprint: boolean; face: boolean; palm: boolean } | null
-  counts: { users: number | null; faces: number | null; fingerprints: number | null; maxUsers: number | null }
+  counts: {
+    users: number | null; faces: number | null; fingerprints: number | null; maxUsers: number | null
+    /** Phase 5: reported by T&A PUSH devices (palm templates, attendance records kept on the device). */
+    palms?: number | null; attendanceRecords?: number | null
+  }
+  /** Phase 5: what GymsEra sends a T&A PUSH (attendance protocol) device; null on access control devices. */
+  attOptions?: { userAuthorize: boolean; validityMode: 'none' | 'datetime' | 'seconds'; userCommandForm: 'user' | 'userinfo' } | null
+  /** Phase 5: the poll delay GymsEra asks for, and the last measured gap between two polls (T&A PUSH). */
+  poll?: { delaySeconds: number; ownDelay: number | null; gapSeconds: number | null; lastPollAt: string | null }
   /** Phase 4: the device is being imported (GymBioSync): it gets nothing from GymsEra until go-live. */
   importHold?: boolean
   importHoldSince?: string | null

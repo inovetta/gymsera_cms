@@ -70,7 +70,17 @@ export const SYNC_STATE_LABEL: Record<string, string> = {
 }
 
 /** The live feed: what happened after a scan. */
+/** Phase 5: the push protocol a device speaks, in words. */
+export function deviceTypeText(type: string | null | undefined): string | null {
+  if (!type) return null
+  if (type === 'att') return 'T&A PUSH (attendance)'
+  if (type === 'acc') return 'Access control PUSH'
+  return 'Other'
+}
+
 export function scanOutcomeText(e: { result: string; reason: string | null; attendanceNote: string | null }): string {
+  // Phase 5: punches from before the device was activated (or went live after an import) are history.
+  if (e.attendanceNote === 'history') return 'From the device history, before it joined GymsEra: not counted'
   if (e.result === 'denied') {
     const denied: Record<string, string> = {
       expired: 'Refused: package ended',
