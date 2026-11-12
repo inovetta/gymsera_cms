@@ -55,6 +55,11 @@ export interface AccessDevice {
   attOptions?: { userAuthorize: boolean; validityMode: 'none' | 'datetime' | 'seconds'; userCommandForm: 'user' | 'userinfo' } | null
   /** Phase 5: the poll delay GymsEra asks for, and the last measured gap between two polls (T&A PUSH). */
   poll?: { delaySeconds: number; ownDelay: number | null; gapSeconds: number | null; lastPollAt: string | null }
+  /**
+   * NEW-242: the stamps a T&A PUSH device reported (it uploads only records newer than the stamp GymsEra answers),
+   * the tables a re-read forces to 0, and where that re-read stands. null on access control devices.
+   */
+  attStamps?: AttStamps | null
   /** Phase 4: the device is being imported (GymBioSync): it gets nothing from GymsEra until go-live. */
   importHold?: boolean
   importHoldSince?: string | null
@@ -290,6 +295,11 @@ export const devicesApi = {
     const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/rollback`, {})
     return data
   },
+  /** NEW-242: a T&A PUSH device in import hold sends all its users and templates again (nothing on it changes). */
+  rereadImport: async (id: string, importId: string): Promise<ApiResponse<{ import: DeviceImport }>> => {
+    const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/reread`, {})
+    return data
+  },
   cancelImport: async (id: string, importId: string): Promise<ApiResponse<{ import: DeviceImport }>> => {
     const { data } = await apiClient.post(`/host/devices/${id}/imports/${importId}/cancel`, {})
     return data
@@ -323,6 +333,18 @@ export interface DeviceCommand {
   ackedAt: string | null
 }
 
+/** NEW-242: waiting → queried → reading → done (or no_upload; ended when the hold ended first). */
+export type RereadState = 'waiting' | 'queried' | 'reading' | 'done' | 'no_upload' | 'ended'
+
+export interface AttStamps {
+  ATTLOG: string | null
+  OPERLOG: string | null
+  BIODATA: string | null
+  /** Tables answered with stamp 0 until the device reports a stamp again. */
+  forced: string[]
+  reread: { importId: string | null; state: RereadState | null; requestedAt: string | null; servedAt: string | null; startedAt: string | null; doneAt: string | null } | null
+}
+
 export type ImportStatus = 'querying' | 'ready' | 'applied' | 'live' | 'rolled_back' | 'cancelled' | 'failed'
 export type ImportUserFilter = 'all' | 'matched' | 'unmatched' | 'conflict' | 'admin' | 'remove'
 
@@ -339,6 +361,8 @@ export interface DeviceImport {
   types: number[]
   failedQueries: { kind: string; type: number | null }[]
   failedReason: string | null
+  /** NEW-242: the last "Read all users again" of this import, or null. */
+  reread?: { state: RereadState | null; requestedAt: string; servedAt: string | null; startedAt: string | null; doneAt: string | null; count: number } | null
   result: { identities: number; templates: number; templatesPending: number; alreadyEnrolled: number; cards: number } | null
   counts: {
     users: number

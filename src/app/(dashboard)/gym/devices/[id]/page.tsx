@@ -9,7 +9,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { ErrorState } from '@/components/features/error-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { deviceTypeText } from '@/components/features/devices/device-copy'
+import { REREAD_STATE_TEXT, attStampsText, deviceTypeText } from '@/components/features/devices/device-copy'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -260,6 +260,18 @@ export default function DeviceDetailPage() {
                   )}
                   {isAtt && device.poll && (
                     <Field label="Polls every" value={device.poll.gapSeconds !== null ? `${device.poll.gapSeconds} s` : `${device.poll.delaySeconds} s (asked)`} />
+                  )}
+                  {isAtt && device.attStamps && <Field label="Upload stamps" value={attStampsText(device.attStamps)} />}
+                  {isAtt && device.attStamps?.reread?.state && (
+                    <Field
+                      label="Read all users again"
+                      value={
+                        <span data-testid="device-reread">
+                          {REREAD_STATE_TEXT[device.attStamps.reread.state]?.title ?? device.attStamps.reread.state}
+                          <span className="block text-xs text-muted-foreground">{REREAD_STATE_TEXT[device.attStamps.reread.state]?.help}</span>
+                        </span>
+                      }
+                    />
                   )}
                 </CardContent>
               </Card>
