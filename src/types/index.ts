@@ -23,6 +23,23 @@ export interface User {
   createdAt: string
 }
 
+/**
+ * NEW-244: the plan status a host sees for a member, the app's member-list badge
+ * (server rule: gymsera_be utils/membership-status.utils.js).
+ */
+export type MembershipDisplayStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'FROZEN' | 'PENDING'
+
+/** A row of GET /gyms/members: the account (`status`) plus the subscription that speaks for it. */
+export interface GymMember extends Omit<User, 'role' | 'isVerified'> {
+  role?: UserRole
+  isVerified?: boolean
+  membershipStatus?: MembershipDisplayStatus
+  subscriptionStatus?: SubscriptionStatus
+  planName?: string | null
+  endDate?: string | null
+  branchName?: string | null
+}
+
 /** R-84 (NEW-158): a photo the approval would publish (GET /admin/tenants/:id). */
 export interface ApprovalPhoto {
   url: string

@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { DataTable, Column } from '@/components/features/data-table'
 import { StatusBadge } from '@/components/features/status-badge'
+import { MembershipStatusBadge, MEMBERSHIP_STATUS_OPTIONS, formatPlanDay } from '@/components/features/membership-status-badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -19,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { gymApi } from '@/lib/api/gym'
 import { plansApi } from '@/lib/api/plans'
-import { User } from '@/types'
+import { GymMember, MembershipDisplayStatus, User } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
@@ -40,7 +41,8 @@ export default function MembersPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // NEW-244: the plan status (Active, Expiring soon, Expired, On hold, Pending), the app's values.
+  const [statusFilter, setStatusFilter] = useState<'all' | MembershipDisplayStatus>('all')
   const [page, setPage] = useState(1)
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [lookupEmail, setLookupEmail] = useState('')
@@ -53,7 +55,7 @@ export default function MembersPage() {
     queryKey: ['gym-members', debouncedSearch, statusFilter, page],
     queryFn: () => gymApi.getMembers({
       q: debouncedSearch || undefined,
-      status: statusFilter !== 'all' ? statusFilter : undefined,
+      membershipStatus: statusFilter !== 'all' ? statusFilter : undefined,
       page,
       limit: 20,
     }),
@@ -133,7 +135,7 @@ export default function MembersPage() {
   const activePlans = (plansData?.data?.plans ?? []).filter((p) => p.status === 'ACTIVE')
   const branches = branchesData?.data?.branches ?? []
 
-  const columns: Column<User>[] = [
+  const columns: Column<GymMember>[] = [
     {
       key: 'name',
       header: 'Member',
@@ -158,9 +160,39 @@ export default function MembersPage() {
       cell: (row) => <span className="text-sm text-muted-foreground">{row.phone || '—'}</span>,
     },
     {
+      key: 'plan',
+      header: 'Plan',
+      cell: (row) => {
+        const day = formatPlanDay(row.endDate)
+        return (
+          <div>
+            <p className="text-sm">{row.planName || '—'}</p>
+            {day && (
+              <p className="text-xs text-muted-foreground">
+                {row.membershipStatus === 'EXPIRED' ? 'Ended' : 'Ends'} {day}
+                {row.branchName ? ` · ${row.branchName}` : ''}
+              </p>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      // NEW-244: the plan status, as the app shows it. Was the account status (users.status).
       key: 'status',
       header: 'Status',
-      cell: (row) => <StatusBadge status={row.status} />,
+      cell: (row) => (
+        <MembershipStatusBadge status={row.membershipStatus} subscriptionStatus={row.subscriptionStatus} endDate={row.endDate} />
+      ),
+    },
+    {
+      key: 'account',
+      header: 'Account',
+      cell: (row) => (
+        <span data-testid="account-status" title="The member's GymsEra account (sign-in), not the plan">
+          <StatusBadge status={row.status} />
+        </span>
+      ),
     },
     {
       key: 'verified',
@@ -208,15 +240,15 @@ export default function MembersPage() {
               className="pl-9"
             />
           </div>
-          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as 'all' | MembershipDisplayStatus); setPage(1) }}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="INACTIVE">Inactive</SelectItem>
-              <SelectItem value="SUSPENDED">Suspended</SelectItem>
+              {MEMBERSHIP_STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -229,7 +261,13 @@ export default function MembersPage() {
           errorWhat="the member list"
           onRetry={() => refetch()}
           emptyTitle="No members found"
-          emptyDescription={search ? `No members matching "${search}"` : 'No members have registered yet'}
+          emptyDescription={
+            search
+              ? `No members matching "${search}"`
+              : statusFilter !== 'all'
+                ? `No members with the status ${MEMBERSHIP_STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? ''}`
+                : 'No members have registered yet'
+          }
           page={page}
           totalPages={totalPages}
           onPageChange={setPage}
