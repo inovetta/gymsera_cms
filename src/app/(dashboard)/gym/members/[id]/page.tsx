@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { usersApi } from '@/lib/api/users'
-import { subscriptionsApi } from '@/lib/api/subscriptions'
+import { subscriptionsApi, staffActionToast } from '@/lib/api/subscriptions'
 import { paymentsApi } from '@/lib/api/payments'
 import { newIdempotencyKey } from '@/lib/api/idempotency'
 import { attendanceApi } from '@/lib/api/attendance'
@@ -106,7 +106,7 @@ export default function MemberDetailPage() {
 
   const cancelSubMutation = useMutation({
     mutationFn: (id: string) => subscriptionsApi.cancelSubscription(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Subscription cancelled' }) },
+    onSuccess: (res) => { invalidate(); toast(staffActionToast(res?.data, 'Subscription cancelled')) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
   })
 
