@@ -20,6 +20,7 @@ import { approvalsApi, ApprovalRequest, APPROVALS_WAITING_KEY } from '@/lib/api/
 import { teamErrorMessage } from '@/lib/team/access'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { MemberRefundRequests } from '@/components/features/refunds/member-refund-requests'
 
 const APPROVALS_MINE_KEY = ['approvals', 'mine'] as const
 
@@ -47,7 +48,7 @@ function ApprovalsPageContent() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState(searchParams?.get('tab') === 'mine' ? 'mine' : 'waiting')
+  const [tab, setTab] = useState(['mine', 'refunds'].includes(searchParams?.get('tab') ?? '') ? searchParams!.get('tab')! : 'waiting')
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequest | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [withdrawTarget, setWithdrawTarget] = useState<ApprovalRequest | null>(null)
@@ -147,6 +148,7 @@ function ApprovalsPageContent() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="refunds">Member refunds</TabsTrigger>
               <TabsTrigger value="mine">Your requests</TabsTrigger>
             </TabsList>
             <TabsContent value="waiting" className="mt-4">
@@ -184,6 +186,10 @@ function ApprovalsPageContent() {
                   ) : null
                 }
               />
+            </TabsContent>
+            {/* NEW-253: refunds members asked for after cancelling. */}
+            <TabsContent value="refunds" className="mt-4">
+              <MemberRefundRequests />
             </TabsContent>
             <TabsContent value="mine" className="mt-4">
               {mineList}
