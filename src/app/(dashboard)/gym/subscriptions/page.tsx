@@ -19,7 +19,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { subscriptionsApi } from '@/lib/api/subscriptions'
+import { subscriptionsApi, staffActionToast } from '@/lib/api/subscriptions'
 import { paymentsApi } from '@/lib/api/payments'
 import { newIdempotencyKey } from '@/lib/api/idempotency'
 import { MemberSubscription, Payment, Invoice } from '@/types'
@@ -132,18 +132,18 @@ export default function SubscriptionsPage() {
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => subscriptionsApi.cancelSubscription(id),
-    onSuccess: () => { invalidate(); toast({ title: 'Subscription cancelled' }) },
+    onSuccess: (res) => { invalidate(); toast(staffActionToast(res?.data, 'Subscription cancelled')) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
   })
 
   const freezeMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: FreezeForm }) =>
       subscriptionsApi.freezeSubscription(id, payload),
-    onSuccess: () => {
+    onSuccess: (res) => {
       invalidate()
       setFreezeOpen(false)
       freezeForm.reset()
-      toast({ title: 'Subscription frozen' })
+      toast(staffActionToast(res?.data, 'Subscription frozen'))
     },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
   })
