@@ -28,6 +28,8 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
 import { pendingPlanChange, startsOnApproval } from '@/lib/subscriptions/dates'
 import { PaymentProofView } from '@/components/features/payment-proof-view'
+import { CancelSubscriptionDialog } from '@/components/features/refunds/cancel-subscription-dialog'
+import { RefundPolicyDialog } from '@/components/features/refunds/refund-policy-dialog'
 
 const recordPaymentSchema = z.object({
   method: z.enum(['CASH', 'BANK_TRANSFER', 'CARD', 'WALLET']),
@@ -53,6 +55,9 @@ export default function SubscriptionsPage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
   const [freezeOpen, setFreezeOpen] = useState(false)
+  // NEW-253: Cancel confirms first and may return the payment; the gym's refund policy.
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [policyOpen, setPolicyOpen] = useState(false)
 
   const debouncedSearch = useDebounce(search, 400)
 
@@ -127,12 +132,6 @@ export default function SubscriptionsPage() {
       recordPaymentForm.reset()
       toast({ title: 'Payment recorded' })
     },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
-  })
-
-  const cancelMutation = useMutation({
-    mutationFn: (id: string) => subscriptionsApi.cancelSubscription(id),
-    onSuccess: (res) => { invalidate(); toast(staffActionToast(res?.data, 'Subscription cancelled')) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message ?? 'Failed', variant: 'destructive' }),
   })
 
@@ -231,6 +230,7 @@ export default function SubscriptionsPage() {
         <PageHeader
           title="Subscriptions"
           description={`${pagination?.total ?? 0} total subscriptions`}
+          action={<Button variant="outline" size="sm" onClick={() => setPolicyOpen(true)}>Refund policy</Button>}
         />
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -462,8 +462,7 @@ export default function SubscriptionsPage() {
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => cancelMutation.mutate(detail.subscription.id)}
-                    loading={cancelMutation.isPending}
+                    onClick={() => setCancelOpen(true)}
                   >
                     <Ban className="h-4 w-4 mr-1" />
                     Cancel
@@ -527,6 +526,14 @@ export default function SubscriptionsPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <CancelSubscriptionDialog
+        subscriptionId={detail?.subscription.id ?? null}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        onDone={() => invalidate()}
+      />
+      <RefundPolicyDialog open={policyOpen} onOpenChange={setPolicyOpen} />
 
       {/* Freeze Dialog */}
       <Dialog open={freezeOpen} onOpenChange={setFreezeOpen}>

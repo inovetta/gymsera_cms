@@ -51,8 +51,15 @@ export const subscriptionsApi = {
     return data
   },
 
-  cancelSubscription: async (id: string): Promise<ApiResponse<StaffSubscriptionActionResult>> => {
-    const { data } = await apiClient.post(`/subscriptions/staff/${id}/cancel`, {})
+  // NEW-253: with `refund`, the payment is returned too (the server checks policy, amount and who may refund).
+  cancelSubscription: async (
+    id: string,
+    refund?: { amount?: number; reason?: string }
+  ): Promise<ApiResponse<StaffSubscriptionActionResult>> => {
+    const body = refund
+      ? { refund: true, ...(refund.amount !== undefined ? { refundAmount: refund.amount } : {}), ...(refund.reason ? { refundReason: refund.reason } : {}) }
+      : {}
+    const { data } = await apiClient.post(`/subscriptions/staff/${id}/cancel`, body)
     return data
   },
 }
@@ -62,6 +69,8 @@ export interface StaffSubscriptionActionResult {
   subscription?: MemberSubscription
   requestId?: string
   summary?: string
+  /** NEW-253: present on a cancel with refund. EXECUTED = refunded now; PENDING = waiting for approval. */
+  refund?: { status: 'EXECUTED' | 'PENDING'; refundedAmount?: string; requestId?: string }
 }
 
 /** The toast after a staff Freeze / Cancel: say "sent for approval" when nothing changed yet. */
