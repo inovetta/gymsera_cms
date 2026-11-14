@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { ApiResponse, Gym, Branch, GymStaff, User, MemberSubscription } from '@/types'
+import { ApiResponse, Gym, Branch, GymStaff, User, MemberSubscription, GymMember, MembershipDisplayStatus } from '@/types'
 
 /**
  * What the server accepts to confirm a sensitive change (`assertReauth`): the password, or a
@@ -161,7 +161,14 @@ export const gymApi = {
     return data
   },
 
-  getMembers: async (params?: { q?: string; status?: string; page?: number; limit?: number }): Promise<ApiResponse<{ members: User[] }>> => {
+  /** NEW-244: `status` is the account status, `membershipStatus` the plan status (Active, Expiring, ...). */
+  getMembers: async (params?: {
+    q?: string
+    status?: string
+    membershipStatus?: MembershipDisplayStatus
+    page?: number
+    limit?: number
+  }): Promise<ApiResponse<{ members: GymMember[] }>> => {
     const { data } = await apiClient.get('/gyms/members', { params })
     return data
   },
