@@ -44,13 +44,28 @@ export const subscriptionsApi = {
     return data
   },
 
-  freezeSubscription: async (id: string, payload: { freezeFrom: string; freezeTo: string }): Promise<ApiResponse<{ subscription: MemberSubscription }>> => {
-    const { data } = await apiClient.post(`/subscriptions/${id}/freeze`, payload)
+  // NEW-250: staff routes. /subscriptions/:id/freeze|cancel are the member's own routes and answer
+  // 404 for staff (NEW-08). 200 = done; 202 = sent for approval (the caller's tier is REQUEST).
+  freezeSubscription: async (id: string, payload: { freezeFrom: string; freezeTo: string }): Promise<ApiResponse<StaffSubscriptionActionResult>> => {
+    const { data } = await apiClient.post(`/subscriptions/staff/${id}/freeze`, payload)
     return data
   },
 
-  cancelSubscription: async (id: string): Promise<ApiResponse<{ subscription: MemberSubscription }>> => {
-    const { data } = await apiClient.post(`/subscriptions/${id}/cancel`)
+  cancelSubscription: async (id: string): Promise<ApiResponse<StaffSubscriptionActionResult>> => {
+    const { data } = await apiClient.post(`/subscriptions/staff/${id}/cancel`, {})
     return data
   },
 }
+
+export interface StaffSubscriptionActionResult {
+  status: 'EXECUTED' | 'PENDING'
+  subscription?: MemberSubscription
+  requestId?: string
+  summary?: string
+}
+
+/** The toast after a staff Freeze / Cancel: say "sent for approval" when nothing changed yet. */
+export const staffActionToast = (result: StaffSubscriptionActionResult | undefined, doneTitle: string) =>
+  result?.status === 'PENDING'
+    ? { title: 'Sent for approval', description: 'It applies once a manager approves it.' }
+    : { title: doneTitle }
