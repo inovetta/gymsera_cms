@@ -38,6 +38,7 @@ import {
   Landmark,
   Webhook,
   ScanFace,
+  Flag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
@@ -120,6 +121,8 @@ const navSections: NavSection[] = [
     items: [
       { title: 'Tenants', href: '/admin/tenants', icon: ShieldCheck },
       { title: 'Reviews', href: '/admin/reviews', icon: Star },
+      // NEW-256: reported reviews and chat messages, and the word filter.
+      { title: 'Moderation', href: '/admin/moderation', icon: Flag },
       { title: 'Cities', href: '/admin/cities', icon: MapPin },
       { title: 'Packages', href: '/admin/packages', icon: Package },
       { title: 'Billing Plans', href: '/admin/billing-plans', icon: CreditCard },
