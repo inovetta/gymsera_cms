@@ -159,6 +159,8 @@ export interface City {
   imageUrl?: string | null
   createdAt: string
   areas?: Area[]
+  /** NEW-261: number of areas, from GET /cities (shown before the city is opened). */
+  areaCount?: number
 }
 
 export interface Area {

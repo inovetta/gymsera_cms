@@ -64,7 +64,7 @@ function CityRow({ city }: { city: City }) {
       return area
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['areas', city.id] })
+      queryClient.invalidateQueries({ queryKey: ['areas', city.id] }); queryClient.invalidateQueries({ queryKey: ['cities'] })
       setAddAreaOpen(false)
       areaForm.reset()
       setAreaImageFile(null)
@@ -82,7 +82,7 @@ function CityRow({ city }: { city: City }) {
       return result
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['areas', city.id] })
+      queryClient.invalidateQueries({ queryKey: ['areas', city.id] }); queryClient.invalidateQueries({ queryKey: ['cities'] })
       setEditArea(null)
       setAddAreaOpen(false)
       areaForm.reset()
@@ -124,7 +124,7 @@ function CityRow({ city }: { city: City }) {
 
   const deleteAreaMutation = useMutation({
     mutationFn: (areaId: number) => citiesApi.deleteArea(city.id, areaId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['areas', city.id] }); setDeleteAreaTarget(null); toast({ title: 'Area deleted' }) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['areas', city.id] }); queryClient.invalidateQueries({ queryKey: ['cities'] }); setDeleteAreaTarget(null); toast({ title: 'Area deleted' }) },
     onError: (err: any) => toast({ title: 'Cannot delete', description: err?.response?.data?.message ?? 'Failed to delete area', variant: 'destructive' }),
   })
 
@@ -170,7 +170,7 @@ function CityRow({ city }: { city: City }) {
           </Badge>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="text-sm text-muted-foreground">{areasData?.data?.areas?.length ?? 0} areas</span>
+          <span className="text-sm text-muted-foreground">{areasData?.data?.areas?.length ?? city.areaCount ?? 0} areas</span>
           <Button size="sm" variant="ghost" onClick={() => setEditCityOpen(true)}>
             <Edit className="h-3 w-3 mr-1" /> Edit
           </Button>
