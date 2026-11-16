@@ -95,14 +95,15 @@ describe('NEW-140: Add Branch on /gym/branches', () => {
     expect(places.details.mock.calls[0][1].sessionToken).toBe(places.autocomplete.mock.calls[0][0].sessionToken)
   })
 
-  it('an area Google does not know can be typed and is added through POST /places/areas', async () => {
+  // NEW-259 (R-107): an area Google does not know is no longer typed in (was POST /places/areas).
+  it('an area Google does not know cannot be typed in: the form says to contact support', async () => {
     const dialog = await openAddBranch()
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     const area = within(dialog).getByLabelText('Area')
     fireEvent.focus(area)
     fireEvent.change(area, { target: { value: 'Zzone 9' } })
-    fireEvent.click(await within(dialog).findByRole('button', { name: /use “zzone 9” as the area/i }))
-    await waitFor(() => expect(places.createArea).toHaveBeenCalledWith(7, 'Zzone 9'))
+    expect(await within(dialog).findByTestId('area-not-found')).toHaveTextContent("Can't find your area? Contact support")
+    expect(within(dialog).queryByRole('button', { name: /as the area/i })).toBeNull()
   })
 
   it('"Use current location" fills the address, city, area and point from the reverse geocode', async () => {

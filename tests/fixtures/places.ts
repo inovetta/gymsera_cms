@@ -32,8 +32,6 @@ export const fakePlaces = () => ({
     ok({ suggestions: q.input.toLowerCase().startsWith('zz') ? [] : SUGGESTIONS[q.kind] })) as never),
   details: vi.spyOn(placesApi, 'details').mockImplementation((async (placeId: string) => ok(DETAILS[placeId])) as never),
   reverseGeocode: vi.spyOn(placesApi, 'reverseGeocode').mockResolvedValue(ok(MM_ALAM) as never),
-  createArea: vi.spyOn(placesApi, 'createArea').mockImplementation((async (cityId: number, name: string) =>
-    ok({ id: 99, cityId, name })) as never),
 })
 
 /** Type into a Places field (label "City" / "Area" / "Address") and pick the first suggestion. */

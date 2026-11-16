@@ -42,7 +42,6 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
   const [cityCentre, setCityCentre] = useState<[number, number] | null>(null)
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState<string | null>(null)
-  const [areaError, setAreaError] = useState<string | null>(null)
   const [lat, setLat] = useState(value.latitude !== undefined ? String(value.latitude) : '')
   const [lng, setLng] = useState(value.longitude !== undefined ? String(value.longitude) : '')
 
@@ -121,27 +120,10 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
             disabled={!value.cityId}
             placeholder={value.cityId ? 'Search for the area' : 'Pick the city first'}
             onPick={(p) => p.area && set({ areaId: p.area.id, areaName: p.area.name })}
-            renderNoMatch={(typed, close) => (
-              <button
-                type="button"
-                className="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={async () => {
-                  close()
-                  setAreaError(null)
-                  try {
-                    const res = await placesApi.createArea(value.cityId as number, typed)
-                    set({ areaId: res.data.id, areaName: res.data.name })
-                  } catch (err) {
-                    setAreaError(describeRequestError(err, 'We could not add that area. Please try again.'))
-                  }
-                }}
-              >
-                Use “{typed}” as the area
-              </button>
-            )}
+            // NEW-259 (R-107): the area is picked from the list, never typed in. A missing area is added
+            // by a platform administrator (Cities & Areas); until then the host is told whom to ask.
+            renderNoMatch={() => <AreaNotFoundNote />}
           />
-          {areaError && <p role="alert" className="mt-1 text-xs text-destructive">{areaError}</p>}
         </div>
       </div>
 
@@ -208,3 +190,13 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
 
 /** True when the typed coordinates are usable (the form's Save checks it). */
 export const locationValid = (v: BranchLocationValue) => inRange(v.latitude, 90) && inRange(v.longitude, 180)
+
+/** NEW-259: what an empty area search says, the same sentence as the app. */
+export function AreaNotFoundNote() {
+  return (
+    <p className="px-2 py-1.5 text-sm text-muted-foreground" data-testid="area-not-found">
+      Can&apos;t find your area? Contact support at{' '}
+      <a className="underline" href="mailto:support@gymsera.com">support@gymsera.com</a>.
+    </p>
+  )
+}
