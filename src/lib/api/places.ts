@@ -51,10 +51,4 @@ export const placesApi = {
     const { data } = await apiClient.get('/places/reverse-geocode', { params: { lat: latitude, lng: longitude } })
     return data
   },
-
-  /** An area typed by hand when Google has none (once per city). */
-  createArea: async (cityId: number, name: string): Promise<ApiResponse<PlaceRef & { cityId: number }>> => {
-    const { data } = await apiClient.post('/places/areas', { cityId, name })
-    return data
-  },
 }
