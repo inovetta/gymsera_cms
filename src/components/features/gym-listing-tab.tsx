@@ -1,5 +1,6 @@
 'use client'
 
+import { PendingAreaNote } from '@/components/features/areas/pending-area-note'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -238,6 +239,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
                 <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{(Number(listing.averageRating) || 0).toFixed(1)}</span>
                 <span className="capitalize">{listing.genderType?.replace('_', ' ').toLowerCase()}</span>
                 {listing.city && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{listing.area?.name ? `${listing.area.name}, ` : ''}{listing.city.name}</span>}
+                <PendingAreaNote pendingArea={listing.pendingArea} />
               </div>
             </div>
 

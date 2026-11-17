@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { BranchLocationFields, BranchLocationValue, locationValid } from '@/components/features/places/branch-location-fields'
+import { BranchLocationFields, BranchLocationValue, locationValid, pendingAreaValue } from '@/components/features/places/branch-location-fields'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import type { UpdateListingContentPayload } from '@/lib/api/host'
 import { changedFields, COUNTRIES } from '@/lib/listing/content'
@@ -32,6 +32,7 @@ export function LocationSection({ branchId, branch, onClose }: SectionEditorProp
     areaId: branch.areaId ?? undefined,
     latitude: coordinate(branch.latitude),
     longitude: coordinate(branch.longitude),
+    ...pendingAreaValue(branch.pendingArea), // NEW-265: "(under review)"
   })
   const [line2, setLine2] = useState(text(branch.addressLine2))
   const [postalCode, setPostalCode] = useState(text(branch.postalCode))
@@ -61,7 +62,11 @@ export function LocationSection({ branchId, branch, onClose }: SectionEditorProp
     ...(location.longitude !== undefined && locationValid(location) ? { longitude: location.longitude } : {}),
     ...(location.googlePlaceId ? { googlePlaceId: location.googlePlaceId } : {}),
   }
-  const patch = changedFields(branch, draft)
+  const patch: UpdateListingContentPayload = changedFields(branch, draft)
+  // NEW-265: a new area request (a refused one is never sent back; an unchanged one is kept by the server).
+  if (location.areaRequestId && location.areaStatus !== 'rejected' && location.areaRequestId !== branch.pendingArea?.requestId) {
+    patch.areaRequestId = location.areaRequestId
+  }
   const dirty = Object.keys(patch).length > 0
 
   return (
@@ -70,6 +75,7 @@ export function LocationSection({ branchId, branch, onClose }: SectionEditorProp
         idPrefix="listing"
         value={shown}
         onChange={setLocation}
+        allowAreaRequests
         addressError={line1Invalid ? 'Address is required.' : null}
       />
       <div className="space-y-2">

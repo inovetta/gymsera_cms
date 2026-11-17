@@ -9,6 +9,7 @@ import { gymApi } from '@/lib/api/gym'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
 import { tenantsApi } from '@/lib/api/tenants'
+import apiClient from '@/lib/api/client'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
 import { fakePlaces, pickPlace, MM_ALAM } from '../fixtures/places'
@@ -95,15 +96,19 @@ describe('NEW-140: Add Branch on /gym/branches', () => {
     expect(places.details.mock.calls[0][1].sessionToken).toBe(places.autocomplete.mock.calls[0][0].sessionToken)
   })
 
-  // NEW-259 (R-107): an area Google does not know is no longer typed in (was POST /places/areas).
-  it('an area Google does not know cannot be typed in: the form says to contact support', async () => {
+  // NEW-259 (R-107): an area Google does not know is no longer typed in as an area (was POST /places/areas).
+  // NEW-265 (R-108 point 1, replaces R-107 point 5): the host keeps the typed name as a pending request
+  // (POST /places/area-requests), never as an area; new-265-area-picker.test.tsx covers the flow.
+  it('an area Google does not know is never created as an area: the host can keep it as a request for review', async () => {
+    const post = vi.spyOn(apiClient, 'post')
     const dialog = await openAddBranch()
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     const area = within(dialog).getByLabelText('Area')
     fireEvent.focus(area)
     fireEvent.change(area, { target: { value: 'Zzone 9' } })
-    expect(await within(dialog).findByTestId('area-not-found')).toHaveTextContent("Can't find your area? Contact support")
+    expect(await within(dialog).findByRole('button', { name: /not in the list\? keep “zzone 9”/i })).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /as the area/i })).toBeNull()
+    expect(post.mock.calls.map((c) => c[0])).not.toContain('/places/areas')
   })
 
   it('"Use current location" fills the address, city, area and point from the reverse geocode', async () => {

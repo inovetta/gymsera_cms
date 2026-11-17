@@ -105,6 +105,8 @@ export interface StorePlanNotice {
 
 /** POST /host/branches — the body the mobile wizard sends (createBranch in gyms_repository.dart). */
 export interface CreateHostBranchPayload {
+  /** NEW-265: a pending area request instead of areaId (never both). */
+  areaRequestId?: number
   branchName: string
   gymListingId?: string
   address?: string
@@ -122,6 +124,8 @@ export interface CreateHostBranchPayload {
 }
 
 export interface CreateListingPayload {
+  /** NEW-265: a pending area request instead of areaId (never both). */
+  areaRequestId?: number
   gymName: string
   gymDescription: string
   genderType: string
@@ -156,6 +160,8 @@ export interface BranchMemberLookup {
  * arrive as arrays or as JSON strings; read them with `asStringList` (lib/listing/content.ts).
  */
 export interface BranchListingContent {
+  /** NEW-265: the branch's own area request while pending or refused. */
+  pendingArea?: import('./area-requests').PendingArea | null
   id: string
   branchName: string
   status: string
@@ -204,6 +210,8 @@ export type UpdateListingContentPayload = Partial<{
   country: string
   cityId: number
   areaId: number
+  /** NEW-265: a pending area request instead of areaId. */
+  areaRequestId: number
   phone: string
   latitude: number
   longitude: number

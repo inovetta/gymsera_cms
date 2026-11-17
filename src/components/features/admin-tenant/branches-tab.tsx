@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/features/status-badge'
 import { branchStates } from '@/lib/branches/states'
 import { ErrorState } from '@/components/features/error-state'
 import { BranchFormDialog } from '@/components/features/branch-form-dialog'
+import { PendingAreaNote } from '@/components/features/areas/pending-area-note'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -191,6 +192,7 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
                       </p>
                     ))}
                     <p className="text-xs text-muted-foreground">{branch.address || '—'}</p>
+                    <PendingAreaNote pendingArea={branch.pendingArea} />
                     {(branch.openingTime || branch.closingTime) && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         <Clock className="h-3 w-3" />{branch.openingTime} – {branch.closingTime}

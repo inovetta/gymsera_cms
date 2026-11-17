@@ -209,6 +209,8 @@ export interface GymListing {
 }
 
 export interface Branch {
+  /** NEW-265: the branch's own area request while pending or refused (A4 reads). */
+  pendingArea?: import('@/lib/api/area-requests').PendingArea | null
   id: string
   gymId: string
   branchName: string

@@ -23,7 +23,7 @@ import { invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { classifyBranchError } from '@/lib/branches/errors'
 import { resolveApiError } from '@/lib/api/error-copy'
 import { EmptyState } from '@/components/features/empty-state'
-import { BranchLocationFields, BranchLocationValue, locationValid } from '@/components/features/places/branch-location-fields'
+import { BranchLocationFields, BranchLocationValue, locationValid, areaPayload, pendingAreaValue } from '@/components/features/places/branch-location-fields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -51,6 +51,10 @@ interface BranchFormState {
   address: string
   cityId: number
   areaId?: number
+  // NEW-265: a typed area waiting for review (sent as areaRequestId instead of areaId).
+  areaRequestId?: number
+  areaStatus?: 'pending_review' | 'rejected'
+  areaRejectReason?: string | null
   phone: string
   openingTime: string
   closingTime: string
@@ -274,6 +278,9 @@ export default function BranchesPage() {
     cityName: form.cityName ?? cities.find((c: any) => c.id === form.cityId)?.name,
     areaId: form.areaId,
     areaName: form.areaName ?? areas.find((a: any) => a.id === form.areaId)?.name,
+    areaRequestId: form.areaRequestId,
+    areaStatus: form.areaStatus,
+    areaRejectReason: form.areaRejectReason,
     latitude: form.latitude,
     longitude: form.longitude,
     googlePlaceId: form.googlePlaceId,
@@ -286,6 +293,9 @@ export default function BranchesPage() {
       cityName: v.cityName,
       areaId: v.areaId,
       areaName: v.areaName,
+      areaRequestId: v.areaRequestId,
+      areaStatus: v.areaStatus,
+      areaRejectReason: v.areaRejectReason,
       latitude: v.latitude,
       longitude: v.longitude,
       googlePlaceId: v.googlePlaceId,
@@ -454,6 +464,8 @@ export default function BranchesPage() {
       latitude: branch.latitude ? Number(branch.latitude) : undefined,
       longitude: branch.longitude ? Number(branch.longitude) : undefined,
       googlePlaceId: branch.googlePlaceId ?? undefined,
+      // NEW-265: a branch waiting on an area request shows it "(under review)".
+      ...pendingAreaValue(branch.pendingArea),
     })
     setFacilityInput('')
     setDialogOpen(true)
@@ -478,6 +490,12 @@ export default function BranchesPage() {
     const payload = { ...form }
     delete (payload as any).cityName
     delete (payload as any).areaName
+    // NEW-265: the area request or the area, never both (areaPayload).
+    delete (payload as any).areaId
+    delete (payload as any).areaRequestId
+    delete (payload as any).areaStatus
+    delete (payload as any).areaRejectReason
+    Object.assign(payload, areaPayload(location))
     if (!payload.googlePlaceId) delete (payload as any).googlePlaceId
     if (!payload.cityId) delete (payload as any).cityId
     if (!payload.areaId) delete (payload as any).areaId
@@ -500,7 +518,7 @@ export default function BranchesPage() {
         ...(listingId ? { gymListingId: listingId } : {}),
         address: form.address.trim(),
         cityId: form.cityId,
-        ...(form.areaId ? { areaId: form.areaId } : {}),
+        ...areaPayload(location), // NEW-265
         ...(form.phone ? { phone: form.phone } : {}),
         openingTime: form.openingTime,
         closingTime: form.closingTime,
@@ -637,6 +655,7 @@ export default function BranchesPage() {
             <BranchLocationFields
               value={location}
               onChange={setLocation}
+              allowAreaRequests
               addressError={!editBranch && !form.address.trim() ? 'Address is required.' : null}
             />
 

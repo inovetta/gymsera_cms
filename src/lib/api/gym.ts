@@ -45,6 +45,8 @@ export interface CreateBranchPayload {
 }
 
 export interface UpdateBranchPayload {
+  /** NEW-265: a pending area request instead of areaId; null clears it. */
+  areaRequestId?: number | null
   branchName?: string
   address?: string
   cityId?: number

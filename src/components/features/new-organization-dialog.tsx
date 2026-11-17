@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
-import { BranchLocationFields, BranchLocationValue, locationValid } from '@/components/features/places/branch-location-fields'
+import { BranchLocationFields, BranchLocationValue, locationValid, areaPayload } from '@/components/features/places/branch-location-fields'
 import { useBranchQuota, invalidateBranchCapacity } from '@/hooks/use-branch-quota'
 import { hostApi, CreateListingPayload } from '@/lib/api/host'
 import { classifyBranchError } from '@/lib/branches/errors'
@@ -93,7 +93,7 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
       genderType,
       branchSource: 'new',
       cityId: location.cityId,
-      ...(location.areaId ? { areaId: location.areaId } : {}),
+      ...areaPayload(location), // NEW-265: the area, or a typed area waiting for review
       address: location.address.trim(),
       ...(location.latitude !== undefined ? { latitude: location.latitude } : {}),
       ...(location.longitude !== undefined ? { longitude: location.longitude } : {}),
@@ -137,7 +137,7 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
               </select>
             </div>
 
-            <BranchLocationFields idPrefix="org" value={location} onChange={setLocation} />
+            <BranchLocationFields idPrefix="org" value={location} onChange={setLocation} allowAreaRequests />
 
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-3 space-y-1.5 sm:col-span-1">
