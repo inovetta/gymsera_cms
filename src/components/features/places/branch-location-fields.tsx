@@ -9,6 +9,7 @@ import { MapPicker } from '@/components/features/map-picker'
 import { PlaceSearch } from '@/components/features/places/place-search'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { placesApi, PlaceDetails } from '@/lib/api/places'
+import { areaRequestsApi, LIMIT_MESSAGES, SimilarArea, PendingArea } from '@/lib/api/area-requests'
 
 /** What a branch form keeps about the location. Names are for showing; ids are what is saved. */
 export interface BranchLocationValue {
@@ -17,6 +18,10 @@ export interface BranchLocationValue {
   cityName?: string
   areaId?: number
   areaName?: string
+  /** NEW-265: a typed area / Google road or landmark waiting for review (sent instead of areaId). */
+  areaRequestId?: number
+  areaStatus?: 'pending_review' | 'rejected'
+  areaRejectReason?: string | null
   latitude?: number
   longitude?: number
   googlePlaceId?: string
@@ -28,7 +33,28 @@ interface Props {
   /** A required address shows its error here. */
   addressError?: string | null
   idPrefix?: string
+  /**
+   * NEW-265 (A7): host forms keep a typed area as a pending request and offer Google roads and
+   * landmarks. Off for admin forms, which pick real areas only (R-109 F7).
+   */
+  allowAreaRequests?: boolean
 }
+
+const NO_AREA = { areaId: undefined, areaName: undefined, areaRequestId: undefined, areaStatus: undefined, areaRejectReason: undefined }
+
+/**
+ * NEW-265 (A4): what a form sends for the area: the request, or the area, never both; nothing when
+ * neither is set (the server keeps what it has). A refused request is never sent back.
+ */
+export const areaPayload = (v: BranchLocationValue): { areaId?: number; areaRequestId?: number } => {
+  if (v.areaRequestId && v.areaStatus !== 'rejected') return { areaRequestId: v.areaRequestId }
+  if (v.areaId) return { areaId: v.areaId }
+  return {}
+}
+
+/** NEW-265: a gym read's `pendingArea` as form values. */
+export const pendingAreaValue = (p?: PendingArea | null): Partial<BranchLocationValue> =>
+  p ? { areaId: undefined, areaRequestId: p.requestId, areaName: p.name, areaStatus: p.status, areaRejectReason: p.rejectReason } : {}
 
 const inRange = (n: number | undefined, max: number) => n === undefined || (Number.isFinite(n) && n >= -max && n <= max)
 const parseCoordinate = (s: string): number | undefined => (s.trim() === '' ? undefined : Number(s))
@@ -38,7 +64,7 @@ const parseCoordinate = (s: string): number | undefined => (s.trim() === '' ? un
  * it, then the address, all from Google through our API; "Use current location"; the pin on a
  * Google map. A picked address fills the city, area, point and place id at once.
  */
-export function BranchLocationFields({ value, onChange, addressError, idPrefix = 'branch' }: Props) {
+export function BranchLocationFields({ value, onChange, addressError, idPrefix = 'branch', allowAreaRequests = false }: Props) {
   const [cityCentre, setCityCentre] = useState<[number, number] | null>(null)
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState<string | null>(null)
@@ -58,7 +84,7 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
       address: address ?? p.formattedAddress ?? value.address,
       googlePlaceId: p.placeId ?? undefined,
       ...(p.city ? { cityId: p.city.id, cityName: p.city.name } : {}),
-      ...(p.area ? { areaId: p.area.id, areaName: p.area.name } : { areaId: undefined, areaName: undefined }),
+      ...(p.area ? { ...NO_AREA, areaId: p.area.id, areaName: p.area.name } : NO_AREA),
     })
 
   const useCurrentLocation = () => {
@@ -107,7 +133,7 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
           placeholder="Search for the city"
           onPick={(p) => {
             if (p.latitude != null && p.longitude != null) setCityCentre([p.latitude, p.longitude])
-            if (p.city) set({ cityId: p.city.id, cityName: p.city.name, areaId: undefined, areaName: undefined })
+            if (p.city) set({ cityId: p.city.id, cityName: p.city.name, ...NO_AREA })
           }}
         />
         <div>
@@ -119,11 +145,19 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
             value={value.areaName ?? ''}
             disabled={!value.cityId}
             placeholder={value.cityId ? 'Search for the area' : 'Pick the city first'}
-            onPick={(p) => p.area && set({ areaId: p.area.id, areaName: p.area.name })}
-            // NEW-259 (R-107): the area is picked from the list, never typed in. A missing area is added
-            // by a platform administrator (Cities & Areas); until then the host is told whom to ask.
-            renderNoMatch={() => <AreaNotFoundNote />}
+            extended={allowAreaRequests}
+            onPick={(p) => {
+              if (p.area) set({ ...NO_AREA, areaId: p.area.id, areaName: p.area.name })
+              // NEW-265: a Google road / landmark is a pending request (allowAreaRequests only).
+              else if (p.areaRequest) set({ ...NO_AREA, areaRequestId: p.areaRequest.id, areaName: p.areaRequest.name, areaStatus: 'pending_review' })
+            }}
+            // NEW-259 (R-107): admins pick from the list only and the note says whom to ask.
+            // NEW-265 (R-108): a host keeps what they typed as a pending request instead.
+            renderNoMatch={(typed, close) => (allowAreaRequests && value.cityId
+              ? <KeepTypedArea cityId={value.cityId} typed={typed} onDone={(patch) => { close(); set({ ...NO_AREA, ...patch }) }} />
+              : <AreaNotFoundNote />)}
           />
+          <AreaStatus value={value} />
         </div>
       </div>
 
@@ -190,6 +224,86 @@ export function BranchLocationFields({ value, onChange, addressError, idPrefix =
 
 /** True when the typed coordinates are usable (the form's Save checks it). */
 export const locationValid = (v: BranchLocationValue) => inRange(v.latitude, 90) && inRange(v.longitude, 180)
+
+/** NEW-265: "(under review)" / refused, under the area field. */
+function AreaStatus({ value }: { value: BranchLocationValue }) {
+  if (!value.areaRequestId || !value.areaName) return null
+  if (value.areaStatus === 'rejected') {
+    return (
+      <p data-testid="area-status" className="text-xs text-destructive">
+        {value.areaName} was not accepted{value.areaRejectReason ? `: ${value.areaRejectReason}` : ''}. Please pick your area again.
+      </p>
+    )
+  }
+  return <p data-testid="area-status" className="text-xs text-muted-foreground">{value.areaName} (under review)</p>
+}
+
+/**
+ * NEW-265 (A7): "Not in the list? Keep what you typed": /check, then "Did you mean …?" when similar
+ * areas exist, then the request (confirmNotListed). A name that is already an area (or alias) uses it.
+ */
+function KeepTypedArea({ cityId, typed, onDone }: { cityId: number; typed: string; onDone: (patch: Partial<BranchLocationValue>) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [similar, setSimilar] = useState<SimilarArea[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const create = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await areaRequestsApi.create(cityId, typed, true)
+      const answer = res.data
+      if ('area' in answer) onDone({ areaId: answer.area.id, areaName: answer.area.name })
+      else onDone({ areaRequestId: answer.areaRequest.id, areaName: answer.areaRequest.name, areaStatus: 'pending_review' })
+    } catch (err) {
+      setError(describeRequestError(err, 'We could not keep that area. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const check = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const { data } = await areaRequestsApi.check(cityId, typed)
+      if (data.match) return onDone({ areaId: data.match.areaId, areaName: data.match.name })
+      if (!data.canRequest) return setError(LIMIT_MESSAGES[data.reason ?? ''] ?? 'You cannot ask for another area right now.')
+      if (data.similar.length) return setSimilar(data.similar)
+      setBusy(false)
+      await create()
+    } catch (err) {
+      setError(describeRequestError(err, 'We could not check that name. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-1 px-2 py-1.5 text-sm" onMouseDown={(e) => e.preventDefault()}>
+      {similar ? (
+        <>
+          <p className="font-medium">Did you mean …?</p>
+          <ul className="space-y-1">
+            {similar.map((s) => (
+              <li key={`${s.name}-${s.areaId ?? 'p'}`}>
+                {s.areaId ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => onDone({ areaId: s.areaId!, areaName: s.name })}>{s.name}</Button>
+                ) : (
+                  <span className="px-3 text-muted-foreground">{s.name} (under review)</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <Button type="button" variant="outline" size="sm" loading={busy} onClick={create}>No, keep “{typed}”</Button>
+        </>
+      ) : (
+        <Button type="button" variant="ghost" size="sm" loading={busy} onClick={check}>Not in the list? Keep “{typed}”</Button>
+      )}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
 
 /** NEW-259: what an empty area search says, the same sentence as the app. */
 export function AreaNotFoundNote() {

@@ -5,7 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, ChevronDown, ChevronRight, MapPin, Edit, Trash2 } from 'lucide-react'
+import { Plus, ChevronDown, ChevronRight, MapPin, Edit, Trash2, SpellCheck } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { UnmatchedAreas, AreaAliasesDialog } from '@/components/features/areas/unmatched-areas'
 import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { EmptyState } from '@/components/features/empty-state'
@@ -43,6 +45,7 @@ function CityRow({ city }: { city: City }) {
   const [editCityOpen, setEditCityOpen] = useState(false)
   const [deleteCityDialog, setDeleteCityDialog] = useState(false)
   const [deleteAreaTarget, setDeleteAreaTarget] = useState<Area | null>(null)
+  const [aliasesOf, setAliasesOf] = useState<Area | null>(null) // NEW-265
   const [cityImageFile, setCityImageFile] = useState<File | null>(null)
   const [areaImageFile, setAreaImageFile] = useState<File | null>(null)
 
@@ -205,6 +208,9 @@ function CityRow({ city }: { city: City }) {
                     <span className="text-sm truncate">{area.name}</span>
                   </div>
                   <div className="flex gap-1">
+                    <Button size="icon-sm" variant="ghost" className="h-7 w-7 shrink-0" aria-label={`Other spellings of ${area.name}`} title="Other spellings" onClick={() => setAliasesOf(area)}>
+                      <SpellCheck className="h-3 w-3" />
+                    </Button>
                     <Button size="icon-sm" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => openEditArea(area)}>
                       <Edit className="h-3 w-3" />
                     </Button>
@@ -218,6 +224,8 @@ function CityRow({ city }: { city: City }) {
           )}
         </div>
       )}
+
+      {aliasesOf && <AreaAliasesDialog areaId={aliasesOf.id} areaName={aliasesOf.name} onClose={() => setAliasesOf(null)} />}
 
       {/* Delete City */}
       <ConfirmDialog
@@ -354,26 +362,38 @@ export default function CitiesPage() {
           }
         />
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
-          </div>
-        ) : citiesError ? (
-          <ErrorState error={citiesError} what="the cities" onRetry={() => refetchCities()} />
-        ) : cities.length === 0 ? (
-          <EmptyState
-            icon={MapPin}
-            title="No cities yet"
-            description="Add your first city to get started"
-            action={<Button onClick={() => setAddCityOpen(true)}><Plus className="h-4 w-4 mr-2" />Add City</Button>}
-          />
-        ) : (
-          <div className="space-y-3">
-            {cities.map((city) => (
-              <CityRow key={city.id} city={city} />
-            ))}
-          </div>
-        )}
+        {/* NEW-265 (A6): typed areas and Google roads / landmarks waiting for review. */}
+        <Tabs defaultValue="cities">
+          <TabsList className="mb-4">
+            <TabsTrigger value="cities">Cities & Areas</TabsTrigger>
+            <TabsTrigger value="unmatched">Unmatched areas</TabsTrigger>
+          </TabsList>
+          <TabsContent value="cities">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+              </div>
+            ) : citiesError ? (
+              <ErrorState error={citiesError} what="the cities" onRetry={() => refetchCities()} />
+            ) : cities.length === 0 ? (
+              <EmptyState
+                icon={MapPin}
+                title="No cities yet"
+                description="Add your first city to get started"
+                action={<Button onClick={() => setAddCityOpen(true)}><Plus className="h-4 w-4 mr-2" />Add City</Button>}
+              />
+            ) : (
+              <div className="space-y-3">
+                {cities.map((city) => (
+                  <CityRow key={city.id} city={city} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="unmatched">
+            <UnmatchedAreas cities={cities} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Add City Dialog */}

@@ -1,5 +1,6 @@
 import apiClient from './client'
 import { ApiResponse } from '@/types'
+import type { AreaRequestRef } from './area-requests'
 
 /**
  * Google Places through our API (Phase 7 P3, places.routes.js), the same calls the mobile app makes.
@@ -12,6 +13,9 @@ export interface PlaceSuggestion {
   placeId: string
   primaryText: string
   secondaryText: string | null
+  /** NEW-265: on area suggestions, where it comes from and what it is (a road / landmark becomes a request). */
+  source?: 'gymsera' | 'google'
+  type?: 'area' | 'road' | 'landmark'
 }
 
 export interface PlaceRef {
@@ -27,15 +31,22 @@ export interface PlaceDetails {
   longitude: number | null
   city: PlaceRef | null
   area: PlaceRef | null
+  /** NEW-265: a Google road / landmark picked as the area is a pending request, not an area. */
+  areaRequest?: AreaRequestRef
 }
 
 /** One id per search (Google bills autocomplete + details as one session). */
 export const newPlacesSession = (): string => crypto.randomUUID()
 
 export const placesApi = {
-  autocomplete: async (q: { input: string; kind: PlaceKind; sessionToken: string; cityId?: number }): Promise<ApiResponse<{ suggestions: PlaceSuggestion[] }>> => {
+  autocomplete: async (q: { input: string; kind: PlaceKind; sessionToken: string; cityId?: number; extended?: boolean }): Promise<ApiResponse<{ suggestions: PlaceSuggestion[] }>> => {
     const { data } = await apiClient.get('/places/autocomplete', {
-      params: { input: q.input, kind: q.kind, sessionToken: q.sessionToken, ...(q.cityId ? { cityId: q.cityId } : {}) },
+      params: {
+        input: q.input, kind: q.kind, sessionToken: q.sessionToken,
+        ...(q.cityId ? { cityId: q.cityId } : {}),
+        // NEW-265: roads and landmarks too, only where the form can keep a pending request.
+        ...(q.extended ? { extended: 'true' } : {}),
+      },
     })
     return data
   },

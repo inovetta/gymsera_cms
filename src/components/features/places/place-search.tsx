@@ -24,13 +24,17 @@ interface PlaceSearchProps {
   onTextChange?: (text: string) => void
   /** Shown under the list when the typed text has no Google match (areas: "Use … as the area"). */
   renderNoMatch?: (typed: string, close: () => void) => React.ReactNode
+  /** NEW-265: area searches also offer Google roads and landmarks (picked = a pending request). */
+  extended?: boolean
 }
+
+const TYPE_LABEL: Record<string, string> = { road: 'Road', landmark: 'Landmark' }
 
 /**
  * A city, area or address search on GET /places/autocomplete, then GET /places/details for the pick
  * (mobile places_search_field.dart). Debounced, at least 2 characters, one session token per search.
  */
-export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disabled, onPick, onTextChange, renderNoMatch }: PlaceSearchProps) {
+export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disabled, onPick, onTextChange, renderNoMatch, extended }: PlaceSearchProps) {
   const autoId = useId()
   const inputId = id ?? `place-${kind}-${autoId}`
   const listId = `${inputId}-list`
@@ -58,7 +62,7 @@ export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disab
     setLoading(true)
     const timer = setTimeout(async () => {
       try {
-        const res = await placesApi.autocomplete({ input, kind, sessionToken: session.current, cityId })
+        const res = await placesApi.autocomplete({ input, kind, sessionToken: session.current, cityId, ...(extended ? { extended: true } : {}) })
         if (mine !== request.current) return
         setSuggestions(res.data?.suggestions ?? [])
         setError(null)
@@ -71,7 +75,7 @@ export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disab
       }
     }, PLACES_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [text, kind, cityId])
+  }, [text, kind, cityId, extended])
 
   const close = () => {
     setOpen(false)
@@ -85,7 +89,7 @@ export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disab
     try {
       const res = await placesApi.details(s.placeId, { kind, sessionToken: session.current, cityId })
       const place = res.data
-      const shown = kind === 'address' ? place.formattedAddress : kind === 'city' ? place.city?.name : place.area?.name
+      const shown = kind === 'address' ? place.formattedAddress : kind === 'city' ? place.city?.name : (place.area?.name ?? place.areaRequest?.name)
       setText(shown || s.primaryText)
       close()
       onPick(place)
@@ -143,6 +147,7 @@ export function PlaceSearch({ id, label, kind, cityId, value, placeholder, disab
                 >
                   <span className="font-medium">{s.primaryText}</span>
                   {s.secondaryText && <span className="ml-1 text-muted-foreground">{s.secondaryText}</span>}
+                  {s.type && TYPE_LABEL[s.type] && <span className="ml-1 text-xs text-muted-foreground">· {TYPE_LABEL[s.type]}</span>}
                 </button>
               </li>
             ))}

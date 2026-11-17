@@ -105,6 +105,8 @@ export interface CapacityAudit {
 }
 
 export interface TenantBranch {
+  /** NEW-265 (R-109 F7): the area request this record waits on, pending or refused. */
+  pendingArea?: import('./area-requests').PendingArea | null
   id: string
   gymId: string
   // Which organization this branch belongs to — used to group the flat
@@ -208,6 +210,8 @@ export interface CreateTenantPayload {
 
 // ── Gym listing ───────────────────────────────────────────────────────────────
 export interface GymListingDetail {
+  /** NEW-265 (R-109 F7): the area request this record waits on, pending or refused. */
+  pendingArea?: import('./area-requests').PendingArea | null
   id: string
   tenantId: string
   cityId?: number
