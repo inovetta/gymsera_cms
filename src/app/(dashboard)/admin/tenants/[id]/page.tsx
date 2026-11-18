@@ -1,5 +1,6 @@
 'use client'
 
+import { tenantDisplayName, tenantSubName } from '@/lib/tenants/brand-name'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
@@ -167,7 +168,7 @@ export default function TenantDetailPage() {
 
   return (
     <>
-      <Header title={tenant.businessName} />
+      <Header title={tenantDisplayName(tenant)} />
       <div className="p-6 animate-fade-in space-y-6">
         <Button variant="ghost" onClick={() => router.back()} className="-ml-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -215,7 +216,7 @@ export default function TenantDetailPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={tenant.logoUrl} alt={tenant.businessName} className="h-full w-full object-contain" />
                   ) : (
-                    <span className="text-2xl font-bold text-primary">{getInitials(tenant.businessName)}</span>
+                    <span className="text-2xl font-bold text-primary">{getInitials(tenantDisplayName(tenant))}</span>
                   )}
                 </div>
                 <button
@@ -229,7 +230,7 @@ export default function TenantDetailPage() {
 
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <h2 className="text-2xl font-bold">{tenant.businessName}</h2>
+                  <h2 className="text-2xl font-bold">{tenantDisplayName(tenant)}</h2>
                   <StatusBadge status={tenant.status} />
                   {tenant.kycStatus && (
                     <Badge variant="outline" className="text-xs capitalize">
@@ -242,6 +243,11 @@ export default function TenantDetailPage() {
                     </Badge>
                   )}
                 </div>
+                {tenantSubName(tenant) && (
+                  <p className="-mt-2 mb-3 text-sm text-muted-foreground" data-testid="tenant-gym-name">
+                    First gym: {tenantSubName(tenant)}
+                  </p>
+                )}
                 <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0" />

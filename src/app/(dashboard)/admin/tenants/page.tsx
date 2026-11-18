@@ -1,5 +1,6 @@
 'use client'
 
+import { tenantDisplayName, tenantSubName } from '@/lib/tenants/brand-name'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -135,11 +136,12 @@ export default function TenantsPage() {
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-              {getInitials(row.businessName)}
+              {getInitials(tenantDisplayName(row))}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-sm">{row.businessName}</p>
+            <p className="font-medium text-sm">{tenantDisplayName(row)}</p>
+            {tenantSubName(row) && <p className="text-xs text-muted-foreground">{tenantSubName(row)}</p>}
             <p className="text-xs text-muted-foreground">{row.email}</p>
           </div>
         </div>
