@@ -19,9 +19,18 @@ import { tenantsApi } from '@/lib/api/tenants'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import { useToast } from '@/hooks/use-toast'
 import { formatDate } from '@/lib/utils'
+import { plainRequestError } from '@/lib/api/request-errors'
+import { BRAND_NAME_MAX, BRAND_NAME_MIN, typedBrandName } from '@/lib/tenants/brand-name'
 
 const schema = z.object({
-  businessName: z.string().min(2, 'Business name must be at least 2 characters').max(200),
+  // R-112 (C1): the API decides (422 brand_name_*); this only gives the message first.
+  businessName: z
+    .string()
+    .trim()
+    .min(BRAND_NAME_MIN, `Use ${BRAND_NAME_MIN} to ${BRAND_NAME_MAX} characters`)
+    .max(BRAND_NAME_MAX, `Use ${BRAND_NAME_MIN} to ${BRAND_NAME_MAX} characters`)
+    .refine((v) => /\p{L}/u.test(v), 'Use at least one letter')
+    .refine((v) => !/[<>]/.test(v), 'Remove < and >'),
   email: z.string().email('Invalid email address'),
   phone: z.string().optional().or(z.literal('')),
   cityId: z.string().optional(),
@@ -54,7 +63,7 @@ export default function BusinessProfilePage() {
   useEffect(() => {
     if (tenant) {
       form.reset({
-        businessName: tenant.businessName || '',
+        businessName: typedBrandName(tenant.businessName),
         email: tenant.email || '',
         phone: tenant.phone || '',
         cityId: tenant.cityId ? String(tenant.cityId) : '',
@@ -65,7 +74,8 @@ export default function BusinessProfilePage() {
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
       tenantsApi.updateMyTenant({
-        businessName: values.businessName,
+        // R-112 (C4): the brand only when it changed (an older stored name is not re-sent with an e-mail edit).
+        businessName: values.businessName.trim() !== (tenant?.businessName ?? '').trim() ? values.businessName.trim() : undefined,
         email: values.email,
         phone: values.phone || undefined,
         cityId: values.cityId ? Number(values.cityId) : undefined,
@@ -74,7 +84,8 @@ export default function BusinessProfilePage() {
       queryClient.invalidateQueries({ queryKey: ['my-tenant'] })
       toast({ title: 'Business profile updated successfully' })
     },
-    onError: () => toast({ title: 'Error', description: 'Failed to update business profile', variant: 'destructive' }),
+    onError: (err: unknown) =>
+      toast({ title: 'Error', description: plainRequestError(err, 'Failed to update business profile'), variant: 'destructive' }),
   })
 
   if (loadError) {
@@ -162,11 +173,11 @@ export default function BusinessProfilePage() {
                     name="businessName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Business Name *</FormLabel>
+                        <FormLabel>Brand / organization name *</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input className="pl-9" placeholder="Iron Temple Fitness" {...field} />
+                            <Input className="pl-9" placeholder="Iron Temple" maxLength={BRAND_NAME_MAX} {...field} />
                           </div>
                         </FormControl>
                         <FormMessage />
