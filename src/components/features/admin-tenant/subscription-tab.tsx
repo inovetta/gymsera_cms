@@ -147,6 +147,12 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
                             {PLATFORM_LABELS[sub.platform]}
                           </span>
                         )}
+                        {/* NEW-281 (R-114): a store test purchase; never makes the gym live (R-87). */}
+                        {sub.environment === 'SANDBOX' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
+                            Test purchase (Sandbox)
+                          </span>
+                        )}
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SUB_STATUS_COLORS[sub.status] ?? ''}`}>{sub.status.replace('_', ' ')}</span>
                         {isExpired && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Expired</span>}
                         {isExpiringSoon && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">Expiring soon!</span>}

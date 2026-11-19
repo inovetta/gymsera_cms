@@ -13,6 +13,8 @@ export interface TenantSubscription {
   // TenantSubscription.model.js on the backend for why the two catalogs are
   // kept separate).
   platform?: 'MANUAL' | 'IOS' | 'ANDROID' | 'STRIPE'
+  /** A store test purchase is SANDBOX (R-87, R-114): never live for travellers. */
+  environment?: 'SANDBOX' | 'PRODUCTION' | null
   branchCount?: number | null
   startDate: string
   endDate: string
