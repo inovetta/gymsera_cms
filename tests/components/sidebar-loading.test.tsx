@@ -66,7 +66,7 @@ describe('Sidebar Loading State (NEW-46c)', () => {
 
     // Wait until initially loaded
     expect(await screen.findByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Gym Profile' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Business Profile' })).toBeInTheDocument()
 
     // Next time getMine is called (after switcher resetQueries), return the unresolved promise
     vi.spyOn(organizationsApi, 'getMine').mockImplementation(() => pendingTenantPromise as never)

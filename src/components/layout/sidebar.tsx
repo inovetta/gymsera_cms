@@ -85,7 +85,7 @@ const navSections: NavSection[] = [
   {
     title: 'Gym Management',
     items: [
-      { title: 'Gym Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
+      { title: 'Business Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
       { title: 'Branches', href: '/gym/branches', icon: GitBranch, permission: 'branch.settings', scope: 'org' },
       { title: 'Plans', href: '/gym/plans', icon: CreditCard, permission: 'plans.view', scope: 'branch' },
       { title: 'Members', href: '/gym/members', icon: Users, permission: 'members.view', scope: 'branch' },
@@ -111,7 +111,7 @@ const navSections: NavSection[] = [
     title: 'Settings',
     ownerOnly: true,
     items: [
-      { title: 'Business Profile', href: '/settings/profile', icon: Settings },
+      { title: 'Organization Profile', href: '/settings/profile', icon: Settings },
       { title: 'Subscription & Billing', href: '/settings/billing', icon: Layers },
     ],
   },

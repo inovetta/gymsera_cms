@@ -38,7 +38,11 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-export default function BusinessProfilePage() {
+/**
+ * Settings › Profile: the organization (enterprise D2, contract v2). Its name is private: only the
+ * host and GymsEra see it; travellers see business names (D3).
+ */
+export default function OrganizationProfilePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -74,7 +78,7 @@ export default function BusinessProfilePage() {
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
       organizationsApi.updateMine({
-        // R-112 (C4): the brand only when it changed (an older stored name is not re-sent with an e-mail edit).
+        // R-112 (C4): the organization name only when it changed (an older stored name is not re-sent with an e-mail edit).
         organizationName: values.organizationName.trim() !== (organization?.organizationName ?? '').trim() ? values.organizationName.trim() : undefined,
         email: values.email,
         phone: values.phone || undefined,
@@ -82,18 +86,18 @@ export default function BusinessProfilePage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-organization'] })
-      toast({ title: 'Business profile updated successfully' })
+      toast({ title: 'Organization profile saved' })
     },
     onError: (err: unknown) =>
-      toast({ title: 'Error', description: plainRequestError(err, 'Failed to update business profile'), variant: 'destructive' }),
+      toast({ title: 'Error', description: plainRequestError(err, 'Failed to update the organization profile'), variant: 'destructive' }),
   })
 
   if (loadError) {
     return (
       <>
-        <Header title="Business Profile" />
+        <Header title="Organization profile" />
         <div className="p-6">
-          <ErrorState error={loadError} what="your business profile" onRetry={() => refetch()} />
+          <ErrorState error={loadError} what="your organization profile" onRetry={() => refetch()} />
         </div>
       </>
     )
@@ -102,7 +106,7 @@ export default function BusinessProfilePage() {
   if (isLoading) {
     return (
       <>
-        <Header title="Business Profile" />
+        <Header title="Organization profile" />
         <div className="p-6 space-y-6">
           <Skeleton className="h-8 w-48" />
           <div className="grid gap-6 lg:grid-cols-3">
@@ -118,14 +122,14 @@ export default function BusinessProfilePage() {
 
   return (
     <>
-      <Header title="Business Profile" description="Manage your registered business information" />
+      <Header title="Organization profile" description="Your company: the organization that owns your businesses" />
       <div className="p-6 animate-fade-in space-y-6">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Info sidebar */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Business Status</CardTitle>
+                <CardTitle className="text-base">Organization status</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
@@ -162,8 +166,8 @@ export default function BusinessProfilePage() {
           {/* Form */}
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-base">Business Information</CardTitle>
-              <CardDescription>Update your registered business contact details</CardDescription>
+              <CardTitle className="text-base">Organization information</CardTitle>
+              <CardDescription>Update your organization&apos;s name and contact details</CardDescription>
             </CardHeader>
             <CardContent>
               <Form {...form}>
@@ -173,13 +177,14 @@ export default function BusinessProfilePage() {
                     name="organizationName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Brand / organization name *</FormLabel>
+                        <FormLabel>Organization name *</FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input className="pl-9" placeholder="Iron Temple" maxLength={ORGANIZATION_NAME_MAX} {...field} />
                           </div>
                         </FormControl>
+                        <p className="text-xs text-muted-foreground" data-testid="organization-name-helper">Only you and GymsEra see this</p>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -191,7 +196,7 @@ export default function BusinessProfilePage() {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Business Email *</FormLabel>
+                          <FormLabel>Organization email *</FormLabel>
                           <FormControl>
                             <div className="relative">
                               <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />

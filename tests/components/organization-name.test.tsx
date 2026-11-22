@@ -7,6 +7,8 @@
  * After: the brand with the first gym's name under it (a draft without a brand shows the gym name);
  * Settings › Profile is "Brand / organization name", 3 to 60 characters, sent only when it changed, and the
  * API's refusal is shown.
+ * Enterprise D2 / contract v2 (R-120): the field is `organizationName`, labelled "Organization name" with
+ * the helper "Only you and GymsEra see this" (the organization name never reaches travellers, D3).
  */
 import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -89,12 +91,13 @@ describe('R-112 Settings › Profile', () => {
   }
   // The field's FormControl wraps the input with its icon, so it is found by its placeholder.
   const brandInput = async () => {
-    expect(await screen.findByText('Brand / organization name *')).toBeInTheDocument()
+    expect(await screen.findByText('Organization name *')).toBeInTheDocument()
+    expect(screen.getByTestId('organization-name-helper')).toHaveTextContent('Only you and GymsEra see this')
     return screen.getByPlaceholderText('Iron Temple')
   }
   const save = () => fireEvent.click(screen.getByRole('button', { name: /save/i }))
 
-  it('is labelled "Brand / organization name"; a short name is stopped with a message, nothing is sent', async () => {
+  it('is labelled "Organization name" with the privacy helper; a short name is stopped with a message, nothing is sent', async () => {
     mine('Iron Works')
     const update = vi.spyOn(organizationsApi, 'updateMine').mockResolvedValue(ok({ organization: {} }) as never)
     wrap(<BusinessProfilePage />)

@@ -59,7 +59,7 @@ const wrap = (ui: React.ReactElement, context: MyContext = ownerContext) => {
 
 const menu = async () => {
   await screen.findByRole('link', { name: 'Dashboard' })
-  await screen.findByRole('link', { name: 'Gym Profile' })
+  await screen.findByRole('link', { name: 'Business Profile' })
   await new Promise((r) => setTimeout(r, 50))
   const nav = screen.getAllByRole('navigation')[0]
   return within(nav).getAllByRole('link').map((a) => a.textContent?.replace(/\d+$/, '').trim())

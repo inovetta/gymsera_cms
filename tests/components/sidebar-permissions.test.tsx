@@ -36,7 +36,7 @@ vi.mock('@/hooks/use-auth', () => ({
 }))
 
 const GYM_PAGES = [
-  'Gym Profile', 'Branches', 'Plans', 'Members', 'Team & access', 'Approvals',
+  'Business Profile', 'Branches', 'Plans', 'Members', 'Team & access', 'Approvals',
   'Subscriptions', 'Attendance', 'Access devices', 'Payments', 'Invoices', 'Ledger', 'Payouts', 'Trainers', 'Reports',
 ]
 
@@ -130,7 +130,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     getMine.mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     renderSidebar(ownerContext)
 
-    expect(await menu()).toEqual(['Dashboard', ...GYM_PAGES, 'Business Profile', 'Subscription & Billing'])
+    expect(await menu()).toEqual(['Dashboard', ...GYM_PAGES, 'Organization Profile', 'Subscription & Billing'])
   })
 
   it('an owner whose organization is not active sees the settings but no gym pages (unchanged)', async () => {
@@ -138,7 +138,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     getMine.mockResolvedValue(ok({ organization: { status: 'SUSPENDED' }, subscription: null }) as never)
     renderSidebar(ownerContext)
 
-    expect(await menu()).toEqual(['Dashboard', 'Business Profile', 'Subscription & Billing'])
+    expect(await menu()).toEqual(['Dashboard', 'Organization Profile', 'Subscription & Billing'])
   })
 
   it('shows no gym pages if the permissions cannot be loaded', async () => {
@@ -168,7 +168,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     renderSidebar(hostDualContext)
 
     const titles = await menu()
-    expect(titles).not.toContain('Business Profile')
+    expect(titles).not.toContain('Organization Profile')
     expect(titles).not.toContain('Subscription & Billing')
   })
 })
