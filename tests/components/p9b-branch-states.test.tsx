@@ -3,12 +3,11 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
-import { BranchesTab } from '@/components/features/admin-tenant/branches-tab'
+import { BranchesTab } from '@/components/features/admin-organization/branches-tab'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { adminApi } from '@/lib/api/admin'
 import { branchStates } from '@/lib/branches/states'
 import { ok } from '../fixtures/team'
@@ -32,7 +31,7 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const OVER = 'Account over branch capacity following subscription change'
 const ENDED = 'The plan has ended: no branch is covered until a plan is active again'
-const live = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: 'x', gymListingId: 'listing-1', pausedAt: null, billingLockedAt: null, travelerVisibilityStatus: 'active' }
+const live = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: 'x', businessId: 'listing-1', pausedAt: null, billingLockedAt: null, travelerVisibilityStatus: 'active' }
 const paused = { ...live, id: 'b2', branchName: 'Quiet', pausedAt: '2026-10-30T10:00:00Z' }
 const locked = { ...live, id: 'b3', branchName: 'Mall Road', billingLockedAt: '2026-10-29T00:00:00Z', billingLockReason: OVER }
 const review = { ...live, id: 'b4', branchName: 'New One', travelerVisibilityStatus: 'pending' }
@@ -44,13 +43,13 @@ const mount = (ui: React.ReactNode) =>
 beforeEach(() => {
   fakePlaces()
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [live, paused, locked, review, off] }) as never)
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [live, paused, locked, review, off] }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0 }) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -85,8 +84,8 @@ describe('/gym/branches: each branch says its state and why', () => {
 
 describe('Admin tenant Branches tab: paused and locked too', () => {
   it('shows Paused and Locked with the reason', async () => {
-    vi.spyOn(adminApi, 'getTenantBranches').mockResolvedValue(ok({ branches: [live, paused, locked] }) as never)
-    mount(<BranchesTab tenant={{ id: 't1', status: 'ACTIVE', organizations: [] } as never} tenantId="t1" />)
+    vi.spyOn(adminApi, 'getOrganizationBranches').mockResolvedValue(ok({ branches: [live, paused, locked] }) as never)
+    mount(<BranchesTab organization={{ id: 't1', status: 'ACTIVE', organizations: [] } as never} organizationId="t1" />)
     const row = await screen.findByTestId('admin-branch-b3')
     expect(within(row).getByText('Locked')).toBeInTheDocument()
     expect(within(row).getByText(/over your plan's branch limit/i)).toBeInTheDocument()

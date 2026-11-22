@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SettingsLayout from '@/app/(dashboard)/settings/layout'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { branchManagerContext, ownerContext } from '../fixtures/context'
 
@@ -37,7 +37,7 @@ describe('SettingsLayout Guard (NEW-46d)', () => {
   beforeEach(() => {
     replace.mockClear()
     authUser = { id: 'user-1', fullName: 'Test User', role: 'MEMBER' }
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' } }) as never)
   })
   afterEach(() => {
     vi.restoreAllMocks()

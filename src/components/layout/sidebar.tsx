@@ -119,7 +119,7 @@ const navSections: NavSection[] = [
     title: 'Platform Admin',
     adminOnly: true,
     items: [
-      { title: 'Tenants', href: '/admin/tenants', icon: ShieldCheck },
+      { title: 'Organizations', href: '/admin/organizations', icon: ShieldCheck },
       { title: 'Reviews', href: '/admin/reviews', icon: Star },
       // NEW-256: reported reviews and chat messages, and the word filter.
       { title: 'Moderation', href: '/admin/moderation', icon: Flag },
@@ -169,8 +169,8 @@ export function Sidebar() {
 
   // NEW-42: what the user may see comes from their effective permissions (the same
   // GET /me/context the mobile app reads), not from the account role.
-  const { organization, isTenantOwner, gymPagesOpen, roleLabel, contextLoading, tenantLoading } = useGymAccess()
-  const isAccessLoading = contextLoading || tenantLoading
+  const { organization, isOrganizationOwner, gymPagesOpen, roleLabel, contextLoading, myOrganizationLoading } = useGymAccess()
+  const isAccessLoading = contextLoading || myOrganizationLoading
 
   const { payoutsEnabled } = usePayoutsEnabled()
   const featureOn = (item: NavItem) => !item.payouts || item.payouts === (payoutsEnabled ? 'on' : 'off')
@@ -236,7 +236,7 @@ export function Sidebar() {
         <nav className="space-y-6">
           {navSections.map((section) => {
             if (section.adminOnly && !isPlatformAdmin) return null
-            if (section.ownerOnly && !isTenantOwner) return null
+            if (section.ownerOnly && !isOrganizationOwner) return null
 
             // NEW-46c: after switching organization, do not treat in-flight queries
             // as "no permissions"; show skeleton menu items until tenant and context have loaded.

@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { BranchLocationFields, BranchLocationValue, locationValid, areaPayload } from '@/components/features/places/branch-location-fields'
 import { useBranchQuota, invalidateBranchCapacity } from '@/hooks/use-branch-quota'
-import { hostApi, CreateListingPayload } from '@/lib/api/host'
+import { hostApi, CreateBusinessPayload } from '@/lib/api/host'
 import { classifyBranchError } from '@/lib/branches/errors'
 import { firstPlanPackage } from '@/lib/plans/plan-display'
 
@@ -19,14 +19,14 @@ interface NewOrganizationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Called with the new organization's id once it exists, so the page can select it. */
-  onCreated: (listingId?: string) => void
+  onCreated: (businessId?: string) => void
 }
 
 const selectClass = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
 
 /**
  * New organization with its first branch, as mobile (new_organization_quick_form_screen.dart):
- * POST /host/listings with `branchSource: 'new'`. Moving an existing branch was removed with the
+ * POST /host/businesses (contract v2: the first branch is held until approval). Moving an existing branch was removed with the
  * route (P5b item 8, R-81; NEW-167); an organization never exists without a branch (NEW-168).
  * The location comes from Google through our API (NEW-140); the first plan is the host's own.
  */
@@ -41,7 +41,7 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
   const [planDuration, setPlanDuration] = React.useState('MONTHLY')
   const [error, setError] = React.useState<string | null>(null)
   const [limit, setLimit] = React.useState<{ message: string; isOverQuota: boolean } | null>(null)
-  const [lastBody, setLastBody] = React.useState<CreateListingPayload | null>(null)
+  const [lastBody, setLastBody] = React.useState<CreateBusinessPayload | null>(null)
 
   const quota = useBranchQuota(open)
   const buildable = quota.data?.data?.buildableBranches ?? 0
@@ -61,15 +61,15 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
   }, [open])
 
   const buildMutation = useMutation({
-    mutationFn: (body: CreateListingPayload) => hostApi.createListing(body),
+    mutationFn: (body: CreateBusinessPayload) => hostApi.createBusiness(body),
     onSuccess: (res) => {
       setLimit(null)
       onOpenChange(false)
-      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
       queryClient.invalidateQueries({ queryKey: ['branches'] })
-      queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
+      queryClient.invalidateQueries({ queryKey: ['business-quota'] })
       invalidateBranchCapacity(queryClient)
-      onCreated(res.data?.id)
+      onCreated(res.data?.business?.id)
     },
     onError: (err) => {
       const block = classifyBranchError(err)
@@ -87,11 +87,10 @@ export function NewOrganizationDialog({ open, onOpenChange, onCreated }: NewOrga
 
   const submit = () => {
     setError(null)
-    const body: CreateListingPayload = {
-      gymName: name.trim(),
-      gymDescription: description.trim(),
+    const body: CreateBusinessPayload = {
+      businessName: name.trim(),
+      businessDescription: description.trim(),
       genderType,
-      branchSource: 'new',
       cityId: location.cityId,
       ...areaPayload(location), // NEW-265: the area, or a typed area waiting for review
       address: location.address.trim(),

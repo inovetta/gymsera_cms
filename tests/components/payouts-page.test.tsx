@@ -4,9 +4,8 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PayoutsPage from '@/app/(dashboard)/gym/payouts/page'
 import { payoutsApi } from '@/lib/api/payouts'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, orgAdminContext, ownerContext } from '../fixtures/context'
 
@@ -37,7 +36,7 @@ const httpError = (status: number, data: Record<string, unknown>) =>
 const balance = { branchId: null, totalCollected: 10000, totalRefunded: 500, totalExpenses: 1000.25, totalPayouts: 2000, availableBalance: 6499.75, currency: 'PKR' }
 const bank = { bankName: 'Meezan Bank', accountTitle: 'Iron Gym Pvt Ltd', accountNumber: '1234010998877', iban: 'PK49MEZN001234010998877' }
 const account = (details: Record<string, string>, detailsUpdatedAt: string | null) => ({
-  id: 'pa1', scope: 'TENANT', organizationId: null, provider: 'BANK_TRANSFER', status: 'ACTIVE', details, detailsUpdatedAt,
+  id: 'pa1', scope: 'ORGANIZATION', businessId: null, provider: 'BANK_TRANSFER', status: 'ACTIVE', details, detailsUpdatedAt,
 })
 
 // An owner holds everything; an org admin here holds payouts.view and the request key only.
@@ -60,15 +59,15 @@ const renderPage = (context: MyContext = ownerContext) => {
 
 beforeEach(() => {
   accountRole = 'GYM_HOST'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(payoutsApi, 'balance').mockResolvedValue(ok(balance) as never)
   vi.spyOn(payoutsApi, 'list').mockResolvedValue(ok({ payouts: [
     { id: 'po1', branchId: null, amount: 2000, currency: 'PKR', status: 'PENDING', notes: 'October', createdAt: '2026-10-05T10:00:00Z' },
   ] }) as never)
   // P7b (NEW-217, R-94): the tenant's payout account, never the organization profile.
   vi.spyOn(payoutsApi, 'getAccount').mockResolvedValue(ok({ account: account(bank, null) }) as never)
-  vi.spyOn(gymApi, 'getGymProfile').mockRejectedValue(new Error('GET /gyms/profile must not be called by Payouts'))
-  vi.spyOn(gymApi, 'updateGymProfile').mockRejectedValue(new Error('PATCH /gyms/profile must not be called by Payouts'))
+  vi.spyOn(organizationsApi, 'getBusinessProfile').mockRejectedValue(new Error('GET /gyms/profile must not be called by Payouts'))
+  vi.spyOn(organizationsApi, 'updateBusinessProfile').mockRejectedValue(new Error('PATCH /gyms/profile must not be called by Payouts'))
   requestPayout = vi.spyOn(payoutsApi, 'request').mockResolvedValue({ status: 201, data: { success: true, data: { id: 'po2' } } } as never)
   saveAccount = vi.spyOn(payoutsApi, 'saveAccount').mockResolvedValue(
     ok({ account: account(bank, '2026-10-10T08:00:00Z') }) as never
@@ -255,14 +254,14 @@ describe('NEW-217 (R-94): the payout account belongs to the business, not to one
     fireEvent.click(within(reauth).getByRole('button', { name: 'Save bank details' }))
 
     await waitFor(() => expect(saveAccount).toHaveBeenCalled())
-    expect(gymApi.getGymProfile).not.toHaveBeenCalled()
-    expect(gymApi.updateGymProfile).not.toHaveBeenCalled()
+    expect(organizationsApi.getBusinessProfile).not.toHaveBeenCalled()
+    expect(organizationsApi.updateBusinessProfile).not.toHaveBeenCalled()
   })
 
-  it('says the account is used for every organization and branch', async () => {
+  it('says the account is used for every business and branch', async () => {
     renderPage()
     await screen.findByTestId('bank-details')
-    expect(screen.getByText(/every organization and branch of your business/i)).toBeInTheDocument()
+    expect(screen.getByText(/every business and branch of your organization/i)).toBeInTheDocument()
   })
 
   it('shows when the details last changed, from the account\'s detailsUpdatedAt', async () => {

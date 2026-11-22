@@ -22,10 +22,18 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     action: 'open_upsell',
   },
   // P5b (R-81, NEW-167): the API's own copy (gymsera_be src/constants/error-copy.js).
-  last_branch_in_organization: {
-    en: 'This is the last branch in its organization. Deleting it also deletes the organization.',
-    ur: 'یہ اس تنظیم کی آخری برانچ ہے۔ اسے حذف کرنے سے تنظیم بھی حذف ہو جائے گی۔',
-    ar: 'هذا هو آخر فرع في منظمته. حذفه يحذف المنظمة أيضًا.',
+  // Contract v2 §6: was `last_branch_in_organization`.
+  last_branch_in_business: {
+    en: 'This is the last branch of its business. Deleting it also deletes the business.',
+    ur: 'یہ اس بزنس کی آخری برانچ ہے۔ اسے حذف کرنے سے بزنس بھی حذف ہو جائے گا۔',
+    ar: 'هذا هو آخر فرع في هذا النشاط التجاري. حذفه يحذف النشاط التجاري أيضًا.',
+    action: 'none',
+  },
+  // Contract v2 §6 (new): a branch into a business that is still under review (enterprise §2.2).
+  business_not_approved: {
+    en: 'This business is still under review. You can add branches once it is approved.',
+    ur: 'یہ بزنس ابھی زیرِ جائزہ ہے۔ منظوری کے بعد آپ برانچز شامل کر سکیں گے۔',
+    ar: 'هذا النشاط التجاري لا يزال قيد المراجعة. يمكنك إضافة فروع بعد الموافقة عليه.',
     action: 'none',
   },
   branch_delete_blocked: {
@@ -53,10 +61,11 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'فعّل "إظهار للمسافرين" لخطة واحدة على الأقل، ثم حاول مرة أخرى.',
     action: 'none',
   },
-  organization_needs_branch: {
-    en: 'An organization needs its first branch. Add the branch with its plans.',
-    ur: 'ہر ادارے کی پہلی برانچ ضروری ہے۔ برانچ اس کے پلانز کے ساتھ شامل کریں۔',
-    ar: 'تحتاج كل مؤسسة إلى فرعها الأول. أضف الفرع مع خططه.',
+  // Contract v2 §6: was `organization_needs_branch`.
+  business_needs_branch: {
+    en: 'A business needs its first branch. Add the branch with its plans.',
+    ur: 'ہر بزنس کی پہلی برانچ ضروری ہے۔ برانچ اس کے پلانز کے ساتھ شامل کریں۔',
+    ar: 'يحتاج كل نشاط تجاري إلى فرعه الأول. أضف الفرع مع خططه.',
     action: 'none',
   },
   iap_subscription_active: {
@@ -149,13 +158,15 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'بعض المعلومات المدخلة غير صحيحة. يرجى المراجعة والتصحيح.',
     action: 'retry',
   },
-  tenant_not_active: {
+  // G16: was `tenant_not_active`.
+  organization_not_active: {
     en: 'Your gym is not live yet. Finish setting it up to use this.',
     ur: 'آپ کا جم ابھی فعال نہیں ہوا۔ اسے استعمال کرنے کے لیے سیٹ اپ مکمل کریں۔',
     ar: 'ناديك الرياضي غير مفعّل بعد. أكمل إعداده لاستخدام هذه الميزة.',
     action: 'none',
   },
-  missing_tenant_context: {
+  // G16: was `missing_tenant_context`.
+  missing_organization_context: {
     en: 'Choose a gym to continue.',
     ur: 'جاری رکھنے کے لیے ایک جم منتخب کریں۔',
     ar: 'اختر نادياً رياضياً للمتابعة.',
@@ -175,8 +186,9 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'لم تُحدَّد مدينة لهذا النادي بعد. حدّد المدينة ثم وافق عليه.',
     action: 'none',
   },
-  tenant_not_found: {
-    en: 'Tenant not found or not active.',
+  // Contract v2 §6: was `tenant_not_found`.
+  organization_not_found: {
+    en: 'Organization not found or not active.',
     ur: 'ادارہ نہیں ملا یا غیر فعال ہے۔',
     ar: 'المؤسسة غير موجودة أو غير نشطة.',
     action: 'none',

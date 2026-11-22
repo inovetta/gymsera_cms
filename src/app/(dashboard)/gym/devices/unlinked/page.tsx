@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { devicesApi, UnlinkedUser } from '@/lib/api/devices'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { holdsAtBranch, holdsPermission } from '@/lib/access/menu'
 import { formatDate } from '@/lib/utils'
@@ -52,7 +52,7 @@ export default function UnlinkedUsersPage() {
   const query = useQuery({ queryKey: ['unlinked-users'], queryFn: () => devicesApi.unlinked(), enabled: mayView && !!organization })
   const members = useQuery({
     queryKey: ['unlinked-member-search', debounced],
-    queryFn: () => gymApi.getMembers({ q: debounced, limit: 10 }),
+    queryFn: () => organizationsApi.getMembers({ q: debounced, limit: 10 }),
     enabled: !!linking && debounced.trim().length >= 2,
   })
   const done = (title: string) => {

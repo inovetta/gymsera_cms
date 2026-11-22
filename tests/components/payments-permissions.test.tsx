@@ -4,9 +4,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PaymentsPage from '@/app/(dashboard)/gym/payments/page'
 import { paymentsApi } from '@/lib/api/payments'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext, withPermissions } from '../fixtures/context'
 
@@ -33,7 +32,7 @@ let getPayments: ReturnType<typeof vi.spyOn>
 
 const render_ = (context: MyContext, branches = [{ id: 'branch-1', branchName: 'Uptown' }]) => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -44,7 +43,7 @@ const render_ = (context: MyContext, branches = [{ id: 'branch-1', branchName: '
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   getPayments = vi.spyOn(paymentsApi, 'getPayments').mockResolvedValue(ok({ payments: [pending] }) as never)
 })
 afterEach(() => vi.restoreAllMocks())

@@ -50,7 +50,7 @@ export interface ContentReport {
   targetId: string
   targetUserId: string | null
   conversationId: string | null
-  tenantId: string | null
+  organizationId: string | null
   reason: string
   note: string | null
   snapshotText: string | null

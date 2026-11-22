@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
 import { fakePlaces, pickPlace } from '../fixtures/places'
@@ -30,8 +29,8 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const L1 = { id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }
 const L2 = { id: 'listing-2', title: 'Fit Hub', status: 'ACTIVE' }
-const B1 = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: 'x', gymListingId: 'listing-1' }
-const B2 = { id: 'b2', branchName: 'Downtown', status: 'ACTIVE', address: 'y', gymListingId: 'listing-2' }
+const B1 = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: 'x', businessId: 'listing-1' }
+const B2 = { id: 'b2', branchName: 'Downtown', status: 'ACTIVE', address: 'y', businessId: 'listing-2' }
 const quota = (over = {}) => ({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0, ...over })
 
 let createListing: ReturnType<typeof vi.spyOn>
@@ -52,18 +51,18 @@ const mount = (context: MyContext, listings = [L1, L2]) => {
 
 beforeEach(() => {
   accountRole = 'GYM_HOST'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 1, name: 'Peshawar' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
-  getListings = vi.spyOn(hostApi, 'getListings')
-  vi.spyOn(hostApi, 'getListingBranches').mockImplementation((async (id: string) => ok({ branches: id === 'listing-1' ? [B1] : [B2] })) as never)
+  getListings = vi.spyOn(hostApi, 'getBusinesses')
+  vi.spyOn(hostApi, 'getBusinessBranches').mockImplementation((async (id: string) => ok({ branches: id === 'listing-1' ? [B1] : [B2] })) as never)
   vi.spyOn(hostApi, 'getAllBranches').mockResolvedValue(ok({ branches: [B1, B2] }) as never)
   getQuota = vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota()) as never)
-  orgQuota = vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(
-    ok({ maxOrganizations: 3, usedOrganizations: 2, remainingOrganizations: 1, canCreateNext: true, blockingListingStatus: null }) as never
+  orgQuota = vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(
+    ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never
   )
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
-  createListing = vi.spyOn(hostApi, 'createListing').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+  createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
   fakePlaces()
 })
 afterEach(() => vi.restoreAllMocks())
@@ -108,14 +107,14 @@ describe('New organization — with its first branch (UX-20, NEW-167)', () => {
   })
 
   it('is blocked, with the mobile wording, while the previous organization is a draft or waiting for review', async () => {
-    orgQuota.mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: false, blockingListingStatus: 'DRAFT' }) as never)
+    orgQuota.mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: false, blockingBusinessStatus: 'DRAFT' }) as never)
     mount(ownerContext)
     expect(await screen.findByText('Complete and submit your current organization before adding another.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /new organization/i })).toBeDisabled()
   })
 
   it('under review: asks to wait for approval', async () => {
-    orgQuota.mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: false, blockingListingStatus: 'PENDING' }) as never)
+    orgQuota.mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: false, blockingBusinessStatus: 'PENDING' }) as never)
     mount(ownerContext)
     expect(await screen.findByText('Your current organization must be approved before you can add another.')).toBeInTheDocument()
   })
@@ -129,14 +128,14 @@ describe('New organization — with its first branch (UX-20, NEW-167)', () => {
 })
 
 describe('New organization — build a new branch', () => {
-  it('creates it on POST /host/listings with branchSource "new" and a first plan, then refreshes everything it touches', async () => {
+  it('creates it on POST /host/businesses with a first plan, then refreshes everything it touches', async () => {
     mount(ownerContext)
     const dialog = await buildNewForm()
     fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
     const body = createListing.mock.calls[0][0]
-    expect(body).toMatchObject({ gymName: 'Peak Fitness', gymDescription: 'A new gym', genderType: 'MIXED', branchSource: 'new', address: '12 Mall Road', cityId: 7 })
+    expect(body).toMatchObject({ businessName: 'Peak Fitness', businessDescription: 'A new gym', genderType: 'MIXED', address: '12 Mall Road', cityId: 7 })
     expect(body.packages.length).toBeGreaterThan(0)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(getListings.mock.calls.length).toBeGreaterThan(1)

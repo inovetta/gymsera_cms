@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import TenantDetailPage from '@/app/(dashboard)/admin/tenants/[id]/page'
+import TenantDetailPage from '@/app/(dashboard)/admin/organizations/[id]/page'
 import { adminApi } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
 import { citiesApi } from '@/lib/api/cities'
@@ -16,27 +16,27 @@ vi.mock('@/components/layout/header', () => ({ Header: () => <div data-testid="h
 vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({ user: { id: 'a', email: 'admin@example.test' }, isPlatformAdmin: true }),
 }))
-vi.mock('@/components/features/gym-listing-tab', () => ({ GymListingTab: () => <div data-testid="gym-listing-tab" /> }))
+vi.mock('@/components/features/business-tab', () => ({ BusinessTab: () => <div data-testid="business-tab" /> }))
 
 const tenant = {
   id: 'tenant-1',
-  businessName: 'Iron Works',
+  organizationName: 'Iron Works',
   status: 'ACTIVE',
   email: 'owner@example.test',
   createdAt: '2026-01-01T00:00:00Z',
-  organizations: [],
+  businesses: [],
 }
 
 function spies() {
   return {
-    getTenant: vi.spyOn(adminApi, 'getTenant').mockResolvedValue(ok({ tenant }) as never),
-    getTenantSubscriptions: vi.spyOn(adminApi, 'getTenantSubscriptions').mockResolvedValue(ok({ subscriptions: [] }) as never),
-    getTenantKycDocuments: vi.spyOn(adminApi, 'getTenantKycDocuments').mockResolvedValue(ok([]) as never),
-    getTenantInvoices: vi.spyOn(adminApi, 'getTenantInvoices').mockResolvedValue(ok({ invoices: [] }) as never),
-    getTenantBranches: vi.spyOn(adminApi, 'getTenantBranches').mockResolvedValue(ok({ branches: [] }) as never),
-    getTenantMembers: vi.spyOn(adminApi, 'getTenantMembers').mockResolvedValue(ok({ members: [] }) as never),
-    getTenantMembershipPlans: vi.spyOn(adminApi, 'getTenantMembershipPlans').mockResolvedValue(ok({ plans: [] }) as never),
-    getTenantCapacityAudit: vi.spyOn(adminApi, 'getTenantCapacityAudit').mockResolvedValue(ok({ audit: null }) as never),
+    getTenant: vi.spyOn(adminApi, 'getOrganization').mockResolvedValue(ok({ organization: tenant }) as never),
+    getTenantSubscriptions: vi.spyOn(adminApi, 'getSubscriptions').mockResolvedValue(ok({ subscriptions: [] }) as never),
+    getTenantKycDocuments: vi.spyOn(adminApi, 'getOrganizationKycDocuments').mockResolvedValue(ok([]) as never),
+    getTenantInvoices: vi.spyOn(adminApi, 'getInvoices').mockResolvedValue(ok({ invoices: [] }) as never),
+    getTenantBranches: vi.spyOn(adminApi, 'getOrganizationBranches').mockResolvedValue(ok({ branches: [] }) as never),
+    getTenantMembers: vi.spyOn(adminApi, 'getOrganizationMembers').mockResolvedValue(ok({ members: [] }) as never),
+    getTenantMembershipPlans: vi.spyOn(adminApi, 'getOrganizationMembershipPlans').mockResolvedValue(ok({ plans: [] }) as never),
+    getTenantCapacityAudit: vi.spyOn(adminApi, 'getCapacityAudit').mockResolvedValue(ok({ audit: null }) as never),
     getPackages: vi.spyOn(packagesApi, 'getPackages').mockResolvedValue(ok([]) as never),
     getCities: vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never),
   }

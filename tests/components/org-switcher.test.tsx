@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { Sidebar } from '@/components/layout/sidebar'
 import apiClient from '@/lib/api/client'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { approvalsApi } from '@/lib/api/approvals'
 import { useSelectedOrgStore } from '@/stores/selected-org.store'
 import { ok } from '../fixtures/team'
@@ -28,7 +28,7 @@ const sent: Array<{ url?: string; tenant?: unknown }> = []
 const renderSidebar = (context: MyContext, extra?: React.ReactNode) => {
   vi.spyOn(meApi, 'getContext').mockImplementation(async () => {
     // What the real call does once the response is in: keep or drop the stored choice.
-    useSelectedOrgStore.getState().reconcile(context.organizations.map((o) => o.tenantId))
+    useSelectedOrgStore.getState().reconcile(context.organizations.map((o) => o.organizationId))
     return ok(context) as never
   })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -52,12 +52,12 @@ const menu = async () => {
 beforeEach(() => {
   sent.length = 0
   localStorage.clear()
-  useSelectedOrgStore.setState({ tenantId: null })
+  useSelectedOrgStore.setState({ organizationId: null })
   apiClient.defaults.adapter = async (config) => {
-    sent.push({ url: config.url, tenant: (config.headers as any)?.get?.('X-Tenant-Id') })
+    sent.push({ url: config.url, tenant: (config.headers as any)?.get?.('X-Organization-Id') })
     return { data: { success: true, data: {} }, status: 200, statusText: 'OK', headers: {}, config }
   }
-  vi.spyOn(tenantsApi, 'getMyTenant').mockRejectedValue(new Error('owner-only'))
+  vi.spyOn(organizationsApi, 'getMine').mockRejectedValue(new Error('owner-only'))
   vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
 })
 afterEach(() => {
@@ -79,7 +79,7 @@ describe('Organization switcher (Prompt 3B)', () => {
     expect(select.value).toBe('tenant-a')
   })
 
-  it('choosing another organization sends it as X-Tenant-Id', async () => {
+  it('choosing another organization sends it as X-Organization-Id', async () => {
     renderSidebar(twoOrgContext)
     fireEvent.change((await screen.findAllByLabelText('Organization'))[0], { target: { value: 'tenant-b' } })
 
@@ -115,7 +115,7 @@ describe('Organization switcher (Prompt 3B)', () => {
   })
 
   it('remembers the choice across a reload', async () => {
-    localStorage.setItem('gymsera_selected_tenant', 'tenant-b')
+    localStorage.setItem('gymsera_selected_organization', 'tenant-b')
     renderSidebar(twoOrgContext)
 
     const select = (await screen.findAllByLabelText('Organization'))[0] as HTMLSelectElement
@@ -126,13 +126,13 @@ describe('Organization switcher (Prompt 3B)', () => {
   })
 
   it('ignores a remembered organization the person no longer belongs to', async () => {
-    localStorage.setItem('gymsera_selected_tenant', 'tenant-gone')
+    localStorage.setItem('gymsera_selected_organization', 'tenant-gone')
     renderSidebar(twoOrgContext)
 
     const select = (await screen.findAllByLabelText('Organization'))[0] as HTMLSelectElement
     expect(select.value).toBe('tenant-a')
     await apiClient.get('/team')
     expect(sent[sent.length - 1].tenant).toBeFalsy()
-    expect(localStorage.getItem('gymsera_selected_tenant')).toBeNull()
+    expect(localStorage.getItem('gymsera_selected_organization')).toBeNull()
   })
 })

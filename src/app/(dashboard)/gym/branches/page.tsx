@@ -10,8 +10,8 @@ import { StatusBadge } from '@/components/features/status-badge'
 import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import { CapacityBanner } from '@/components/features/capacity-banner'
 import { BillingNotices } from '@/components/features/billing-notices'
-import { OrganizationStrip } from '@/components/features/organization-strip'
-import { visibleOrganizations } from '@/lib/organizations/profile'
+import { BusinessStrip } from '@/components/features/business-strip'
+import { visibleBusinesses } from '@/lib/organizations/profile'
 import { BranchLimitDialog } from '@/components/features/branch-limit-dialog'
 import { LastBranchDialog } from '@/components/features/last-branch-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
@@ -33,7 +33,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import { Branch } from '@/types'
 import { useToast } from '@/hooks/use-toast'
@@ -183,10 +183,10 @@ export default function BranchesPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   // The host console routes (capacity, add, delete, restore) are the owner's.
-  const { isTenantOwner, organization } = useGymAccess()
+  const { isOrganizationOwner, organization } = useGymAccess()
   // Pause / resume: whoever may change the branch's settings (R-81 item 2).
   const canPauseBranch = (branchId: string) => {
-    if (isTenantOwner) return true
+    if (isOrganizationOwner) return true
     const perms = [...(organization?.orgPermissions ?? []), ...(organization?.branches?.find((b) => b.id === branchId)?.permissions ?? [])]
     return perms.includes('*') || perms.includes('branch.settings')
   }
@@ -198,11 +198,11 @@ export default function BranchesPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [form, setForm] = useState<BranchFormState>(defaultForm())
   const [facilityInput, setFacilityInput] = useState('')
-  const [selectedListingId, setSelectedListingId] = useState<string | undefined>()
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | undefined>()
   const [formError, setFormError] = useState<string | null>(null)
   const [limitBlock, setLimitBlock] = useState<{ message: string; isOverQuota: boolean } | null>(null)
   const [lastCreate, setLastCreate] = useState<CreateHostBranchPayload | null>(null)
-  const [lastBranchPrompt, setLastBranchPrompt] = useState<{ id: string; branchName: string; password?: string; organizationName: string | null } | null>(null)
+  const [lastBranchPrompt, setLastBranchPrompt] = useState<{ id: string; branchName: string; password?: string; businessName: string | null } | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<Branch | null>(null)
   const [restoreLimit, setRestoreLimit] = useState<{ message: string; isOverQuota: boolean } | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
@@ -212,14 +212,14 @@ export default function BranchesPage() {
   // branches (the mobile Gyms tab). Anyone else gets the branches they have a grant at.
   // Organization limit and the sequential-approval gate (mobile listings_overview_screen.dart).
   const orgQuotaQuery = useQuery({
-    queryKey: ['organization-quota'],
-    queryFn: () => hostApi.getOrganizationQuota(),
-    enabled: isTenantOwner,
+    queryKey: ['business-quota'],
+    queryFn: () => hostApi.getBusinessQuota(),
+    enabled: isOrganizationOwner,
     retry: false,
   })
   const orgQuota = orgQuotaQuery.data?.data
-  const canCreateOrganization = orgQuota?.canCreateNext ?? true
-  const blockingStatus = orgQuota?.blockingListingStatus ?? null
+  const canCreateOrganization = orgQuota?.canAddBusiness ?? true
+  const blockingStatus = orgQuota?.blockingBusinessStatus ?? null
   const orgBlockMessage = canCreateOrganization
     ? null
     : blockingStatus === 'DRAFT'
@@ -229,34 +229,34 @@ export default function BranchesPage() {
         : 'You have reached the organization limit of your plan.'
 
   const listingsQuery = useQuery({
-    queryKey: ['host-listings'],
-    queryFn: () => hostApi.getListings(),
-    enabled: isTenantOwner,
+    queryKey: ['host-businesses'],
+    queryFn: () => hostApi.getBusinesses(),
+    enabled: isOrganizationOwner,
   })
-  const displayListings = visibleOrganizations(listingsQuery.data?.data ?? [])
-  const listingId =
-    displayListings.find((l) => l.id === selectedListingId)?.id ?? displayListings[0]?.id
+  const displayBusinesses = visibleBusinesses(listingsQuery.data?.data ?? [])
+  const businessId =
+    displayBusinesses.find((l) => l.id === selectedBusinessId)?.id ?? displayBusinesses[0]?.id
 
   const branchesQuery = useQuery({
-    queryKey: ['branches', isTenantOwner ? `listing:${listingId ?? 'none'}` : 'scoped'],
+    queryKey: ['branches', isOrganizationOwner ? `business:${businessId ?? 'none'}` : 'scoped'],
     queryFn: async (): Promise<{ data?: { branches?: Branch[] } }> =>
-      (isTenantOwner ? await hostApi.getListingBranches(listingId as string) : await gymApi.getBranches()) as unknown as {
+      (isOrganizationOwner ? await hostApi.getBusinessBranches(businessId as string) : await organizationsApi.getBranches()) as unknown as {
         data?: { branches?: Branch[] }
       },
-    enabled: isTenantOwner ? !!listingId : true,
+    enabled: isOrganizationOwner ? !!businessId : true,
   })
   const branchesData = branchesQuery.data
   // Deleted (INACTIVE) branches of the selected organization, for "restore a deleted branch".
   const deletedQuery = useQuery({
-    queryKey: ['branches', `deleted:${listingId ?? 'none'}`],
-    queryFn: () => hostApi.getListingBranches(listingId as string, true),
-    enabled: isTenantOwner && !!listingId,
+    queryKey: ['branches', `deleted:${businessId ?? 'none'}`],
+    queryFn: () => hostApi.getBusinessBranches(businessId as string, true),
+    enabled: isOrganizationOwner && !!businessId,
   })
   const deletedBranches = ((deletedQuery.data?.data?.branches ?? []) as unknown as Branch[]).filter(
     (b) => b.status?.toUpperCase() === 'INACTIVE'
   )
 
-  const isLoading = isTenantOwner ? listingsQuery.isLoading || branchesQuery.isLoading : branchesQuery.isLoading
+  const isLoading = isOrganizationOwner ? listingsQuery.isLoading || branchesQuery.isLoading : branchesQuery.isLoading
 
   const { data: citiesData } = useQuery({
     queryKey: ['cities'],
@@ -309,8 +309,8 @@ export default function BranchesPage() {
     mutationFn: (payload: CreateHostBranchPayload) => hostApi.createBranch(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
-      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
-      queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
+      queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
+      queryClient.invalidateQueries({ queryKey: ['business-quota'] })
       invalidateBranchCapacity(queryClient)
       setDialogOpen(false)
       setLimitBlock(null)
@@ -330,7 +330,7 @@ export default function BranchesPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<BranchFormState> }) =>
-      gymApi.updateBranch(id, payload as any),
+      organizationsApi.updateBranch(id, payload as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
       setDialogOpen(false)
@@ -341,20 +341,20 @@ export default function BranchesPage() {
   })
 
   // Delete = DELETE /host/branches/:id with the owner's credentials (re-auth). The server
-  // answers 401 for wrong credentials and 409 `last_branch_in_organization` when this is the
-  // organization's last branch; we ask first, then send again with the confirmation.
+  // answers 401 for wrong credentials and 409 `last_branch_in_business` when this is the
+  // business's last branch; we ask first, then send again with the confirmation.
   const deleteMutation = useMutation({
-    mutationFn: ({ id, password, confirmOrganizationDeletion }: { id: string; branchName: string; password?: string; confirmOrganizationDeletion?: boolean }) =>
+    mutationFn: ({ id, password, confirmBusinessDeletion }: { id: string; branchName: string; password?: string; confirmBusinessDeletion?: boolean }) =>
       hostApi.deleteBranch(id, {
         ...(password ? { password } : {}),
-        ...(confirmOrganizationDeletion ? { confirmOrganizationDeletion: true } : {}),
+        ...(confirmBusinessDeletion ? { confirmBusinessDeletion: true } : {}),
       }),
     onSuccess: (res) => {
       // P5b item 7: the organization went with its last branch, and the store plan still renews.
       if (res?.data?.storePlanNotice) setStoreNotice(res.data.storePlanNotice)
       queryClient.invalidateQueries({ queryKey: ['branches'] })
-      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
-      queryClient.invalidateQueries({ queryKey: ['organization-quota'] })
+      queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
+      queryClient.invalidateQueries({ queryKey: ['business-quota'] })
       queryClient.invalidateQueries({ queryKey: ['members'] })
       queryClient.invalidateQueries({ queryKey: ['plans'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -364,7 +364,7 @@ export default function BranchesPage() {
       setDeactivateTarget(null)
       setLastBranchPrompt(null)
       setDeleteError(null)
-      toast({ title: res?.data?.organizationDeleted ? 'Branch and organization closed' : 'Branch closed' })
+      toast({ title: res?.data?.businessDeleted ? 'Branch and business closed' : 'Branch closed' })
     },
     onError: (err: any, vars) => {
       // P5b item 3: open members, bookings or payments: say why and offer to pause instead.
@@ -376,13 +376,13 @@ export default function BranchesPage() {
         setDeleteBlocked({ ...blocked, branchId: blocked.branchId ?? vars.id })
         return
       }
-      if (err?.response?.status === 409 && err?.response?.data?.code === 'last_branch_in_organization') {
+      if (err?.response?.status === 409 && err?.response?.data?.code === 'last_branch_in_business') {
         setDeactivateTarget(null)
         setLastBranchPrompt({
           id: vars.id,
           branchName: vars.branchName,
           password: vars.password,
-          organizationName: err?.response?.data?.data?.organizationName ?? null,
+          businessName: err?.response?.data?.data?.businessName ?? null,
         })
         return
       }
@@ -415,7 +415,7 @@ export default function BranchesPage() {
     mutationFn: (branch: Branch) => hostApi.restoreBranch(branch.id),
     onSuccess: (_res, branch) => {
       queryClient.invalidateQueries({ queryKey: ['branches'] })
-      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
+      queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
       invalidateBranchCapacity(queryClient)
       setRestoreTarget(null)
       setRestoreLimit(null)
@@ -515,7 +515,7 @@ export default function BranchesPage() {
       // The body the mobile wizard sends to POST /host/branches, for the selected organization.
       const hostPayload: CreateHostBranchPayload = {
         branchName: form.branchName.trim(),
-        ...(listingId ? { gymListingId: listingId } : {}),
+        businessId: businessId as string,
         address: form.address.trim(),
         cityId: form.cityId,
         ...areaPayload(location), // NEW-265
@@ -547,7 +547,7 @@ export default function BranchesPage() {
           title="Branches"
           description={`${branches.length} branch${branches.length !== 1 ? 'es' : ''} total`}
           action={
-            isTenantOwner ? (
+            isOrganizationOwner ? (
               <div className="flex items-center gap-2">
                 <Button variant="outline" disabled={!canCreateOrganization} onClick={() => setNewOrgOpen(true)}>
                   New Organization
@@ -561,15 +561,15 @@ export default function BranchesPage() {
           }
         />
 
-        {isTenantOwner && orgBlockMessage && (
+        {isOrganizationOwner && orgBlockMessage && (
           <p className="-mt-3 mb-4 text-right text-xs text-muted-foreground">{orgBlockMessage}</p>
         )}
 
-        {isTenantOwner && (
-          <OrganizationStrip listings={displayListings} selectedId={listingId} onSelect={setSelectedListingId} />
+        {isOrganizationOwner && (
+          <BusinessStrip businesses={displayBusinesses} selectedId={businessId} onSelect={setSelectedBusinessId} />
         )}
 
-        {isTenantOwner && (
+        {isOrganizationOwner && (
           <div className="mb-6 space-y-3">
             <BillingNotices />
             <CapacityBanner />
@@ -585,7 +585,7 @@ export default function BranchesPage() {
             icon={MapPin}
             title="No branches yet"
             description="Add your first gym branch to get started"
-            action={isTenantOwner ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Branch</Button> : undefined}
+            action={isOrganizationOwner ? <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Branch</Button> : undefined}
           />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -595,7 +595,7 @@ export default function BranchesPage() {
                 branch={branch}
                 onEdit={openEdit}
                 onDeactivate={handleOpenDelete}
-                canDelete={isTenantOwner}
+                canDelete={isOrganizationOwner}
                 canPause={canPauseBranch(branch.id)}
                 onTogglePause={(b) => pauseMutation.mutate({ branch: b, pause: !b.pausedAt })}
               />
@@ -604,7 +604,7 @@ export default function BranchesPage() {
         )}
       </div>
 
-      {isTenantOwner && deletedBranches.length > 0 && (
+      {isOrganizationOwner && deletedBranches.length > 0 && (
         <div className="px-6 pb-6">
           <h3 className="mb-3 text-base font-semibold">Deleted branches</h3>
           {restoreError && (
@@ -807,7 +807,7 @@ export default function BranchesPage() {
       <NewOrganizationDialog
         open={newOrgOpen}
         onOpenChange={setNewOrgOpen}
-        onCreated={(id) => id && setSelectedListingId(id)}
+        onCreated={(id) => id && setSelectedBusinessId(id)}
       />
 
       <BranchLimitDialog
@@ -844,7 +844,7 @@ export default function BranchesPage() {
       <LastBranchDialog
         open={!!lastBranchPrompt}
         branchName={lastBranchPrompt?.branchName ?? ''}
-        organizationName={lastBranchPrompt?.organizationName}
+        businessName={lastBranchPrompt?.businessName}
         actionLabel="Delete anyway"
         loading={deleteMutation.isPending}
         onCancel={() => setLastBranchPrompt(null)}
@@ -854,7 +854,7 @@ export default function BranchesPage() {
             id: lastBranchPrompt.id,
             branchName: lastBranchPrompt.branchName,
             password: lastBranchPrompt.password,
-            confirmOrganizationDeletion: true,
+            confirmBusinessDeletion: true,
           })
         }
       />

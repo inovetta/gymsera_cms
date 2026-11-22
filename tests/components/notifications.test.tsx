@@ -145,15 +145,15 @@ describe('deep links: server mobile routes map to CMS pages', () => {
     ['/host/profile', '/gym/profile'],
     ['/host/gyms/branch-9/staff', '/gym/team'],
     ['/host/gyms/branch-9/staff-requests', '/gym/team'],
-    ['/admin/tenants/tenant-5', '/admin/tenants/tenant-5'],
+    ['/admin/organizations/tenant-5', '/admin/organizations/tenant-5'],
     ['/notifications', '/notifications'],
   ])('%s opens %s', (link, expected) => {
     expect(resolveNotificationPath(link)).toBe(expected)
   })
 
-  it('fills the tenant template from the metadata', () => {
-    expect(resolveNotificationPath('/admin/tenants/[tenantId]', { tenantId: 't-7' })).toBe('/admin/tenants/t-7')
-    expect(resolveNotificationPath('/admin/tenants/[tenantId]', {})).toBeNull()
+  it('fills the organization template from the metadata', () => {
+    expect(resolveNotificationPath('/admin/organizations/[organizationId]', { organizationId: 't-7' })).toBe('/admin/organizations/t-7')
+    expect(resolveNotificationPath('/admin/organizations/[organizationId]', {})).toBeNull()
   })
 
   it('has no page for the traveler screens or the host inbox: stays put, never a 404', () => {

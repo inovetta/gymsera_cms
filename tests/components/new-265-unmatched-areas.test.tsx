@@ -28,10 +28,10 @@ const GROUP: AreaRequestGroup = {
   name: 'Shinwari Town',
   source: 'typed',
   googlePlaceId: null,
-  gymCount: 2,
-  gyms: [
-    { tenantId: 't1', listingId: null, branchId: null, title: 'Iron Gym', latitude: 34.01, longitude: 71.51 },
-    { tenantId: 't2', listingId: null, branchId: 'b2', title: 'Fit Hub', latitude: null, longitude: null },
+  businessCount: 2,
+  businesses: [
+    { organizationId: 't1', businessId: null, branchId: null, name: 'Iron Gym', latitude: 34.01, longitude: 71.51 },
+    { organizationId: 't2', businessId: null, branchId: 'b2', name: 'Fit Hub', latitude: null, longitude: null },
   ],
   requestedBy: [{ userId: 'u1', name: 'Hira Khan' }, { userId: 'u2', name: 'Ali Raza' }],
   firstRequestedAt: '2026-11-16T10:00:00.000Z',
@@ -63,7 +63,7 @@ describe('NEW-265: Unmatched areas queue', () => {
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending_review' }))
     expect(within(card).getByText('Shinwari Town')).toBeInTheDocument()
     expect(within(card).getByText(/peshawar/i)).toBeInTheDocument()
-    expect(within(card).getByText(/2 gyms/i)).toBeInTheDocument()
+    expect(within(card).getByText(/2 businesses/i)).toBeInTheDocument()
     expect(within(card).getByText(/hira khan, ali raza/i)).toBeInTheDocument()
     expect(within(card).getByText('Iron Gym')).toBeInTheDocument()
     expect(within(card).getByRole('link', { name: /iron gym on the map/i })).toHaveAttribute('href', expect.stringContaining('34.01,71.51'))
@@ -81,7 +81,7 @@ describe('NEW-265: Unmatched areas queue', () => {
   })
 
   it('approve with a pin sends the coordinates; one request only when "every request" is unticked', async () => {
-    const approve = vi.spyOn(areaRequestsApi, 'approve').mockResolvedValue(ok({ area: { id: 40, name: 'Shinwari' }, decided: 1, propagated: 1, failed: [{ tenantId: 't2', error: 'branch_not_found' }] }) as never)
+    const approve = vi.spyOn(areaRequestsApi, 'approve').mockResolvedValue(ok({ area: { id: 40, name: 'Shinwari' }, decided: 1, propagated: 1, failed: [{ organizationId: 't2', error: 'branch_not_found' }] }) as never)
     const card = await openTab()
     fireEvent.click(within(card).getByRole('button', { name: /^approve$/i }))
     const dialog = await screen.findByRole('dialog')
@@ -90,7 +90,7 @@ describe('NEW-265: Unmatched areas queue', () => {
     fireEvent.click(within(dialog).getByLabelText(/every request with this spelling/i))
     fireEvent.click(within(dialog).getByRole('button', { name: /^approve area$/i }))
     await waitFor(() => expect(approve).toHaveBeenCalledWith(11, { name: 'Shinwari', latitude: 34.02, longitude: 71.6, applyToGroup: false }))
-    expect(await screen.findByText(/1 gym could not be updated/i)).toBeInTheDocument()
+    expect(await screen.findByText(/1 business could not be updated/i)).toBeInTheDocument()
   })
 
   it('merge into an existing area of the city', async () => {

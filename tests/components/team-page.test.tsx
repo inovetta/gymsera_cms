@@ -6,7 +6,7 @@ import TeamPage from '@/app/(dashboard)/gym/team/page'
 import { RoleFilterChips } from '@/components/features/team/role-filter-chips'
 import { InviteMemberDialog } from '@/components/features/team/invite-member-dialog'
 import { teamApi, TeamMember } from '@/lib/api/team'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import {
   apiError,
   branches,
@@ -52,7 +52,7 @@ beforeEach(() => {
   memberParam = null
   vi.spyOn(teamApi, 'getRoles').mockResolvedValue(ok({ roles: rolesForOwner, myLevel: 100, isOwner: true }) as never)
   vi.spyOn(teamApi, 'getPermissionCatalogue').mockResolvedValue(ok({ modules: catalogue }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 

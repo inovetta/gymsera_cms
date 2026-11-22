@@ -12,17 +12,17 @@ const apiClient: AxiosInstance = axios.create({
 })
 
 // Calls that must not carry an organization: /me/context is what lists them, and /auth/* is
-// about the account, not a gym.
+// about the account, not an organization.
 const isOrganizationFree = (url?: string) => !!url && (url.startsWith('/me/context') || url.startsWith('/auth/'))
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // OBS-01: one id per call. Set only when absent, so a caller's own id and the replay of the same
   // request after a token refresh keep theirs.
   if (!config.headers.has('X-Request-Id')) config.headers.set('X-Request-Id', newRequestId())
-  // The organization chosen in the switcher, sent the way the mobile team workspace does.
-  const tenantId = useSelectedOrgStore.getState().tenantId
-  if (tenantId && !isOrganizationFree(config.url)) {
-    config.headers.set('X-Tenant-Id', tenantId)
+  // The organization chosen in the switcher (contract v2 §1 rule 2: X-Organization-Id).
+  const organizationId = useSelectedOrgStore.getState().organizationId
+  if (organizationId && !isOrganizationFree(config.url)) {
+    config.headers.set('X-Organization-Id', organizationId)
   }
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('gymsera_access_token')

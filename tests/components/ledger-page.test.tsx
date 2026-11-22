@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import LedgerPage from '@/app/(dashboard)/gym/ledger/page'
 import { ledgerApi } from '@/lib/api/ledger'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext, withPermissions } from '../fixtures/context'
 
@@ -60,7 +60,7 @@ const renderPage = (context: MyContext = manager) => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   today = vi.spyOn(ledgerApi, 'today').mockResolvedValue(ok(day()) as never)
   openDays = vi.spyOn(ledgerApi, 'openDays').mockResolvedValue(ok({ days: [] }) as never)
   vi.spyOn(ledgerApi, 'weekly').mockResolvedValue(ok({ fromDate: '2026-10-05', toDate: '2026-10-11', totals: day().totals, byMethod: {}, byCollector: [], perDay: [] }) as never)

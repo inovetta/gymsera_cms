@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Sidebar } from '@/components/layout/sidebar'
 import { meApi, MyContext } from '@/lib/api/me'
 import { approvalsApi } from '@/lib/api/approvals'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { apiError, ok } from '../fixtures/team'
 import { branchManagerContext, orgAdminContext, ownerContext, plainMemberContext, twoOrgContext } from '../fixtures/context'
 import { useSelectedOrgStore } from '@/stores/selected-org.store'
@@ -41,7 +41,7 @@ const GYM_PAGES = [
 ]
 
 let getContext: ReturnType<typeof vi.spyOn>
-let getMyTenant: ReturnType<typeof vi.spyOn>
+let getMine: ReturnType<typeof vi.spyOn>
 let listApprovals: ReturnType<typeof vi.spyOn>
 
 const renderSidebar = (context: MyContext) => {
@@ -67,7 +67,7 @@ const menu = async () => {
 beforeEach(() => {
   accountRole = 'MEMBER'
   // A team member is not the tenant owner: the owner-only tenant endpoint refuses them.
-  getMyTenant = vi.spyOn(tenantsApi, 'getMyTenant').mockRejectedValue(apiError(403, 'Forbidden'))
+  getMine = vi.spyOn(organizationsApi, 'getMine').mockRejectedValue(apiError(403, 'Forbidden'))
   listApprovals = vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -83,7 +83,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     // Owner-only account pages stay hidden, and the owner-only tenant endpoint is not called.
     expect(titles).not.toContain('Subscription & Billing')
     expect(getContext).toHaveBeenCalledTimes(1)
-    expect(getMyTenant).not.toHaveBeenCalled()
+    expect(getMine).not.toHaveBeenCalled()
   })
 
   it('a plain member sees no gym pages', async () => {
@@ -127,7 +127,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
 
   it('the owner still sees everything, including the account settings', async () => {
     accountRole = 'GYM_HOST'
-    getMyTenant.mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+    getMine.mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     renderSidebar(ownerContext)
 
     expect(await menu()).toEqual(['Dashboard', ...GYM_PAGES, 'Business Profile', 'Subscription & Billing'])
@@ -135,7 +135,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
 
   it('an owner whose organization is not active sees the settings but no gym pages (unchanged)', async () => {
     accountRole = 'GYM_HOST'
-    getMyTenant.mockResolvedValue(ok({ tenant: { status: 'SUSPENDED' }, subscription: null }) as never)
+    getMine.mockResolvedValue(ok({ organization: { status: 'SUSPENDED' }, subscription: null }) as never)
     renderSidebar(ownerContext)
 
     expect(await menu()).toEqual(['Dashboard', 'Business Profile', 'Subscription & Billing'])
@@ -154,17 +154,17 @@ describe('Sidebar — menu follows effective permissions, not the account role (
 
   it('A GYM_HOST who owns gym A and is Branch Manager at gym B does not see Settings while B is selected (NEW-46d)', async () => {
     accountRole = 'GYM_HOST'
-    getMyTenant.mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+    getMine.mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     const hostDualContext: MyContext = {
       ...twoOrgContext,
       user: { id: 'user-1', fullName: 'Host User', platformRole: 'GYM_HOST', isHost: true },
       organizations: [
-        { ...ownerContext.organizations[0], tenantId: 'tenant-a', name: 'Owned Gym A', isOwner: true },
-        { ...branchManagerContext.organizations[0], tenantId: 'tenant-b', name: 'Managed Gym B', isOwner: false },
+        { ...ownerContext.organizations[0], organizationId: 'tenant-a', name: 'Owned Gym A', isOwner: true },
+        { ...branchManagerContext.organizations[0], organizationId: 'tenant-b', name: 'Managed Gym B', isOwner: false },
       ],
     }
 
-    useSelectedOrgStore.setState({ tenantId: 'tenant-b' })
+    useSelectedOrgStore.setState({ organizationId: 'tenant-b' })
     renderSidebar(hostDualContext)
 
     const titles = await menu()

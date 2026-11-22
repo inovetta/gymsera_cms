@@ -5,11 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AttendancePage from '@/app/(dashboard)/gym/attendance/page'
 import { attendanceApi } from '@/lib/api/attendance'
 import { reportsApi } from '@/lib/api/reports'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { hostApi } from '@/lib/api/host'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext, withPermissions } from '../fixtures/context'
 
@@ -55,7 +54,7 @@ context.organizations[0].branches[0].id = BRANCH_1
 
 const renderPage = (ctx: MyContext = context, branches = [{ id: BRANCH_1, branchName: 'Uptown' }]) => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ctx) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -78,7 +77,7 @@ const submit = async (email = 'ali@example.test') => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(attendanceApi, 'getTodayAttendance').mockResolvedValue(ok({ logs: [] }) as never)
   vi.spyOn(attendanceApi, 'getAttendance').mockResolvedValue(ok({ logs: [] }) as never)
   vi.spyOn(reportsApi, 'getWeeklyAttendance').mockResolvedValue(ok({ data: [] }) as never)

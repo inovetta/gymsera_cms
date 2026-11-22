@@ -2,13 +2,20 @@ import apiClient from './client'
 import { ApiResponse } from '@/types'
 
 /**
- * Host console API (Prompt 3B). The same /host/* endpoints the mobile app calls for its
- * organization strip, capacity banner, add / delete / restore branch and new organization
- * (gyms_era/lib/features/gym_host/data/repositories/gyms_repository.dart). Owner only: the
- * server answers 403 to anyone else.
+ * Host console API (Prompt 3B), in the names of API contract v2 (R-120,
+ * gymsera_be docs/API_CONTRACT_V2.md): Organization › Business › Branch, one `businessId`.
+ * Owner only: the server answers 403 to anyone else.
  */
 
-/** GET /host/branch-quota — tenant-wide capacity (one shared pool across every organization). */
+/** The organization-wide pool (contract v2 §3 BranchQuota `pool`, enterprise D7). */
+export interface CapacityPool {
+  max: number
+  used: number
+  reserved: number
+  free: number
+}
+
+/** GET /host/branch-quota[?businessId=]: one capacity pool across every business of the organization. */
 export interface BranchQuota {
   maxBranches: number
   usedBranches: number
@@ -19,58 +26,85 @@ export interface BranchQuota {
   overQuotaGraceDays?: number
   overQuotaGraceRemainingDays?: number | null
   isOverQuotaGraceExpired?: boolean
-  /** Only with ?organizationId= */
-  organizationBranches?: number
-  organizationReservedSlots?: number
+  /** Organization-wide pool (new in contract v2). */
+  pool?: CapacityPool
+  /** Only with ?businessId= */
+  businessBranches?: number
+  businessReservedSlots?: number
 }
 
-/** GET /host/organization-quota */
-export interface OrganizationQuota {
-  maxOrganizations: number
-  usedOrganizations?: number
-  remainingOrganizations?: number
-  canCreateNext: boolean
-  blockingListingStatus: string | null
-  hasOrganizationLimit?: boolean
+/** Business approval state (contract v2 §5: business `kycStatus`). */
+export type BusinessKycStatus = 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED'
+/** What a business still needs before an admin can approve it (contract v2 §5, enterprise D10). */
+export type MissingForApproval = 'PROOF_OF_PREMISES' | 'PHOTOS_MIN_3'
+/** Business document types (contract v2 §5, enterprise D10). */
+export type BusinessDocumentType = 'PROOF_OF_PREMISES' | 'BUSINESS_REGISTRATION'
+
+/** One uploaded business document (same shape as the organization's documents, R-85). */
+export interface BusinessDocument {
+  documentId: string
+  originalName: string
+  mimetype: string
+  size: number
+  documentType?: BusinessDocumentType | string
+  uploadedAt: string
+  streamUrl: string
 }
 
-/** An "organization" in the host console: a gym listing inside the tenant. */
-export interface HostListing {
+/**
+ * Contract v2 §3 "Business": one business of the organization (GET /host/businesses and
+ * /host/businesses/:businessId). `id` is the one business id (option S).
+ */
+export interface Business {
   id: string
-  title: string
-  status: string
-  reservedSlots?: number
-}
-
-/** GET /host/listings/:id: one organization and its own gym details (NEW-196; mobile P5 BUG-22). */
-export interface HostOrganization extends HostListing {
-  shortDescription?: string | null
-  genderType?: string | null
-  contactPhone?: string | null
+  organizationId?: string
+  primaryBranchId?: string | null
+  cityId?: number | null
+  areaId?: number | null
+  name: string
+  description?: string | null
   logoUrl?: string | null
   coverImageUrl?: string | null
+  genderType?: string | null
+  contactPhone?: string | null
+  website?: string | null
+  facilitiesJson?: unknown
   imagesJson?: string[] | null
   category?: string | null
   establishedYear?: number | null
-  website?: string | null
-  gym: {
-    id?: string
-    name?: string | null
-    description?: string | null
-    genderType?: string | null
-    contactPhone?: string | null
-    contactEmail?: string | null
-    website?: string | null
-    logoUrl?: string | null
-    coverImageUrl?: string | null
-    imagesJson?: string[] | null
-  } | null
+  status: string
+  reservedSlots?: number
+  rejectionReason?: string | null
+  createdAt?: string
+  kycStatus?: BusinessKycStatus
+  kycDocuments?: BusinessDocument[]
+  kycSubmittedAt?: string | null
+  approvedAt?: string | null
+  verifiedAt?: string | null
+  /** D11: registration checked by GymsEra. Never affects visibility. */
+  businessVerified?: boolean
+  /** Only an approved (ACTIVE) business may receive branches (D7). */
+  canReceiveBranches?: boolean
+  travellerVisible?: boolean
+  branchCount?: number
+  /** Add Business holds the first branch until approval (Q2). */
+  heldFirstBranch?: boolean
+  missingForApproval?: MissingForApproval[]
+  firstBranchDraft?: Record<string, unknown> | null
 }
 
-/** PATCH /host/listings/:id. Empty text clears a field; establishedYear null clears it. */
-export interface UpdateOrganizationPayload {
-  gymName?: string
-  gymDescription?: string
+/** GET /host/business-quota (was organization-quota; G5, owner decision 2026-11-22). */
+export interface BusinessQuota {
+  pool: CapacityPool
+  /** False while another business blocks a new one (see blockingBusinessStatus) or the pool is full. */
+  canAddBusiness: boolean
+  blockingBusinessStatus: string | null
+}
+
+/** PATCH /host/businesses/:businessId. Empty text clears a field; establishedYear null clears it. */
+export interface UpdateBusinessPayload {
+  businessName?: string
+  businessDescription?: string
   category?: string | null
   establishedYear?: number | null
   contactPhone?: string
@@ -90,13 +124,13 @@ export interface HostBranch {
   phone?: string
   openingTime?: string
   closingTime?: string
-  gymListingId?: string | null
+  businessId?: string | null
   /** P5b (R-81): set while the host has paused the branch (hidden from travellers). */
   pausedAt?: string | null
   [key: string]: unknown
 }
 
-/** P5b item 7 (R-81): the GymsEra plan still renews at the store after an organization goes. */
+/** P5b item 7 (R-81): the GymsEra plan still renews at the store after a business goes. */
 export interface StorePlanNotice {
   platform: 'IOS' | 'ANDROID'
   manageUrl: string
@@ -108,7 +142,8 @@ export interface CreateHostBranchPayload {
   /** NEW-265: a pending area request instead of areaId (never both). */
   areaRequestId?: number
   branchName: string
-  gymListingId?: string
+  /** The business the branch is added to; it must be approved (409 business_not_approved). */
+  businessId: string
   address?: string
   cityId?: number
   areaId?: number
@@ -120,16 +155,28 @@ export interface CreateHostBranchPayload {
   openingTime?: string
   closingTime?: string
   facilitiesJson?: string[]
+  /** Photo URLs (enterprise D8: at least 3, from POST /host/businesses/staging-images). */
+  imagesJson?: string[]
   packages: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
 }
 
-export interface CreateListingPayload {
-  /** NEW-265: a pending area request instead of areaId (never both). */
+/**
+ * POST /host/businesses (Add Business, contract v2 §3). The first branch is held until the
+ * business is approved; the answer is `{ business, branch: null, heldFirstBranch: true }`.
+ */
+export interface CreateBusinessPayload {
+  /** NEW-265: a pending area request instead of areaId (one of the two is required). */
   areaRequestId?: number
-  gymName: string
-  gymDescription: string
+  businessName: string
+  businessDescription: string
   genderType: string
-  branchSource: 'new' | 'reserve'
+  contactPhone?: string
+  logoUrl?: string
+  coverImageUrl?: string
+  images?: string[]
+  facilitiesJson?: string[]
+  openingTime?: string
+  closingTime?: string
   packages?: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
   cityId?: number
   areaId?: number
@@ -155,17 +202,17 @@ export interface BranchMemberLookup {
 }
 
 /**
- * One branch's storefront as GET /host/branches/:branchId/listing-content returns it
- * (gymsera_be gyms.controller.js getBranchListingContent → `{ branch }`). The JSON columns can
- * arrive as arrays or as JSON strings; read them with `asStringList` (lib/listing/content.ts).
+ * One branch's storefront as GET /host/branches/:branchId/public-content returns it (`{ branch }`).
+ * The JSON columns can arrive as arrays or as JSON strings; read them with `asStringList`
+ * (lib/listing/content.ts).
  */
-export interface BranchListingContent {
+export interface BranchPublicContent {
   /** NEW-265: the branch's own area request while pending or refused. */
   pendingArea?: import('./area-requests').PendingArea | null
   id: string
   branchName: string
   status: string
-  gymListingId?: string | null
+  businessId?: string | null
   tagline?: string | null
   category?: string | null
   description?: string | null
@@ -190,8 +237,8 @@ export interface BranchListingContent {
   deactivationReason?: string | null
 }
 
-/** The fields PATCH /host/branches/:branchId/listing-content accepts (gyms.controller.js:409). No `status`. */
-export type UpdateListingContentPayload = Partial<{
+/** The fields PATCH /host/branches/:branchId/public-content accepts (contract v2 row 273). No `status`. */
+export type UpdatePublicContentPayload = Partial<{
   branchName: string
   tagline: string
   category: string
@@ -219,64 +266,86 @@ export type UpdateListingContentPayload = Partial<{
 }>
 
 export const hostApi = {
-  getBranchQuota: async (organizationId?: string): Promise<ApiResponse<BranchQuota>> => {
+  getBranchQuota: async (businessId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
-      params: organizationId ? { organizationId } : {},
+      params: businessId ? { businessId } : {},
     })
     return data
   },
 
-  getOrganizationQuota: async (): Promise<ApiResponse<OrganizationQuota>> => {
-    const { data } = await apiClient.get('/host/organization-quota')
+  getBusinessQuota: async (): Promise<ApiResponse<BusinessQuota>> => {
+    const { data } = await apiClient.get('/host/business-quota')
     return data
   },
 
-  getListings: async (): Promise<ApiResponse<HostListing[]>> => {
-    const { data } = await apiClient.get('/host/listings')
+  /** GET /host/businesses: every non-deleted business of the organization. */
+  getBusinesses: async (): Promise<ApiResponse<Business[]>> => {
+    const { data } = await apiClient.get('/host/businesses')
     return data
   },
 
-  /** GET /host/listings/:id — one organization and its own gym (NEW-196: every organization, not only the first). */
-  getOrganization: async (listingId: string): Promise<ApiResponse<HostOrganization>> => {
-    const { data } = await apiClient.get(`/host/listings/${listingId}`)
+  /** GET /host/businesses/:businessId: one business. */
+  getBusiness: async (businessId: string): Promise<ApiResponse<Business>> => {
+    const { data } = await apiClient.get(`/host/businesses/${businessId}`)
     return data
   },
 
-  /** PATCH /host/listings/:id — this organization only (the owner, or listing.manage org-wide: R-89). */
-  updateOrganization: async (listingId: string, payload: UpdateOrganizationPayload): Promise<ApiResponse<HostListing>> => {
-    const { data } = await apiClient.patch(`/host/listings/${listingId}`, payload)
+  /** PATCH /host/businesses/:businessId: this business only (the owner, or listing.manage org-wide: R-89). */
+  updateBusiness: async (businessId: string, payload: UpdateBusinessPayload): Promise<ApiResponse<Business>> => {
+    const { data } = await apiClient.patch(`/host/businesses/${businessId}`, payload)
     return data
   },
 
   /**
-   * POST /host/listings/staging-images — stores the photos and answers their URLs, writing to no
-   * organization; the URLs are saved with updateOrganization. (/gyms/profile/logo and /cover wrote
-   * to the first organization and deleted its old logo.)
+   * POST /host/businesses/staging-images: stores the photos and answers their URLs, writing to no
+   * business; the URLs are saved with updateBusiness or sent with a new branch.
    */
-  uploadOrganizationPhotos: async (files: File[]): Promise<string[]> => {
+  uploadStagingImages: async (files: File[]): Promise<string[]> => {
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
-    const { data } = await apiClient.post('/host/listings/staging-images', formData, {
+    const { data } = await apiClient.post('/host/businesses/staging-images', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     const urls = (data?.data?.urls ?? []) as unknown[]
     return urls.map(String)
   },
 
-  /** GET /host/listings/:id/branches — one organization's branches. */
-  getListingBranches: async (
-    listingId: string,
+  /** GET /host/businesses/:businessId/branches: one business's branches. */
+  getBusinessBranches: async (
+    businessId: string,
     includeInactive = false
   ): Promise<ApiResponse<{ branches: HostBranch[] }>> => {
-    const { data } = await apiClient.get(`/host/listings/${listingId}/branches`, {
+    const { data } = await apiClient.get(`/host/businesses/${businessId}/branches`, {
       params: includeInactive ? { includeInactive: 'true' } : undefined,
+    })
+    return data
+  },
+
+  /** GET /host/businesses/:businessId/kyc-documents: the business's documents (enterprise D10). */
+  getBusinessDocuments: async (businessId: string): Promise<ApiResponse<BusinessDocument[]>> => {
+    const { data } = await apiClient.get(`/host/businesses/${businessId}/kyc-documents`)
+    return data
+  },
+
+  /** POST /host/businesses/:businessId/kyc-documents: body `documentType`, files `documents`. */
+  uploadBusinessDocuments: async (
+    businessId: string,
+    documentType: BusinessDocumentType,
+    files: File[]
+  ): Promise<ApiResponse<BusinessDocument[]>> => {
+    const formData = new FormData()
+    formData.append('documentType', documentType)
+    files.forEach((f) => formData.append('documents', f))
+    const { data } = await apiClient.post(`/host/businesses/${businessId}/kyc-documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
     })
     return data
   },
 
   /**
    * POST /host/branches. Capacity is not checked first: the server answers 403
-   * `branch_limit_reached` / `account_over_quota` when the plan has no room.
+   * `branch_limit_reached` / `account_over_quota` when the plan has no room, and 409
+   * `business_not_approved` when the business is still under review.
    */
   createBranch: async (payload: CreateHostBranchPayload): Promise<ApiResponse<{ branch: HostBranch }>> => {
     const { data } = await apiClient.post('/host/branches', payload)
@@ -284,59 +353,64 @@ export const hostApi = {
   },
 
   /**
-   * DELETE /host/branches/:id. Needs the owner's credentials again (re-auth: `password`, or a
+   * DELETE /host/branches/:branchId. Needs the owner's credentials again (re-auth: `password`, or a
    * social `provider` + `idToken`). The server answers 401 when they are wrong and 409
-   * `last_branch_in_organization` when this is the organization's last branch; send again with
-   * `confirmOrganizationDeletion: true` once the owner has confirmed. 409 `branch_delete_blocked`
+   * `last_branch_in_business` when this is the business's last branch; send again with
+   * `confirmBusinessDeletion: true` once the owner has confirmed. 409 `branch_delete_blocked`
    * (P5b, R-81) while members, bookings or payments are open; the host may pause instead.
    */
   deleteBranch: async (
     branchId: string,
-    body: { password?: string; provider?: string; idToken?: string; confirmOrganizationDeletion?: boolean }
-  ): Promise<ApiResponse<{ message?: string; organizationDeleted?: boolean; storePlanNotice?: StorePlanNotice | null } | null>> => {
+    body: { password?: string; provider?: string; idToken?: string; confirmBusinessDeletion?: boolean }
+  ): Promise<ApiResponse<{
+    message?: string
+    /** The business went with its last branch (G6). */
+    businessDeleted?: boolean
+    storePlanNotice?: StorePlanNotice | null
+  } | null>> => {
     const { data } = await apiClient.delete(`/host/branches/${branchId}`, { data: body })
     return data
   },
 
-  /** POST /host/branches/:id/restore — uses one unit of capacity again (403 when there is none). */
+  /** POST /host/branches/:branchId/restore: uses one unit of capacity again (403 when there is none). */
   restoreBranch: async (branchId: string): Promise<ApiResponse<{ branch?: HostBranch }>> => {
     const { data } = await apiClient.post(`/host/branches/${branchId}/restore`)
     return data
   },
 
-  /** POST /host/branches/:id/pause (P5b, R-81): hidden from travellers, nothing else changes. */
+  /** POST /host/branches/:branchId/pause (P5b, R-81): hidden from travellers, nothing else changes. */
   pauseBranch: async (branchId: string): Promise<ApiResponse<{ branch: HostBranch }>> => {
     const { data } = await apiClient.post(`/host/branches/${branchId}/pause`)
     return data
   },
 
-  /** POST /host/branches/:id/resume: shown to travellers again as it was. */
+  /** POST /host/branches/:branchId/resume: shown to travellers again as it was. */
   resumeBranch: async (branchId: string): Promise<ApiResponse<{ branch: HostBranch }>> => {
     const { data } = await apiClient.post(`/host/branches/${branchId}/resume`)
     return data
   },
 
-  /** GET /host/branches — every branch of the owner, across organizations. */
+  /** GET /host/branches: every branch of the owner, across businesses. */
   getAllBranches: async (): Promise<ApiResponse<{ branches: HostBranch[] }>> => {
     const { data } = await apiClient.get('/host/branches')
     return data
   },
 
   /**
-   * POST /host/listings (mobile: createListing → POST /host/organizations, the same route).
-   * `branchSource`: 'new' builds a first branch now (needs `packages`), 'reserve' earmarks a slot.
-   * An organization with no branch is refused (422 organization_needs_branch, NEW-168).
+   * POST /host/businesses (Add Business). Reserves one unit of the pool and holds the first
+   * branch until an admin approves the business; 403 `branch_limit_reached` when no unit is free.
    */
-  createListing: async (body: CreateListingPayload): Promise<ApiResponse<HostListing>> => {
-    const { data } = await apiClient.post('/host/listings', body)
+  createBusiness: async (
+    body: CreateBusinessPayload
+  ): Promise<ApiResponse<{ business: Business; branch: null; heldFirstBranch: boolean }>> => {
+    const { data } = await apiClient.post('/host/businesses', body)
     return data
   },
 
   /**
-   * GET /host/branches/:branchId/members/lookup?email= (host.controller.js lookupBranchMember).
+   * GET /host/branches/:branchId/members/lookup?email=.
    * `exists` is true only when the person holds an ACTIVE, PENDING or FROZEN subscription at this branch.
-   * NEW-56: `subscriptions` lists their ACTIVE subscriptions at this branch that a check-in would
-   * accept. Older servers omit it.
+   * NEW-56: `subscriptions` lists their ACTIVE subscriptions at this branch that a check-in would accept.
    */
   lookupBranchMember: async (
     branchId: string,
@@ -346,23 +420,23 @@ export const hostApi = {
     return data
   },
 
-  /** GET /host/branches/:branchId/listing-content — every storefront field of one branch. */
-  getBranchListingContent: async (branchId: string): Promise<ApiResponse<{ branch: BranchListingContent }>> => {
-    const { data } = await apiClient.get(`/host/branches/${branchId}/listing-content`)
+  /** GET /host/branches/:branchId/public-content: every storefront field of one branch. */
+  getBranchPublicContent: async (branchId: string): Promise<ApiResponse<{ branch: BranchPublicContent }>> => {
+    const { data } = await apiClient.get(`/host/branches/${branchId}/public-content`)
     return data
   },
 
   /**
-   * PATCH /host/branches/:branchId/listing-content, the call the mobile listing editor makes for
+   * PATCH /host/branches/:branchId/public-content, the call the mobile listing editor makes for
    * every section. The whole response is returned: a 202 means the change was sent for approval
    * and nothing was saved, so read it with `readApprovalOutcome`.
    */
-  updateBranchListingContent: async (branchId: string, payload: UpdateListingContentPayload) => {
-    return apiClient.patch(`/host/branches/${branchId}/listing-content`, payload)
+  updateBranchPublicContent: async (branchId: string, payload: UpdatePublicContentPayload) => {
+    return apiClient.patch(`/host/branches/${branchId}/public-content`, payload)
   },
 
-  /** PATCH /host/branches/:branchId/resubmit-visibility — ask for review again after a deactivation. */
-  resubmitBranchReview: async (branchId: string): Promise<ApiResponse<{ branch: BranchListingContent }>> => {
+  /** PATCH /host/branches/:branchId/resubmit-visibility: ask for review again after a deactivation. */
+  resubmitBranchReview: async (branchId: string): Promise<ApiResponse<{ branch: BranchPublicContent }>> => {
     const { data } = await apiClient.patch(`/host/branches/${branchId}/resubmit-visibility`)
     return data
   },

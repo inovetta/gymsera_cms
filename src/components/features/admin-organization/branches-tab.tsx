@@ -15,19 +15,19 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { adminApi, TenantBranch, CreateTenantBranchPayload, UpdateTenantBranchPayload } from '@/lib/api/admin'
+import { adminApi, AdminBranch, CreateAdminBranchPayload, UpdateAdminBranchPayload } from '@/lib/api/admin'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import { useToast } from '@/hooks/use-toast'
-import type { Tenant } from '@/types'
+import type { Organization } from '@/types'
 
-/** Branches of one tenant, with traveler visibility controls. Mounted only while its tab is open (PERF-10). */
-export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: string }) {
+/** Branches of one organization, with traveler visibility controls. Mounted only while its tab is open (PERF-10). */
+export function BranchesTab({ organization, organizationId }: { organization: Organization; organizationId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [deactivateBranchDialog, setDeactivateBranchDialog] = useState<{ open: boolean; branchId: string }>({ open: false, branchId: '' })
   const [deactivateBranchReason, setDeactivateBranchReason] = useState('')
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; branchId: string; branchName: string }>({ open: false, branchId: '', branchName: '' })
-  const [branchDialog, setBranchDialog] = useState<{ open: boolean; mode: 'create' | 'edit'; branch?: TenantBranch }>({ open: false, mode: 'create' })
+  const [branchDialog, setBranchDialog] = useState<{ open: boolean; mode: 'create' | 'edit'; branch?: AdminBranch }>({ open: false, mode: 'create' })
 
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['admin-branch-visibility-history', historyDialog.branchId],
@@ -36,9 +36,9 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
   })
 
   const { data: branchesData, isLoading: branchesLoading, error: branchesError, refetch } = useQuery({
-    queryKey: ['admin-tenant-branches', tenantId],
-    queryFn: () => adminApi.getTenantBranches(tenantId),
-    enabled: tenant.status === 'ACTIVE',
+    queryKey: ['admin-organization-branches', organizationId],
+    queryFn: () => adminApi.getOrganizationBranches(organizationId),
+    enabled: organization.status === 'ACTIVE',
   })
 
   // Only the add / edit dialog needs the city list.
@@ -49,30 +49,30 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
   })
   const cities = parseCities(citiesData?.data)
 
-  // Branches grouped by organization: a host can run several (tenant.organizations). Falls back to
-  // one "Branches" group when organization data is not available.
+  // Branches grouped by business (an organization can run several). Falls back to one
+  // "Branches" group when the business list is not available.
   const branchGroups = useMemo(() => {
     const branches = branchesData?.data?.branches ?? []
-    const orgs = tenant.organizations
+    const orgs = organization.businesses
     if (!orgs || !orgs.length) {
       return branches.length ? [{ orgId: 'all', orgTitle: 'Branches', branches }] : []
     }
-    const byOrg = new Map(orgs.map((o) => [o.id, { orgId: o.id, orgTitle: o.title, branches: [] as TenantBranch[] }]))
-    const unassigned: TenantBranch[] = []
+    const byOrg = new Map(orgs.map((o) => [o.id, { orgId: o.id, orgTitle: o.name, branches: [] as AdminBranch[] }]))
+    const unassigned: AdminBranch[] = []
     for (const branch of branches) {
-      const group = branch.gymListingId ? byOrg.get(branch.gymListingId) : undefined
+      const group = branch.businessId ? byOrg.get(branch.businessId) : undefined
       if (group) group.branches.push(branch)
       else unassigned.push(branch)
     }
     const groups = orgs.map((o) => byOrg.get(o.id)!).filter((g) => g.branches.length > 0)
     if (unassigned.length) groups.push({ orgId: 'unassigned', orgTitle: 'Other', branches: unassigned })
     return groups
-  }, [branchesData, tenant.organizations])
+  }, [branchesData, organization.businesses])
 
   const branchStatusMutation = useMutation({
     mutationFn: ({ branchId, status }: { branchId: string; status: 'ACTIVE' | 'INACTIVE' }) =>
-      adminApi.updateTenantBranchStatus(tenantId, branchId, status),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] }); toast({ title: 'Branch status updated' }) },
+      adminApi.updateBranchStatus(organizationId, branchId, status),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-organization-branches', organizationId] }); toast({ title: 'Branch status updated' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to update branch status', variant: 'destructive' }),
   })
 
@@ -80,7 +80,7 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
     mutationFn: ({ branchId, status, reason }: { branchId: string; status: 'active' | 'deactivated'; reason?: string }) =>
       adminApi.updateBranchTravelerVisibility(branchId, status, reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-branches', organizationId] })
       setDeactivateBranchDialog({ open: false, branchId: '' })
       setDeactivateBranchReason('')
       toast({ title: 'Branch traveler visibility updated' })
@@ -89,9 +89,9 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
   })
 
   const createBranchMutation = useMutation({
-    mutationFn: (payload: CreateTenantBranchPayload) => adminApi.createTenantBranch(tenantId, payload),
+    mutationFn: (payload: CreateAdminBranchPayload) => adminApi.createBranch(organizationId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-branches', organizationId] })
       setBranchDialog({ open: false, mode: 'create' })
       toast({ title: 'Branch created' })
     },
@@ -99,10 +99,10 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
   })
 
   const updateBranchMutation = useMutation({
-    mutationFn: ({ branchId, payload }: { branchId: string; payload: UpdateTenantBranchPayload }) =>
-      adminApi.updateTenantBranch(tenantId, branchId, payload),
+    mutationFn: ({ branchId, payload }: { branchId: string; payload: UpdateAdminBranchPayload }) =>
+      adminApi.updateBranch(organizationId, branchId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-branches', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-branches', organizationId] })
       setBranchDialog({ open: false, mode: 'create' })
       toast({ title: 'Branch updated' })
     },
@@ -114,20 +114,20 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" /> Gym Branches</h3>
+          <h3 className="font-semibold flex items-center gap-2"><GitBranch className="h-4 w-4" /> Branches</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             &quot;Traveler&quot; is an admin-controlled visibility toggle for the Travelers discovery feed — not a request from the host. Hover a badge for details.
           </p>
         </div>
-        {tenant.status === 'ACTIVE' && (
+        {organization.status === 'ACTIVE' && (
           <Button size="sm" onClick={() => setBranchDialog({ open: true, mode: 'create' })}>
             <Plus className="h-4 w-4 mr-2" /> Add Branch
           </Button>
         )}
       </div>
 
-      {tenant.status !== 'ACTIVE' ? (
-        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Branch data is only available for active tenants.</CardContent></Card>
+      {organization.status !== 'ACTIVE' ? (
+        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Branch data is only available for active organizations.</CardContent></Card>
       ) : branchesLoading ? (
         <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
       ) : branchesError ? (
@@ -257,11 +257,13 @@ export function BranchesTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
       mode={branchDialog.mode}
       branch={branchDialog.branch}
       cities={cities}
+      // Contract v2: a new branch names its business (the form picks among approved ones).
+      businessId={organization.businesses?.find((b) => b.status?.toUpperCase() === 'ACTIVE')?.id ?? null}
       onSubmit={(payload) => {
         if (branchDialog.mode === 'create') {
-          createBranchMutation.mutate(payload as CreateTenantBranchPayload)
+          createBranchMutation.mutate(payload as CreateAdminBranchPayload)
         } else if (branchDialog.branch) {
-          updateBranchMutation.mutate({ branchId: branchDialog.branch.id, payload: payload as UpdateTenantBranchPayload })
+          updateBranchMutation.mutate({ branchId: branchDialog.branch.id, payload: payload as UpdateAdminBranchPayload })
         }
       }}
       loading={createBranchMutation.isPending || updateBranchMutation.isPending}

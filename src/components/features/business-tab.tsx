@@ -17,12 +17,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { adminApi, GymListingDetail, UpdateGymListingPayload, CreateGymListingPayload } from '@/lib/api/admin'
+import { adminApi, AdminBusiness, UpdateBusinessPayload, CreateBusinessPayload } from '@/lib/api/admin'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import { useToast } from '@/hooks/use-toast'
 import { StatusBadge } from './status-badge'
 
-const GYM_FACILITIES: { key: string; label: string }[] = [
+const BUSINESS_FACILITIES: { key: string; label: string }[] = [
   { key: 'ac', label: 'Air Conditioning' },
   { key: 'wifi', label: 'Wi-Fi' },
   { key: 'parking', label: 'Parking' },
@@ -42,12 +42,14 @@ const GYM_FACILITIES: { key: string; label: string }[] = [
 ]
 
 interface Props {
-  tenantId: string
-  hasListing: boolean
-  tenantName: string
+  organizationId: string
+  /** The one business this tab edits (contract v2: one businessId, no compound ids, F7). */
+  businessId: string | null
+  /** Default name for a business the admin creates. */
+  defaultName: string
 }
 
-export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
+export function BusinessTab({ organizationId, businessId, defaultName }: Props) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -56,16 +58,16 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
 
   const [editing, setEditing] = useState(false)
   const [createDialog, setCreateDialog] = useState(false)
-  const [form, setForm] = useState<UpdateGymListingPayload>({})
-  const [createForm, setCreateForm] = useState<CreateGymListingPayload>({
-    title: tenantName,
+  const [form, setForm] = useState<UpdateBusinessPayload>({})
+  const [createForm, setCreateForm] = useState<CreateBusinessPayload>({
+    name: defaultName,
     genderType: 'MIXED',
   })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-gym-listing', tenantId],
-    queryFn: () => adminApi.getGymListing(tenantId),
-    enabled: hasListing,
+    queryKey: ['admin-business', businessId],
+    queryFn: () => adminApi.getBusiness(businessId as string),
+    enabled: !!businessId,
   })
 
   const { data: citiesData } = useQuery({
@@ -73,67 +75,67 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
     queryFn: () => citiesApi.getCities(),
   })
 
-  const listing: GymListingDetail | undefined = data?.data?.gymListing
+  const business: AdminBusiness | undefined = data?.data?.business
   const cities = parseCities(citiesData?.data)
-  const selectedCity = cities.find((c: any) => c.id === (editing ? form.cityId : listing?.cityId))
+  const selectedCity = cities.find((c: any) => c.id === (editing ? form.cityId : business?.cityId))
   const areas: any[] = selectedCity?.areas ?? []
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin-gym-listing', tenantId] })
-    queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
+    queryClient.invalidateQueries({ queryKey: ['admin-business', businessId] })
+    queryClient.invalidateQueries({ queryKey: ['organization', organizationId] })
   }
 
   const startEditing = () => {
-    if (!listing) return
+    if (!business) return
     setForm({
-      title: listing.title,
-      shortDescription: listing.shortDescription,
-      genderType: listing.genderType,
-      contactPhone: listing.contactPhone,
-      website: listing.website,
-      facilitiesJson: listing.facilitiesJson ?? {},
-      isFeatured: listing.isFeatured,
-      status: listing.status,
-      latitude: listing.latitude ? Number(listing.latitude) : undefined,
-      longitude: listing.longitude ? Number(listing.longitude) : undefined,
-      cityId: listing.cityId,
-      areaId: listing.areaId ?? null,
+      name: business.name,
+      description: business.description ?? undefined,
+      genderType: business.genderType,
+      contactPhone: business.contactPhone ?? undefined,
+      website: business.website ?? undefined,
+      facilitiesJson: business.facilitiesJson ?? {},
+      isFeatured: business.isFeatured,
+      status: business.status,
+      latitude: business.latitude ? Number(business.latitude) : undefined,
+      longitude: business.longitude ? Number(business.longitude) : undefined,
+      cityId: business.cityId,
+      areaId: business.areaId ?? null,
     })
     setEditing(true)
   }
 
   const updateMutation = useMutation({
-    mutationFn: (payload: UpdateGymListingPayload) => adminApi.updateGymListing(tenantId, payload),
-    onSuccess: () => { invalidate(); setEditing(false); toast({ title: 'Gym listing updated' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to update gym listing', variant: 'destructive' }),
+    mutationFn: (payload: UpdateBusinessPayload) => adminApi.updateBusiness(businessId as string, payload),
+    onSuccess: () => { invalidate(); setEditing(false); toast({ title: 'Business updated' }) },
+    onError: () => toast({ title: 'Error', description: 'Failed to update business', variant: 'destructive' }),
   })
 
   const createMutation = useMutation({
-    mutationFn: (payload: CreateGymListingPayload) => adminApi.createGymListing(tenantId, payload),
-    onSuccess: () => { invalidate(); setCreateDialog(false); toast({ title: 'Gym listing created' }) },
-    onError: () => toast({ title: 'Error', description: 'Failed to create gym listing', variant: 'destructive' }),
+    mutationFn: (payload: CreateBusinessPayload) => adminApi.createBusiness(organizationId, payload),
+    onSuccess: () => { invalidate(); setCreateDialog(false); toast({ title: 'Business created' }) },
+    onError: () => toast({ title: 'Error', description: 'Failed to create business', variant: 'destructive' }),
   })
 
   const uploadLogoMutation = useMutation({
-    mutationFn: (file: File) => adminApi.uploadGymListingLogo(tenantId, file),
+    mutationFn: (file: File) => adminApi.uploadBusinessLogo(businessId as string, file),
     onSuccess: () => { invalidate(); toast({ title: 'Logo uploaded' }) },
     onError: () => toast({ title: 'Error', description: 'Failed to upload logo', variant: 'destructive' }),
   })
 
   const uploadCoverMutation = useMutation({
-    mutationFn: (file: File) => adminApi.uploadGymListingCover(tenantId, file),
+    mutationFn: (file: File) => adminApi.uploadBusinessCover(businessId as string, file),
     onSuccess: () => { invalidate(); toast({ title: 'Cover image uploaded' }) },
     onError: () => toast({ title: 'Error', description: 'Failed to upload cover', variant: 'destructive' }),
   })
 
   const uploadImagesMutation = useMutation({
-    mutationFn: (files: File[]) => adminApi.uploadGymListingImages(tenantId, files),
+    mutationFn: (files: File[]) => adminApi.uploadBusinessImages(businessId as string, files),
     onSuccess: () => { invalidate(); toast({ title: 'Images uploaded' }) },
     onError: () => toast({ title: 'Error', description: 'Failed to upload images', variant: 'destructive' }),
   })
 
   const deleteImageMutation = useMutation({
-    mutationFn: (imageUrl: string) => adminApi.deleteGymListingImage(tenantId, imageUrl),
+    mutationFn: (imageUrl: string) => adminApi.deleteBusinessImage(businessId as string, imageUrl),
     onSuccess: () => { invalidate(); toast({ title: 'Image removed' }) },
     onError: () => toast({ title: 'Error', description: 'Failed to remove image', variant: 'destructive' }),
   })
@@ -148,7 +150,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
     }))
   }
 
-  if (!hasListing) {
+  if (!businessId) {
     return (
       <Card>
         <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
@@ -156,11 +158,11 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
             <Globe className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-semibold text-lg">No public gym listing yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Create a listing so members can find this gym on the platform.</p>
+            <p className="font-semibold text-lg">No business yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Create a business so travellers can find it on GymsEra.</p>
           </div>
           <Button onClick={() => setCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" /> Create Gym Listing
+            <Plus className="h-4 w-4 mr-2" /> Create Business
           </Button>
         </CardContent>
       </Card>
@@ -179,9 +181,9 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
     )
   }
 
-  if (!listing) return null
+  if (!business) return null
 
-  const activeFacilities = Object.entries(listing.facilitiesJson ?? {}).filter(([, v]) => v).map(([k]) => k)
+  const activeFacilities = Object.entries(business.facilitiesJson ?? {}).filter(([, v]) => v).map(([k]) => k)
 
   return (
     <div className="space-y-6">
@@ -189,9 +191,9 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
       <Card className="overflow-hidden">
         {/* Cover */}
         <div className="relative h-44 bg-gradient-to-br from-slate-700 to-slate-900">
-          {listing.coverImageUrl ? (
+          {business.coverImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={listing.coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
+            <img src={business.coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <ImageIcon className="h-10 w-10 text-white/20" />
@@ -212,9 +214,9 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
             {/* Logo */}
             <div className="relative shrink-0 -mt-12">
               <div className="w-20 h-20 rounded-xl border-4 border-background bg-muted shadow-md overflow-hidden flex items-center justify-center">
-                {listing.logoUrl ? (
+                {business.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={listing.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                  <img src={business.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
                   <Globe className="h-8 w-8 text-muted-foreground" />
                 )}
@@ -231,15 +233,15 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
 
             <div className="flex-1 min-w-0 mt-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-lg leading-tight">{listing.title}</h3>
-                <StatusBadge status={listing.status} />
-                {listing.isFeatured && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">Featured</Badge>}
+                <h3 className="font-bold text-lg leading-tight">{business.name}</h3>
+                <StatusBadge status={business.status} />
+                {business.isFeatured && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">Featured</Badge>}
               </div>
               <div className="flex items-center gap-4 mt-1.5 text-sm text-muted-foreground flex-wrap">
-                <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{(Number(listing.averageRating) || 0).toFixed(1)}</span>
-                <span className="capitalize">{listing.genderType?.replace('_', ' ').toLowerCase()}</span>
-                {listing.city && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{listing.area?.name ? `${listing.area.name}, ` : ''}{listing.city.name}</span>}
-                <PendingAreaNote pendingArea={listing.pendingArea} />
+                <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{(Number(business.averageRating) || 0).toFixed(1)}</span>
+                <span className="capitalize">{business.genderType?.replace('_', ' ').toLowerCase()}</span>
+                {business.city && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{business.area?.name ? `${business.area.name}, ` : ''}{business.city.name}</span>}
+                <PendingAreaNote pendingArea={business.pendingArea} />
               </div>
             </div>
 
@@ -256,7 +258,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
       {editing ? (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Edit Gym Listing</CardTitle>
+            <CardTitle className="text-base">Edit Business</CardTitle>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditing(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button size="sm" onClick={() => updateMutation.mutate(form)} loading={updateMutation.isPending}><Save className="h-4 w-4 mr-1" />Save</Button>
@@ -266,11 +268,11 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <Label className="mb-2 block">Title *</Label>
-                <Input value={form.title ?? ''} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Gym listing title" />
+                <Input value={form.name ?? ''} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Business name" />
               </div>
               <div className="sm:col-span-2">
                 <Label className="mb-2 block">Short Description</Label>
-                <Textarea value={form.shortDescription ?? ''} onChange={(e) => setForm((p) => ({ ...p, shortDescription: e.target.value }))} placeholder="Brief description shown on cards" rows={2} />
+                <Textarea value={form.description ?? ''} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Brief description shown on cards" rows={2} />
               </div>
               <div>
                 <Label className="mb-2 block">Gender Type</Label>
@@ -331,7 +333,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
               </div>
               <div className="sm:col-span-2 flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">Featured listing</p>
+                  <p className="text-sm font-medium">Featured business</p>
                   <p className="text-xs text-muted-foreground">Show this gym in featured sections</p>
                 </div>
                 <Switch checked={form.isFeatured ?? false} onCheckedChange={(v) => setForm((p) => ({ ...p, isFeatured: v }))} />
@@ -341,7 +343,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
             <div>
               <Label className="mb-3 block">Facilities</Label>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {GYM_FACILITIES.map(({ key, label }) => {
+                {BUSINESS_FACILITIES.map(({ key, label }) => {
                   const active = !!(form.facilitiesJson ?? {})[key]
                   return (
                     <button
@@ -363,20 +365,20 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
         <div className="grid sm:grid-cols-2 gap-6">
           {/* Details */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Listing Details</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Business details</CardTitle></CardHeader>
             <CardContent>
               <dl className="space-y-3 text-sm">
-                {listing.shortDescription && (
-                  <div><dt className="text-muted-foreground mb-1">Description</dt><dd className="leading-relaxed">{listing.shortDescription}</dd></div>
+                {business.description && (
+                  <div><dt className="text-muted-foreground mb-1">Description</dt><dd className="leading-relaxed">{business.description}</dd></div>
                 )}
-                {listing.contactPhone && (
-                  <div className="flex justify-between"><dt className="text-muted-foreground flex items-center gap-1"><Phone className="h-3.5 w-3.5" />Phone</dt><dd className="font-medium">{listing.contactPhone}</dd></div>
+                {business.contactPhone && (
+                  <div className="flex justify-between"><dt className="text-muted-foreground flex items-center gap-1"><Phone className="h-3.5 w-3.5" />Phone</dt><dd className="font-medium">{business.contactPhone}</dd></div>
                 )}
-                {listing.website && (
-                  <div className="flex justify-between items-center"><dt className="text-muted-foreground flex items-center gap-1"><Globe className="h-3.5 w-3.5" />Website</dt><dd><a href={listing.website} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate max-w-[160px] block">{listing.website}</a></dd></div>
+                {business.website && (
+                  <div className="flex justify-between items-center"><dt className="text-muted-foreground flex items-center gap-1"><Globe className="h-3.5 w-3.5" />Website</dt><dd><a href={business.website} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate max-w-[160px] block">{business.website}</a></dd></div>
                 )}
-                {(listing.latitude || listing.longitude) && (
-                  <div className="flex justify-between"><dt className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />Coordinates</dt><dd className="font-medium font-mono text-xs">{listing.latitude}, {listing.longitude}</dd></div>
+                {(business.latitude || business.longitude) && (
+                  <div className="flex justify-between"><dt className="text-muted-foreground flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />Coordinates</dt><dd className="font-medium font-mono text-xs">{business.latitude}, {business.longitude}</dd></div>
                 )}
               </dl>
             </CardContent>
@@ -389,7 +391,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
               {activeFacilities.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {activeFacilities.map((key) => {
-                    const label = GYM_FACILITIES.find((f) => f.key === key)?.label ?? key
+                    const label = BUSINESS_FACILITIES.find((f) => f.key === key)?.label ?? key
                     return (
                       <Badge key={key} variant="secondary" className="gap-1">
                         <CheckCircle className="h-3 w-3 text-success" />
@@ -416,9 +418,9 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
           </Button>
         </CardHeader>
         <CardContent>
-          {listing.imagesJson && listing.imagesJson.length > 0 ? (
+          {business.imagesJson && business.imagesJson.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {listing.imagesJson.map((url, i) => (
+              {business.imagesJson.map((url, i) => (
                 <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" />
@@ -437,7 +439,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
               <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
               <div>
                 <p className="text-sm font-medium">No gallery images</p>
-                <p className="text-xs text-muted-foreground mt-1">Upload images to showcase the gym on the public listing</p>
+                <p className="text-xs text-muted-foreground mt-1">Upload images to showcase the gym on the public business</p>
               </div>
               <Button variant="outline" size="sm" onClick={() => imagesInputRef.current?.click()}>
                 <Upload className="h-4 w-4 mr-2" /> Upload
@@ -452,18 +454,18 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
       <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCoverMutation.mutate(f); e.target.value = '' }} />
       <input ref={imagesInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const files = Array.from(e.target.files ?? []); if (files.length) uploadImagesMutation.mutate(files); e.target.value = '' }} />
 
-      {/* Create listing dialog */}
+      {/* Create business dialog */}
       <Dialog open={createDialog} onOpenChange={setCreateDialog}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Create Gym Listing</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Create Business</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <Label className="mb-2 block">Title *</Label>
-              <Input value={createForm.title} onChange={(e) => setCreateForm((p) => ({ ...p, title: e.target.value }))} placeholder="Public listing title" />
+              <Input value={createForm.name} onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))} placeholder="Business name" />
             </div>
             <div>
               <Label className="mb-2 block">Short Description</Label>
-              <Textarea value={createForm.shortDescription ?? ''} onChange={(e) => setCreateForm((p) => ({ ...p, shortDescription: e.target.value }))} placeholder="Brief description" rows={2} />
+              <Textarea value={createForm.description ?? ''} onChange={(e) => setCreateForm((p) => ({ ...p, description: e.target.value }))} placeholder="Brief description" rows={2} />
             </div>
             <div>
               <Label className="mb-2 block">Gender Type</Label>
@@ -493,7 +495,7 @@ export function GymListingTab({ tenantId, hasListing, tenantName }: Props) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialog(false)}>Cancel</Button>
-            <Button onClick={() => createMutation.mutate(createForm)} loading={createMutation.isPending} disabled={!createForm.title}>Create Listing</Button>
+            <Button onClick={() => createMutation.mutate(createForm)} loading={createMutation.isPending} disabled={!createForm.name}>Create Business</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

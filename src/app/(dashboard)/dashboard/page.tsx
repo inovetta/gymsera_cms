@@ -23,8 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { StatusBadge } from '@/components/features/status-badge'
 import { reportsApi } from '@/lib/api/reports'
-import { gymApi } from '@/lib/api/gym'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { useAuth } from '@/hooks/use-auth'
 import { useGymAccess } from '@/hooks/use-gym-access'
 import { holdsPermission } from '@/lib/access/menu'
@@ -38,24 +37,24 @@ export default function DashboardPage() {
 
   // NEW-43: owners wait for an active organization; team members do not (they are
   // not the owner, whatever their account role).
-  const { organization, isTenantOwner, tenant, tenantLoading, isTenantActive: ownerTenantActive, gymPagesOpen, contextLoading } = useGymAccess()
-  const isTenantActive = isPlatformAdmin || gymPagesOpen
-  const tenantData = tenant
+  const { organization, isOrganizationOwner, myOrganization, myOrganizationLoading, isOrganizationActive: ownerOrganizationActive, gymPagesOpen, contextLoading } = useGymAccess()
+  const isOrganizationActive = isPlatformAdmin || gymPagesOpen
+  const organizationRecord = myOrganization
 
   useEffect(() => {
-    if (!tenantLoading && isTenantOwner && tenantData && !ownerTenantActive) {
+    if (!myOrganizationLoading && isOrganizationOwner && organizationRecord && !ownerOrganizationActive) {
       router.replace('/settings/billing')
     }
-  }, [tenantLoading, isTenantOwner, tenantData, ownerTenantActive, router])
+  }, [myOrganizationLoading, isOrganizationOwner, organizationRecord, ownerOrganizationActive, router])
 
   // NEW-45f: what the dashboard shows follows the user's permissions. Takings need
   // dashboard.revenue.view; the server adds up only the branches it is held at.
-  const gymDashboard = !isPlatformAdmin && isTenantActive
+  const gymDashboard = !isPlatformAdmin && isOrganizationActive
   const canSeeRevenue = gymDashboard && holdsPermission(organization, 'dashboard.revenue.view', 'branch')
   const canSeeCounts = gymDashboard && holdsPermission(organization, 'dashboard.view', 'branch')
   const canSeeMembers = gymDashboard && holdsPermission(organization, 'members.view', 'branch')
 
-  // Gym host dashboard (only runs when tenant is active and revenue is held)
+  // Gym host dashboard (only runs when the organization is active and revenue is held)
   const { data: statsData, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => reportsApi.getDashboardStats(),
@@ -84,14 +83,14 @@ export default function DashboardPage() {
 
   const { data: membersData, isLoading: membersLoading } = useQuery({
     queryKey: ['recent-members'],
-    queryFn: () => gymApi.getMembers({ limit: 5, page: 1 }),
+    queryFn: () => organizationsApi.getMembers({ limit: 5, page: 1 }),
     enabled: canSeeMembers,
   })
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
-    enabled: !isPlatformAdmin && isTenantActive,
+    queryFn: () => organizationsApi.getBranches(),
+    enabled: !isPlatformAdmin && isOrganizationActive,
   })
 
   // Platform admin dashboard
@@ -126,7 +125,7 @@ export default function DashboardPage() {
   const showCounts = canSeeRevenue || canSeeCounts
   // Until the context (and, for an owner, the organization's status) has arrived the page does
   // not know what the person may see: skeletons, not a flash of the wrong cards.
-  const accessPending = !isPlatformAdmin && ((!organization && contextLoading) || tenantLoading)
+  const accessPending = !isPlatformAdmin && ((!organization && contextLoading) || myOrganizationLoading)
   const count = (n: number | undefined) => (n === undefined ? '—' : n.toLocaleString())
   const revenueChartData = revenueData?.data?.data ?? []
   const platform = platformData?.data
@@ -220,7 +219,7 @@ export default function DashboardPage() {
     <>
       <Header title="Dashboard" description="Welcome to your GymsEra management portal" />
       <div className="p-6 space-y-6 animate-fade-in">
-        {isTenantOwner && <BillingNotices />}
+        {isOrganizationOwner && <BillingNotices />}
         {countsError && (
           <Alert variant="destructive" role="alert">
             <AlertCircle className="h-4 w-4" />

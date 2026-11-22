@@ -15,11 +15,12 @@ export function resolveNotificationPath(
   let link = deepLink.trim()
   if (!link.startsWith('/')) return null
 
-  // `/admin/tenants/[tenantId]` is a template the server fills from metadataJson.tenantId.
-  if (link.includes('[tenantId]')) {
-    const tenantId = metadata && typeof metadata.tenantId === 'string' ? metadata.tenantId : null
-    if (!tenantId) return null
-    link = link.replace('[tenantId]', tenantId)
+  // `/admin/organizations/[organizationId]` is a template the server fills from metadataJson
+  // (contract v2 §1 rule 8: `organizationId`). Deep-link strings are open item G11.
+  if (link.includes('[organizationId]')) {
+    const organizationId = metadata && typeof metadata.organizationId === 'string' ? metadata.organizationId : null
+    if (!organizationId) return null
+    link = link.replace('[organizationId]', organizationId)
   }
 
   const [path] = link.split('?')

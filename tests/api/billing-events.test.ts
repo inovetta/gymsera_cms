@@ -25,9 +25,9 @@ afterEach(() => {
 
 describe('adminApi.getBillingEvents', () => {
   it('calls GET /admin/billing-events with the filters and the page', async () => {
-    await adminApi.getBillingEvents({ tenantId: 'tenant-1', status: 'FAILED', page: 2, limit: 20 })
+    await adminApi.getBillingEvents({ organizationId: 'tenant-1', status: 'FAILED', page: 2, limit: 20 })
     expect(seen[0].url).toBe('/admin/billing-events')
-    expect(seen[0].params).toEqual({ tenantId: 'tenant-1', status: 'FAILED', page: 2, limit: 20 })
+    expect(seen[0].params).toEqual({ organizationId: 'tenant-1', status: 'FAILED', page: 2, limit: 20 })
   })
 
   it('sends only what is set', async () => {

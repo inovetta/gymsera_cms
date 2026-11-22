@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MembersTab } from '@/components/features/admin-tenant/members-tab'
+import { MembersTab } from '@/components/features/admin-organization/members-tab'
 import { adminApi } from '@/lib/api/admin'
 import { ok } from '../fixtures/team'
 
@@ -23,7 +23,7 @@ const renderTab = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MembersTab tenant={tenant} tenantId="t1" />
+      <MembersTab organization={tenant} organizationId="t1" />
     </QueryClientProvider>
   )
 }
@@ -32,8 +32,8 @@ describe('Admin Members tab contact details (SEC-17)', () => {
   afterEach(() => { vi.restoreAllMocks(); toastSpy.mockClear() })
 
   it('shows the masked e-mail and phone, never a full value, and does not reveal on load', async () => {
-    vi.spyOn(adminApi, 'getTenantMembers').mockResolvedValue(ok({ members: [member] }) as never)
-    const reveal = vi.spyOn(adminApi, 'revealTenantMemberContact')
+    vi.spyOn(adminApi, 'getOrganizationMembers').mockResolvedValue(ok({ members: [member] }) as never)
+    const reveal = vi.spyOn(adminApi, 'revealMemberContact')
     renderTab()
     expect(await screen.findByText('s***@example.test')).toBeInTheDocument()
     expect(screen.getByText('**********67')).toBeInTheDocument()
@@ -41,8 +41,8 @@ describe('Admin Members tab contact details (SEC-17)', () => {
   })
 
   it('reveals only after the admin confirms, sends the optional reason, and can hide the values again', async () => {
-    vi.spyOn(adminApi, 'getTenantMembers').mockResolvedValue(ok({ members: [member] }) as never)
-    const reveal = vi.spyOn(adminApi, 'revealTenantMemberContact').mockResolvedValue(
+    vi.spyOn(adminApi, 'getOrganizationMembers').mockResolvedValue(ok({ members: [member] }) as never)
+    const reveal = vi.spyOn(adminApi, 'revealMemberContact').mockResolvedValue(
       ok({ userId: 'user-1', email: 'sec.member@example.test', phone: '+923001234567' }) as never
     )
     renderTab()
@@ -61,8 +61,8 @@ describe('Admin Members tab contact details (SEC-17)', () => {
   })
 
   it('a failed reveal shows an error and keeps the values masked', async () => {
-    vi.spyOn(adminApi, 'getTenantMembers').mockResolvedValue(ok({ members: [member] }) as never)
-    vi.spyOn(adminApi, 'revealTenantMemberContact').mockRejectedValue(new Error('audit down'))
+    vi.spyOn(adminApi, 'getOrganizationMembers').mockResolvedValue(ok({ members: [member] }) as never)
+    vi.spyOn(adminApi, 'revealMemberContact').mockRejectedValue(new Error('audit down'))
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /show contact/i }))
     fireEvent.click(screen.getByRole('button', { name: /^reveal$/i }))

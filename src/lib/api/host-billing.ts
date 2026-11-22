@@ -1,5 +1,5 @@
 import apiClient from './client'
-import { ApiResponse, TenantSubscription } from '@/types'
+import { ApiResponse, OrganizationSubscription } from '@/types'
 
 // The same branch-count catalog row shape gyms_era's billing_plan.dart
 // consumes — see billing.controller.js#getPlans. Public/unauthenticated on
@@ -44,7 +44,7 @@ export const hostBillingApi = {
   // manual) is this tenant's one real entitlement; there is deliberately no
   // separate CMS-specific "get my plan" endpoint. 404s when there never was one;
   // a plan that ended answers 200 with `entitled: false` and `lapse` (P7c, R-82).
-  getCurrentSubscription: async (): Promise<ApiResponse<TenantSubscription>> => {
+  getCurrentSubscription: async (): Promise<ApiResponse<OrganizationSubscription>> => {
     const { data } = await apiClient.get('/host/subscription/current')
     return data
   },
@@ -76,7 +76,7 @@ export type PlanPaymentCycle = 'MONTHLY' | 'YEARLY'
 
 export interface PlanPaymentRequest {
   id: string
-  tenantId: string
+  organizationId: string
   billingPlanId: string
   branchCount: number
   billingCycle: PlanPaymentCycle
@@ -91,7 +91,7 @@ export interface PlanPaymentRequest {
   periodStart?: string | null
   periodEnd?: string | null
   createdAt: string
-  tenantName?: string | null
+  organizationName?: string | null
 }
 
 /** The server's own terms per cycle: the CMS never computes a duration or a price. */

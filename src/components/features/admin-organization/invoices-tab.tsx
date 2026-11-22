@@ -23,8 +23,8 @@ const INVOICE_STATUS_COLORS: Record<string, string> = {
   CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
-/** Platform invoices of one tenant. Mounted only while its tab is open (PERF-10). */
-export function InvoicesTab({ tenantId }: { tenantId: string }) {
+/** Platform invoices of one organization. Mounted only while its tab is open (PERF-10). */
+export function InvoicesTab({ organizationId }: { organizationId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [createInvoiceDialog, setCreateInvoiceDialog] = useState(false)
@@ -33,15 +33,15 @@ export function InvoicesTab({ tenantId }: { tenantId: string }) {
   const [newStatus, setNewStatus] = useState('')
 
   const { data: invoicesData, isLoading: invoicesLoading, error: invoicesError, refetch } = useQuery({
-    queryKey: ['admin-tenant-invoices', tenantId],
-    queryFn: () => adminApi.getTenantInvoices(tenantId),
+    queryKey: ['admin-organization-invoices', organizationId],
+    queryFn: () => adminApi.getInvoices(organizationId),
   })
   const invoices: PlatformInvoice[] = invoicesData?.data?.invoices ?? []
 
   const createInvoiceMutation = useMutation({
-    mutationFn: (payload: CreateInvoicePayload) => adminApi.createTenantInvoice(tenantId, payload),
+    mutationFn: (payload: CreateInvoicePayload) => adminApi.createInvoice(organizationId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-invoices', organizationId] })
       setCreateInvoiceDialog(false)
       setInvoiceForm({ subtotal: 0, description: '', dueDate: '', status: 'ISSUED' })
       toast({ title: 'Invoice created' })
@@ -51,9 +51,9 @@ export function InvoicesTab({ tenantId }: { tenantId: string }) {
 
   const updateInvoiceMutation = useMutation({
     mutationFn: ({ invoiceId, payload }: { invoiceId: string; payload: any }) =>
-      adminApi.updateTenantInvoice(tenantId, invoiceId, payload),
+      adminApi.updateInvoice(organizationId, invoiceId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-invoices', organizationId] })
       setUpdateStatusDialog({ open: false, invoice: null })
       toast({ title: 'Invoice status updated' })
     },
@@ -61,13 +61,13 @@ export function InvoicesTab({ tenantId }: { tenantId: string }) {
   })
 
   const sendReminderMutation = useMutation({
-    mutationFn: (invoiceId: string) => adminApi.sendInvoiceReminder(tenantId, invoiceId),
+    mutationFn: (invoiceId: string) => adminApi.sendInvoiceReminder(organizationId, invoiceId),
     onSuccess: () => toast({ title: 'Payment reminder sent' }),
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send reminder', variant: 'destructive' }),
   })
 
   const sendConfirmationMutation = useMutation({
-    mutationFn: (invoiceId: string) => adminApi.sendInvoiceConfirmation(tenantId, invoiceId),
+    mutationFn: (invoiceId: string) => adminApi.sendInvoiceConfirmation(organizationId, invoiceId),
     onSuccess: () => toast({ title: 'Payment confirmation sent' }),
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to send confirmation', variant: 'destructive' }),
   })
@@ -91,7 +91,7 @@ export function InvoicesTab({ tenantId }: { tenantId: string }) {
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No invoices yet. Create the first invoice for this tenant.</p>
+            <p className="text-sm text-muted-foreground">No invoices yet. Create the first invoice for this organization.</p>
           </CardContent>
         </Card>
       ) : (

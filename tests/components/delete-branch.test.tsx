@@ -4,11 +4,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DeleteBranchDialog } from '@/components/features/delete-branch-dialog'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { hostApi } from '@/lib/api/host'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ownerContext } from '../fixtures/context'
 
 // Prompt 3B: deleting a branch is the owner's action and goes to the same endpoint the
@@ -169,7 +168,7 @@ describe('BranchesPage branch delete flow (NEW-35)', () => {
       },
     ]
 
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue({
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue({
       success: true,
       data: { branches },
     } as never)
@@ -190,10 +189,10 @@ describe('BranchesPage branch delete flow (NEW-35)', () => {
       },
     }
     vi.spyOn(meApi, 'getContext').mockResolvedValue({ success: true, message: 'ok', data: ownerContext } as never)
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue({ success: true, message: 'ok', data: { tenant: { status: 'ACTIVE' }, subscription: null } } as never)
-    vi.spyOn(hostApi, 'getListings').mockResolvedValue({ success: true, message: 'ok', data: [{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }] } as never)
-    vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue({ success: true, message: 'ok', data: { branches } } as never)
-    vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null } } as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue({ success: true, message: 'ok', data: { tenant: { status: 'ACTIVE' }, subscription: null } } as never)
+    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue({ success: true, message: 'ok', data: [{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }] } as never)
+    vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue({ success: true, message: 'ok', data: { branches } } as never)
+    vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue({ success: true, message: 'ok', data: { pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null } } as never)
     vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue({ success: true, message: 'ok', data: { maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 } } as never)
     const deleteBranchSpy = vi.spyOn(hostApi, 'deleteBranch').mockRejectedValue(error401)
 

@@ -60,11 +60,11 @@ export function UnmatchedAreas({ cities }: { cities: City[] }) {
     queryClient.invalidateQueries({ queryKey: ['cities'] })
     setDialog(null)
     const failed = result?.failed?.length ?? 0
-    setNotice(failed ? `${failed} gym${failed === 1 ? '' : 's'} could not be updated. Use Retry in the Approved or Merged list.` : null)
+    setNotice(failed ? `${failed} ${failed === 1 ? 'business' : 'businesses'} could not be updated. Use Retry in the Approved or Merged list.` : null)
     toast({
       title,
       ...(failed
-        ? { description: `${failed} gym${failed === 1 ? '' : 's'} could not be updated. Use Retry in the Approved or Merged list.`, variant: 'destructive' as const }
+        ? { description: `${failed} ${failed === 1 ? 'business' : 'businesses'} could not be updated. Use Retry in the Approved or Merged list.`, variant: 'destructive' as const }
         : {}),
     })
   }
@@ -123,7 +123,7 @@ export function UnmatchedAreas({ cities }: { cities: City[] }) {
                       <Badge variant="secondary" className="text-xs">{SOURCE_LABEL[g.source] ?? g.source}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {g.cityName ?? `City ${g.cityId}`} · {g.gymCount} gym{g.gymCount === 1 ? '' : 's'} · first asked {new Date(g.firstRequestedAt).toLocaleDateString()}
+                      {g.cityName ?? `City ${g.cityId}`} · {g.businessCount} business{g.businessCount === 1 ? "" : "es"} · first asked {new Date(g.firstRequestedAt).toLocaleDateString()}
                     </p>
                     <p className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Users className="h-3.5 w-3.5" /> {g.requestedBy.map((u) => u.name || 'Unknown').join(', ')}
@@ -144,14 +144,14 @@ export function UnmatchedAreas({ cities }: { cities: City[] }) {
                   </div>
                 </div>
 
-                {g.gyms.length > 0 && (
+                {g.businesses.length > 0 && (
                   <ul className="space-y-1 text-sm">
-                    {g.gyms.map((gym, i) => (
-                      <li key={`${gym.tenantId}-${gym.listingId ?? ''}-${gym.branchId ?? ''}-${i}`} className="flex items-center gap-2">
+                    {g.businesses.map((gym, i) => (
+                      <li key={`${gym.organizationId}-${gym.businessId ?? ''}-${gym.branchId ?? ''}-${i}`} className="flex items-center gap-2">
                         <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{gym.title ?? 'Unnamed gym'}</span>
+                        <span>{gym.name ?? 'Unnamed business'}</span>
                         {gym.latitude != null && gym.longitude != null && (
-                          <a className="text-xs underline" href={mapsLink(gym.latitude, gym.longitude)} target="_blank" rel="noreferrer" aria-label={`${gym.title ?? 'Gym'} on the map`}>
+                          <a className="text-xs underline" href={mapsLink(gym.latitude, gym.longitude)} target="_blank" rel="noreferrer" aria-label={`${gym.name ?? 'Business'} on the map`}>
                             map
                           </a>
                         )}
@@ -189,7 +189,7 @@ function GroupCheckbox({ id, checked, onChange, count }: { id: string; checked: 
 }
 
 function ApproveDialog({ group, onClose, onDone }: { group: AreaRequestGroup; onClose: () => void; onDone: (r: AreaDecision) => void }) {
-  const firstPin = group.gyms.find((g) => g.latitude != null && g.longitude != null)
+  const firstPin = group.businesses.find((g) => g.latitude != null && g.longitude != null)
   const [name, setName] = useState(group.name)
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null)
   const [applyToGroup, setApplyToGroup] = useState(true)

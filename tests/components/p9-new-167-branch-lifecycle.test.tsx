@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { resolveApiError } from '@/lib/api/error-copy'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
@@ -34,8 +33,8 @@ vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({ user: { id: 'user-1', fullName: 'Hira Khan', role: 'GYM_HOST' }, logout: vi.fn(), isPlatformAdmin: false, isGymHost: true, isBranchManager: false }),
 }))
 
-const live = { id: 'b1', branchName: 'Uptown Gym', status: 'ACTIVE', address: 'x', gymListingId: 'listing-1', pausedAt: null }
-const paused = { id: 'b2', branchName: 'Quiet Gym', status: 'ACTIVE', address: 'y', gymListingId: 'listing-1', pausedAt: '2026-10-30T10:00:00Z' }
+const live = { id: 'b1', branchName: 'Uptown Gym', status: 'ACTIVE', address: 'x', businessId: 'listing-1', pausedAt: null }
+const paused = { id: 'b2', branchName: 'Quiet Gym', status: 'ACTIVE', address: 'y', businessId: 'listing-1', pausedAt: '2026-10-30T10:00:00Z' }
 
 let deleteBranch: ReturnType<typeof vi.spyOn>
 let pauseBranch: ReturnType<typeof vi.spyOn>
@@ -44,17 +43,17 @@ let resumeBranch: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   fakePlaces()
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([
     { id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' },
     { id: 'listing-2', title: 'Fit Hub', status: 'ACTIVE' },
   ]) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [live, paused] }) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [live, paused] }) as never)
   vi.spyOn(hostApi, 'getAllBranches').mockResolvedValue(ok({ branches: [live, paused] }) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 6, usedBranches: 2, remainingBranches: 4, activeBranches: 2, buildableBranches: 4, overQuotaCount: 0 }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [live] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [live] }) as never)
   deleteBranch = vi.spyOn(hostApi, 'deleteBranch').mockResolvedValue(ok({ message: 'Branch deleted successfully', organizationDeleted: false, storePlanNotice: null }) as never)
   pauseBranch = vi.spyOn(hostApi, 'pauseBranch').mockResolvedValue(ok({ branch: { ...live, pausedAt: '2026-10-31T00:00:00Z' } }) as never)
   resumeBranch = vi.spyOn(hostApi, 'resumeBranch').mockResolvedValue(ok({ branch: { ...paused, pausedAt: null } }) as never)
@@ -135,7 +134,7 @@ describe('NEW-167: the store-plan notice after the organization went with its la
   it('shows the API sentence and a link to the store subscriptions', async () => {
     deleteBranch.mockResolvedValueOnce(ok({
       message: 'Branch deleted successfully',
-      organizationDeleted: true,
+      businessDeleted: true,
       storePlanNotice: {
         platform: 'IOS',
         manageUrl: 'https://apps.apple.com/account/subscriptions',
@@ -152,9 +151,9 @@ describe('NEW-167: the store-plan notice after the organization went with its la
 
 describe('NEW-167: copy follows the API', () => {
   const err = (code: string) => ({ response: { status: 409, data: { code, message: 'x' } } })
-  it('last branch: deleting it deletes the organization (not "you cannot delete the only branch")', () => {
-    expect(resolveApiError(err('last_branch_in_organization')).message).toMatch(/also deletes the organization/i)
-    expect(resolveApiError(err('last_branch_in_organization')).message).not.toMatch(/cannot delete the only branch/i)
+  it('last branch: deleting it deletes the business (not "you cannot delete the only branch")', () => {
+    expect(resolveApiError(err('last_branch_in_business')).message).toMatch(/also deletes the business/i)
+    expect(resolveApiError(err('last_branch_in_business')).message).not.toMatch(/cannot delete the only branch/i)
   })
   it('the delete blocks have their own copy', () => {
     expect(resolveApiError(err('branch_delete_blocked')).message).toMatch(/pause the branch instead/i)

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import apiClient from '@/lib/api/client'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 
-describe('gymApi.deleteBranch (NEW-35 re-auth)', () => {
+describe('organizationsApi.deleteBranch (NEW-35 re-auth)', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -11,9 +11,9 @@ describe('gymApi.deleteBranch (NEW-35 re-auth)', () => {
     const mockResponse = { success: true, message: 'Branch deleted', data: null }
     const deleteSpy = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: mockResponse } as never)
 
-    const res = await gymApi.deleteBranch('branch-42', { password: 'test-password-123' })
+    const res = await organizationsApi.deleteBranch('branch-42', { password: 'test-password-123' })
 
-    expect(deleteSpy).toHaveBeenCalledWith('/gyms/branches/branch-42', {
+    expect(deleteSpy).toHaveBeenCalledWith('/organizations/me/branches/branch-42', {
       data: {
         password: 'test-password-123',
       },
@@ -25,17 +25,17 @@ describe('gymApi.deleteBranch (NEW-35 re-auth)', () => {
     const mockResponse = { success: true, message: 'Branch deleted', data: null }
     const deleteSpy = vi.spyOn(apiClient, 'delete').mockResolvedValue({ data: mockResponse } as never)
 
-    await gymApi.deleteBranch('branch-99', {
+    await organizationsApi.deleteBranch('branch-99', {
       provider: 'GOOGLE',
       idToken: 'google-id-token',
-      confirmOrganizationDeletion: true,
+      confirmBusinessDeletion: true,
     })
 
-    expect(deleteSpy).toHaveBeenCalledWith('/gyms/branches/branch-99', {
+    expect(deleteSpy).toHaveBeenCalledWith('/organizations/me/branches/branch-99', {
       data: {
         provider: 'GOOGLE',
         idToken: 'google-id-token',
-        confirmOrganizationDeletion: true,
+        confirmBusinessDeletion: true,
       },
     })
   })

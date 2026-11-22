@@ -9,22 +9,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { adminApi } from '@/lib/api/admin'
 import { formatCurrency } from '@/lib/utils'
 import { isTravellerVisible, planDisplayName, planDurationLabel } from '@/lib/plans/plan-display'
-import type { Tenant } from '@/types'
+import type { Organization } from '@/types'
 
-/** Membership plans of one tenant. Mounted only while its tab is open, so it only fetches then (PERF-10). */
-export function PlansTab({ tenant, tenantId }: { tenant: Tenant; tenantId: string }) {
+/** Membership plans of one organization. Mounted only while its tab is open, so it only fetches then (PERF-10). */
+export function PlansTab({ organization, organizationId }: { organization: Organization; organizationId: string }) {
   const { data: plansData, isLoading: plansLoading, error: plansError, refetch } = useQuery({
-    queryKey: ['admin-tenant-plans', tenantId],
-    queryFn: () => adminApi.getTenantMembershipPlans(tenantId),
-    enabled: tenant.status === 'ACTIVE',
+    queryKey: ['admin-organization-plans', organizationId],
+    queryFn: () => adminApi.getOrganizationMembershipPlans(organizationId),
+    enabled: organization.status === 'ACTIVE',
   })
 
   return (
   <Card>
     <CardHeader><CardTitle className="text-base flex items-center gap-2"><Dumbbell className="h-4 w-4" /> Membership Plans</CardTitle></CardHeader>
     <CardContent>
-      {tenant.status !== 'ACTIVE' ? (
-        <p className="text-sm text-muted-foreground text-center py-8">Plan data is only available for active tenants.</p>
+      {organization.status !== 'ACTIVE' ? (
+        <p className="text-sm text-muted-foreground text-center py-8">Plan data is only available for active organizations.</p>
       ) : plansLoading ? (
         <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="flex items-center gap-4"><div className="space-y-1.5 flex-1"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-56" /></div><Skeleton className="h-6 w-16 rounded-full" /></div>)}</div>
       ) : plansError ? (
@@ -44,7 +44,7 @@ export function PlansTab({ tenant, tenantId }: { tenant: Tenant; tenantId: strin
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {plan.branch?.branchName ?? 'Gym-wide'} · {planDurationLabel(plan.durationType, plan.durationValue)}
+                  {plan.branch?.branchName ?? 'Business-wide'} · {planDurationLabel(plan.durationType, plan.durationValue)}
                   {plan.isTrial ? ' · Trial' : ''}
                 </p>
               </div>

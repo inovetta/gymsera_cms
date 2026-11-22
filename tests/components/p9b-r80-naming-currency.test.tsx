@@ -4,14 +4,13 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BillingPage from '@/app/(dashboard)/settings/billing/page'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
-import { PlansTab } from '@/components/features/admin-tenant/plans-tab'
-import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
+import { PlansTab } from '@/components/features/admin-organization/plans-tab'
+import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
 import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { adminApi } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
 import { firstPlanPackage } from '@/lib/plans/plan-display'
@@ -53,7 +52,7 @@ afterEach(() => vi.restoreAllMocks())
 
 describe('Subscription & Billing: tier name and currency from the server', () => {
   beforeEach(() => {
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't1', status: 'ACTIVE' } }) as never)
     vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 1, activeBranches: 1, usedBranches: 1, buildableBranches: 0, remainingBranches: 0 }) as never)
     vi.spyOn(hostBillingApi, 'getBankInstructions').mockResolvedValue(ok(null) as never)
     vi.spyOn(planPaymentsApi, 'getOverview').mockResolvedValue(ok(PLAN_PAYMENT_OVERVIEW) as never)
@@ -79,21 +78,21 @@ describe('Subscription & Billing: tier name and currency from the server', () =>
 
 describe('Admin tenant Subscription tab: tier names', () => {
   it('a store plan is named by its tier, not by a package', async () => {
-    vi.spyOn(adminApi, 'getTenantSubscriptions').mockResolvedValue(ok({ subscriptions: [
+    vi.spyOn(adminApi, 'getSubscriptions').mockResolvedValue(ok({ subscriptions: [
       { id: 's1', status: 'ACTIVE', platform: 'ANDROID', branchCount: 3, amount: 5000, currency: 'PKR', billingCycle: 'MONTHLY', startDate: '2026-10-01', endDate: '2026-11-01', package: null },
     ] }) as never)
     vi.spyOn(packagesApi, 'getPackages').mockResolvedValue(ok([]) as never)
-    wrap(<SubscriptionTab tenantId="t1" />)
+    wrap(<SubscriptionTab organizationId="t1" />)
     expect(await screen.findByText(/Professional Plan/)).toBeInTheDocument()
   })
 })
 
 describe('Admin tenant Plans tab: the app naming rule and the plan currency', () => {
   it('QUARTERLY 2 is "6 Months", the price is in the plan currency, and traveller visibility is shown', async () => {
-    vi.spyOn(adminApi, 'getTenantMembershipPlans').mockResolvedValue(ok({ plans: [
+    vi.spyOn(adminApi, 'getOrganizationMembershipPlans').mockResolvedValue(ok({ plans: [
       { id: 'p1', name: ' Quarter Pass ', durationType: 'QUARTERLY', durationValue: 2, price: 99, currency: 'USD', status: 'ACTIVE', isPublic: false, isDeactivated: false, freezeLimitDays: 0, isTrial: false, branch: { branchName: 'Uptown' } },
     ] }) as never)
-    wrap(<PlansTab tenant={{ status: 'ACTIVE' } as never} tenantId="t1" />)
+    wrap(<PlansTab organization={{ status: 'ACTIVE' } as never} organizationId="t1" />)
     const row = await screen.findByTestId('admin-plan-p1')
     expect(within(row).getByText('Quarter Pass')).toBeInTheDocument()
     expect(within(row).getByText(/6 Months/)).toBeInTheDocument()
@@ -110,14 +109,14 @@ describe('First plan of a new branch or organization: one period, as the app sen
   it('New Organization sends one year for a yearly first plan', async () => {
     fakePlaces()
     vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-    vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-    vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+    vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
     vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 }) as never)
-    vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
-    const createListing = vi.spyOn(hostApi, 'createListing').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
+    vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
 
     wrap(<BranchesPage />)
     fireEvent.click(await screen.findByRole('button', { name: /new organization/i }))

@@ -41,11 +41,12 @@ export interface AreaCheck {
 /** POST /places/area-requests answers an existing area, or a request (new or the person's own). */
 export type AreaRequestAnswer = { area: { id: number; name: string } } | { areaRequest: AreaRequestRef }
 
-export interface AreaRequestGym {
-  tenantId: string
-  listingId: string | null
+/** One business or branch waiting on an area request (G15, owner decision 2026-11-22). */
+export interface AreaRequestBusiness {
+  organizationId: string
+  businessId: string | null
   branchId: string | null
-  title: string | null
+  name: string | null
   latitude: number | null
   longitude: number | null
 }
@@ -57,8 +58,8 @@ export interface AreaRequestGroup {
   name: string
   source: AreaRequestSource
   googlePlaceId: string | null
-  gymCount: number
-  gyms: AreaRequestGym[]
+  businessCount: number
+  businesses: AreaRequestBusiness[]
   requestedBy: { userId: string; name: string | null }[]
   firstRequestedAt: string
   similar: SimilarArea[]
@@ -68,7 +69,7 @@ export interface AreaDecision {
   area?: { id: number; name: string } | null
   decided: number
   propagated?: number
-  failed?: { tenantId: string; error: string }[]
+  failed?: { organizationId: string; error: string }[]
 }
 
 export interface AreaAlias {
@@ -120,7 +121,7 @@ export const areaRequestsApi = {
     return data
   },
 
-  retry: async (id: number): Promise<ApiResponse<{ propagated: number; failed: { tenantId: string; error: string }[] }>> => {
+  retry: async (id: number): Promise<ApiResponse<{ propagated: number; failed: { organizationId: string; error: string }[] }>> => {
     const { data } = await apiClient.post(`/admin/area-requests/${id}/retry`)
     return data
   },

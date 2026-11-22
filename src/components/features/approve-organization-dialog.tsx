@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { adminApi } from '@/lib/api/admin'
 import { describeRequestError, serverCode } from '@/lib/api/request-errors'
-import type { ApprovalPhoto, Tenant } from '@/types'
+import type { ApprovalPhoto, Organization } from '@/types'
 
 const KIND_LABEL: Record<ApprovalPhoto['kind'], string> = { logo: 'Logo', cover: 'Cover', gallery: 'Photo' }
 
@@ -29,8 +29,8 @@ export function approvalErrorMessage(error: unknown): string {
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  tenant: Tenant
-  tenantId: string
+  organization: Organization
+  organizationId: string
   loading: boolean
   /** The approval failed: its message is shown here, in the dialog. */
   error: unknown
@@ -42,22 +42,22 @@ interface Props {
  * each with Remove, and "I checked the photos" before Approve. The API refuses without the tick and
  * records who gave it.
  */
-export function ApproveTenantDialog({ open, onOpenChange, tenant, tenantId, loading, error, onApprove }: Props) {
+export function ApproveOrganizationDialog({ open, onOpenChange, organization, organizationId, loading, error, onApprove }: Props) {
   const queryClient = useQueryClient()
   const [checked, setChecked] = useState(false)
-  const photos = tenant.approvalPhotos ?? []
+  const photos = organization.approvalPhotos ?? []
   const photoKey = photos.map((p) => p.url).join('|')
 
   // A changed set of photos needs a new look.
   useEffect(() => setChecked(false), [open, photoKey])
 
   const removeMutation = useMutation({
-    mutationFn: (url: string) => adminApi.removeApprovalPhoto(tenantId, url),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] }),
+    mutationFn: (url: string) => adminApi.removeApprovalPhoto(organizationId, url),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['organization', organizationId] }),
   })
 
-  const verb = tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume' : 'Approve'
-  const title = tenant.status === 'REJECTED' ? 'Re-approve Tenant' : tenant.status === 'APPROVED' ? 'Resume Provisioning' : 'Approve Tenant'
+  const verb = organization.status === 'REJECTED' ? 'Re-approve' : organization.status === 'APPROVED' ? 'Resume' : 'Approve'
+  const title = organization.status === 'REJECTED' ? 'Re-approve Organization' : organization.status === 'APPROVED' ? 'Resume Provisioning' : 'Approve Organization'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,7 +65,7 @@ export function ApproveTenantDialog({ open, onOpenChange, tenant, tenantId, load
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Travellers will see these photos for &quot;{tenant.businessName}&quot;. Remove any that is not a real photo of
+            Travellers will see these photos for &quot;{organization.organizationName}&quot;. Remove any that is not a real photo of
             the gym, such as a screenshot.
           </DialogDescription>
         </DialogHeader>

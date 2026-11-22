@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
 import { fakePlaces, pickPlace } from '../fixtures/places'
@@ -42,10 +41,10 @@ vi.mock('@/hooks/use-auth', () => ({
 }))
 
 const LISTINGS = [
-  { id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' },
-  { id: 'listing-2', title: 'Fit Hub', status: 'ACTIVE' },
+  { id: 'listing-1', name: 'Iron Gym', status: 'ACTIVE' },
+  { id: 'listing-2', name: 'Fit Hub', status: 'ACTIVE' },
 ]
-const branch = (id: string, name: string, listingId: string) => ({ id, branchName: name, status: 'ACTIVE', address: 'x', gymListingId: listingId })
+const branch = (id: string, name: string, listingId: string) => ({ id, branchName: name, status: 'ACTIVE', address: 'x', businessId: listingId })
 
 const quota = (over = {}) => ({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0, ...over })
 
@@ -65,15 +64,15 @@ let getQuota: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   accountRole = 'GYM_HOST'
   fakePlaces()
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 1, name: 'Peshawar' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok(LISTINGS) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockImplementation((async (id: string) =>
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok(LISTINGS) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockImplementation((async (id: string) =>
     ok({ branches: id === 'listing-1' ? [branch('b1', 'Uptown', 'listing-1')] : [branch('b2', 'Downtown', 'listing-2')] })) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   getQuota = vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota()) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [branch('b9', 'Legacy', 'listing-1')] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [branch('b9', 'Legacy', 'listing-1')] }) as never)
   createBranch = vi.spyOn(hostApi, 'createBranch').mockResolvedValue(ok({ branch: branch('b3', 'New One', 'listing-1') }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -102,7 +101,7 @@ describe('Organization strip (mobile _buildSubTabBar)', () => {
     expect(tabs.map((t) => t.textContent)).toEqual(['Iron Gym', 'Fit Hub'])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('Uptown')).toBeInTheDocument()
-    expect(hostApi.getListingBranches).toHaveBeenCalledWith('listing-1')
+    expect(hostApi.getBusinessBranches).toHaveBeenCalledWith('listing-1')
 
     fireEvent.click(tabs[1])
     expect(await screen.findByText('Downtown')).toBeInTheDocument()
@@ -121,7 +120,7 @@ describe('Add branch — attempt first, upsell only after a 403 (UX-19)', () => 
 
     await waitFor(() => expect(createBranch).toHaveBeenCalledTimes(1))
     const body = createBranch.mock.calls[0][0]
-    expect(body).toMatchObject({ branchName: 'New One', gymListingId: 'listing-2', address: '12 Mall Road', cityId: 7 })
+    expect(body).toMatchObject({ branchName: 'New One', businessId: 'listing-2', address: '12 Mall Road', cityId: 7 })
     expect(body.packages.length).toBeGreaterThan(0)
     // Even with the plan full, the attempt was made; no upsell appears when it succeeds.
     expect(screen.queryByText('One more branch needed')).not.toBeInTheDocument()
@@ -209,6 +208,6 @@ describe('Someone who is not the owner', () => {
     expect(await screen.findByText('Legacy')).toBeInTheDocument()
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: /add branch/i })).not.toBeInTheDocument()
-    expect(hostApi.getListings).not.toHaveBeenCalled()
+    expect(hostApi.getBusinesses).not.toHaveBeenCalled()
   })
 })

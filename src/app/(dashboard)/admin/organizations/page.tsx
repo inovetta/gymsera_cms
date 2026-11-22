@@ -1,6 +1,6 @@
 'use client'
 
-import { tenantDisplayName, tenantSubName } from '@/lib/tenants/brand-name'
+import { organizationDisplayName, firstBusinessSubName } from '@/lib/organizations/organization-name'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { adminApi } from '@/lib/api/admin'
 import { citiesApi, parseCities } from '@/lib/api/cities'
 import { packagesApi } from '@/lib/api/packages'
-import { Tenant } from '@/types'
+import { Organization } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
@@ -33,7 +33,7 @@ const createTenantSchema = z.object({
   ownerEmail: z.string().email('Valid email required'),
   ownerFullName: z.string().min(2, 'Full name required'),
   ownerPhone: z.string().optional(),
-  businessName: z.string().min(2, 'Business name required'),
+  organizationName: z.string().min(2, 'Organization name required'),
   email: z.string().email('Valid business email required'),
   phone: z.string().optional(),
   cityId: z.string().optional(),
@@ -50,14 +50,14 @@ export default function TenantsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Organization | null>(null)
   const [syncSent, setSyncSent] = useState(false)
 
   const debouncedSearch = useDebounce(search, 400)
 
   const { data, isLoading, error: listError, refetch } = useQuery({
-    queryKey: ['tenants', debouncedSearch, statusFilter, page],
-    queryFn: () => adminApi.getTenants({
+    queryKey: ['organizations', debouncedSearch, statusFilter, page],
+    queryFn: () => adminApi.getOrganizations({
       search: debouncedSearch || undefined,
       status: statusFilter !== 'all' ? statusFilter : undefined,
       page,
@@ -79,40 +79,40 @@ export default function TenantsPage() {
 
   const form = useForm<CreateTenantForm>({
     resolver: zodResolver(createTenantSchema),
-    defaultValues: { ownerEmail: '', ownerFullName: '', ownerPhone: '', businessName: '', email: '', phone: '', cityId: '', packageId: '' },
+    defaultValues: { ownerEmail: '', ownerFullName: '', ownerPhone: '', organizationName: '', email: '', phone: '', cityId: '', packageId: '' },
   })
 
   const createMutation = useMutation({
-    mutationFn: (values: CreateTenantForm) => adminApi.createTenant({
+    mutationFn: (values: CreateTenantForm) => adminApi.createOrganization({
       ownerEmail: values.ownerEmail,
       ownerFullName: values.ownerFullName,
       ownerPhone: values.ownerPhone || undefined,
-      businessName: values.businessName,
+      organizationName: values.organizationName,
       email: values.email,
       phone: values.phone || undefined,
       cityId: values.cityId ? Number(values.cityId) : undefined,
       packageId: values.packageId || undefined,
     }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
       setCreateOpen(false)
       form.reset()
-      toast({ title: 'Tenant created', description: `${res.data?.tenant?.businessName} has been registered.` })
+      toast({ title: 'Organization created', description: `${res.data?.organization?.organizationName} has been registered.` })
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { message?: string } } }
-      toast({ title: 'Error', description: e.response?.data?.message || 'Failed to create tenant', variant: 'destructive' })
+      toast({ title: 'Error', description: e.response?.data?.message || 'Failed to create organization', variant: 'destructive' })
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => adminApi.deleteTenant(id),
+    mutationFn: (id: string) => adminApi.deleteOrganization(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
       setDeleteTarget(null)
-      toast({ title: 'Tenant deleted' })
+      toast({ title: 'Organization deleted' })
     },
-    onError: (err: any) => toast({ title: 'Cannot delete', description: err?.response?.data?.message ?? 'Failed to delete tenant', variant: 'destructive' }),
+    onError: (err: any) => toast({ title: 'Cannot delete', description: err?.response?.data?.message ?? 'Failed to delete organization', variant: 'destructive' }),
   })
 
   const syncMutation = useMutation({
@@ -128,20 +128,20 @@ export default function TenantsPage() {
   const cities = parseCities(citiesData?.data)
   const packages = packagesData?.data?.filter((p) => p.status === 'ACTIVE') ?? []
 
-  const columns: Column<Tenant>[] = [
+  const columns: Column<Organization>[] = [
     {
-      key: 'business',
-      header: 'Business',
+      key: 'organization',
+      header: 'Organization',
       cell: (row) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-              {getInitials(tenantDisplayName(row))}
+              {getInitials(organizationDisplayName(row))}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-sm">{tenantDisplayName(row)}</p>
-            {tenantSubName(row) && <p className="text-xs text-muted-foreground">{tenantSubName(row)}</p>}
+            <p className="font-medium text-sm">{organizationDisplayName(row)}</p>
+            {firstBusinessSubName(row) && <p className="text-xs text-muted-foreground">{firstBusinessSubName(row)}</p>}
             <p className="text-xs text-muted-foreground">{row.email}</p>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function TenantsPage() {
           variant="ghost"
           className="h-7 w-7 text-destructive hover:bg-destructive hover:text-destructive-foreground"
           onClick={(e) => { e.stopPropagation(); setDeleteTarget(row) }}
-          title="Delete tenant"
+          title="Delete organization"
           disabled={!['PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'].includes(row.status)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -192,10 +192,10 @@ export default function TenantsPage() {
 
   return (
     <>
-      <Header title="Tenants" description="Manage gym host applications and accounts" />
+      <Header title="Organizations" description="Manage host applications and accounts" />
       <div className="p-6 animate-fade-in">
         <PageHeader
-          title="Tenant Management"
+          title="Organization Management"
           description="Review and manage gym host applications"
           action={
             <div className="flex gap-2">
@@ -210,7 +210,7 @@ export default function TenantsPage() {
               </Button>
               <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Create Tenant
+                Create Organization
               </Button>
             </div>
           }
@@ -221,7 +221,7 @@ export default function TenantsPage() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search tenants..."
+              placeholder="Search organizations..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               className="pl-9"
@@ -248,39 +248,39 @@ export default function TenantsPage() {
           <CardContent className="pt-4">
             <DataTable
               columns={columns}
-              data={(data?.data?.tenants ?? []) as Tenant[]}
+              data={(data?.data?.organizations ?? []) as Organization[]}
               loading={isLoading}
               error={listError}
-              errorWhat="the tenant list"
+              errorWhat="the organization list"
               onRetry={() => refetch()}
-              emptyTitle="No tenants found"
-              emptyDescription="No gym hosts match the current filter"
+              emptyTitle="No organizations found"
+              emptyDescription="No hosts match the current filter"
               page={page}
-              totalPages={data?.pagination?.totalPages ?? 1}
+              totalPages={Math.max(1, Math.ceil((data?.data?.total ?? 0) / 20))}
               onPageChange={setPage}
-              onRowClick={(tenant) => router.push(`/admin/tenants/${tenant.id}`)}
+              onRowClick={(organization) => router.push(`/admin/organizations/${organization.id}`)}
             />
           </CardContent>
         </Card>
       </div>
 
-      {/* Delete Tenant */}
+      {/* Delete Organization */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="Delete Tenant"
+        title="Delete Organization"
         variant="destructive"
-        description={`Permanently delete "${deleteTarget?.businessName}"? This removes all their data and cannot be undone. Only pending/rejected tenants can be deleted.`}
+        description={`Permanently delete "${deleteTarget?.organizationName}"? This removes all their data and cannot be undone. Only pending or rejected organizations can be deleted.`}
         confirmLabel="Delete"
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         loading={deleteMutation.isPending}
       />
 
-      {/* Create Tenant Dialog */}
+      {/* Create Organization Dialog */}
       <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) form.reset() }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create Tenant</DialogTitle>
+            <DialogTitle>Create Organization</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-5">
@@ -315,9 +315,9 @@ export default function TenantsPage() {
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Business Details</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="businessName" render={({ field }) => (
+                  <FormField control={form.control} name="organizationName" render={({ field }) => (
                     <FormItem className="sm:col-span-2">
-                      <FormLabel>Business Name *</FormLabel>
+                      <FormLabel>Organization name *</FormLabel>
                       <FormControl><Input placeholder="Fitness Plus Pvt Ltd" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -372,12 +372,12 @@ export default function TenantsPage() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                If the owner email doesn&apos;t exist, a new account will be created automatically. The tenant will be created in <strong>Pending Review</strong> status.
+                If the owner email doesn&apos;t exist, a new account will be created automatically. The organization will be created in <strong>Pending Review</strong> status.
               </p>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); form.reset() }}>Cancel</Button>
-                <Button type="submit" loading={createMutation.isPending}>Create Tenant</Button>
+                <Button type="submit" loading={createMutation.isPending}>Create Organization</Button>
               </DialogFooter>
             </form>
           </Form>

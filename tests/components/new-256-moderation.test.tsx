@@ -20,7 +20,7 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: toastSpy }) }))
 
 const reviewReport = {
   id: 'rep-1', reporterUserId: 'u1', targetType: 'REVIEW', targetId: 'rev-1', targetUserId: 'u2', conversationId: null,
-  tenantId: 't1', reason: 'HARASSMENT', note: 'insults the staff', snapshotText: 'Terrible\nThe owner is rude', status: 'OPEN',
+  organizationId: 't1', reason: 'HARASSMENT', note: 'insults the staff', snapshotText: 'Terrible\nThe owner is rude', status: 'OPEN',
   action: null, adminNote: null, handledAt: null, createdAt: '2026-11-15T08:00:00Z', ageHours: 26, overdue: true,
   allowedActions: ['DISMISS', 'HIDE_REVIEW', 'SUSPEND_USER'],
   reporter: { id: 'u1', fullName: 'Sara Reporter' }, targetUser: { id: 'u2', fullName: 'Ali Author', status: 'ACTIVE' },

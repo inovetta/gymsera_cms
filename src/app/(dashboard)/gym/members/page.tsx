@@ -18,9 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { plansApi } from '@/lib/api/plans'
-import { GymMember, MembershipDisplayStatus, User } from '@/types'
+import { OrganizationMember, MembershipDisplayStatus, User } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useToast } from '@/hooks/use-toast'
@@ -53,7 +53,7 @@ export default function MembersPage() {
 
   const { data, isLoading, error: listError, refetch } = useQuery({
     queryKey: ['gym-members', debouncedSearch, statusFilter, page],
-    queryFn: () => gymApi.getMembers({
+    queryFn: () => organizationsApi.getMembers({
       q: debouncedSearch || undefined,
       membershipStatus: statusFilter !== 'all' ? statusFilter : undefined,
       page,
@@ -63,7 +63,7 @@ export default function MembersPage() {
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
+    queryFn: () => organizationsApi.getBranches(),
   })
 
   const { data: plansData } = useQuery({
@@ -78,7 +78,7 @@ export default function MembersPage() {
   })
 
   const enrollMutation = useMutation({
-    mutationFn: (values: EnrollForm) => gymApi.enrollMember({
+    mutationFn: (values: EnrollForm) => organizationsApi.enrollMember({
       email: values.email,
       fullName: values.fullName || undefined,
       phone: values.phone || undefined,
@@ -116,7 +116,7 @@ export default function MembersPage() {
     if (!email) return
     setLookingUp(true)
     try {
-      const res = await gymApi.searchMember(email)
+      const res = await organizationsApi.searchMember(email)
       const user = res.data?.user ?? null
       setFoundUser(user)
       form.setValue('email', email)
@@ -135,7 +135,7 @@ export default function MembersPage() {
   const activePlans = (plansData?.data?.plans ?? []).filter((p) => p.status === 'ACTIVE')
   const branches = branchesData?.data?.branches ?? []
 
-  const columns: Column<GymMember>[] = [
+  const columns: Column<OrganizationMember>[] = [
     {
       key: 'name',
       header: 'Member',

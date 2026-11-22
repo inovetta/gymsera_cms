@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BranchLocationFields, BranchLocationValue, locationValid, pendingAreaValue } from '@/components/features/places/branch-location-fields'
 import { citiesApi, parseCities } from '@/lib/api/cities'
-import type { UpdateListingContentPayload } from '@/lib/api/host'
+import type { UpdatePublicContentPayload } from '@/lib/api/host'
 import { changedFields, COUNTRIES } from '@/lib/listing/content'
 import { SaveBar } from './section-card'
 import { useListingSave } from './use-listing-save'
@@ -49,7 +49,7 @@ export function LocationSection({ branchId, branch, onClose }: SectionEditorProp
   const line1 = location.address
   const line1Invalid = line1.trim() === ''
 
-  const draft: UpdateListingContentPayload = {
+  const draft: UpdatePublicContentPayload = {
     address: line1,
     addressLine1: line1,
     addressLine2: line2,
@@ -62,7 +62,7 @@ export function LocationSection({ branchId, branch, onClose }: SectionEditorProp
     ...(location.longitude !== undefined && locationValid(location) ? { longitude: location.longitude } : {}),
     ...(location.googlePlaceId ? { googlePlaceId: location.googlePlaceId } : {}),
   }
-  const patch: UpdateListingContentPayload = changedFields(branch, draft)
+  const patch: UpdatePublicContentPayload = changedFields(branch, draft)
   // NEW-265: a new area request (a refused one is never sent back; an unchanged one is kept by the server).
   if (location.areaRequestId && location.areaStatus !== 'rejected' && location.areaRequestId !== branch.pendingArea?.requestId) {
     patch.areaRequestId = location.areaRequestId

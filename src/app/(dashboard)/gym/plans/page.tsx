@@ -29,7 +29,7 @@ import { Switch } from '@/components/ui/switch'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { plansApi } from '@/lib/api/plans'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { MembershipPlan } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { ERROR_COPY_FALLBACK } from '@/lib/api/error-copy'
@@ -176,7 +176,7 @@ export default function PlansPage() {
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
+    queryFn: () => organizationsApi.getBranches(),
   })
   const branches = branchesData?.data?.branches ?? []
   const activeBranches = branches.filter((b) => (b.status || '').toUpperCase() === 'ACTIVE')

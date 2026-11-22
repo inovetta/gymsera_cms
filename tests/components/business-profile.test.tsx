@@ -1,9 +1,8 @@
 /**
- * NEW-196 (P10b): the Gym Profile page edits every organization, not only the first. It used
- * GET / PATCH /gyms/profile (the tenant's first organization) and /gyms/profile/logo, /cover and
- * /images (which also wrote to, and deleted the old logo of, the first organization). Now, as the
- * mobile Edit Organization: GET /host/listings, GET / PATCH /host/listings/:id and photo uploads
- * through POST /host/listings/staging-images, saved on the chosen organization only.
+ * NEW-196 (P10b), contract v2 (R-120): the Business Profile page edits every business, not only
+ * the first: GET /host/businesses, GET / PATCH /host/businesses/:businessId, photo uploads through
+ * POST /host/businesses/staging-images, saved on the chosen business only. The contact e-mail is
+ * read from GET /organizations/me/businesses/:businessId/profile.
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -11,7 +10,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import GymProfilePage from '@/app/(dashboard)/gym/profile/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { apiError, ok } from '../fixtures/team'
 
 const toast = vi.fn()
@@ -33,31 +32,25 @@ vi.mock('@/components/ui/select', () => ({
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }))
 
-const LISTINGS = [
-  { id: 'org-1', title: 'Iron Gym', status: 'ACTIVE' },
-  { id: 'org-2', title: 'Fit Hub', status: 'ACTIVE' },
+const BUSINESSES = [
+  { id: 'biz-1', name: 'Iron Gym', status: 'ACTIVE' },
+  { id: 'biz-2', name: 'Fit Hub', status: 'ACTIVE' },
 ]
 
-const organization = (id: string, name: string, over: Record<string, unknown> = {}) => ({
+// Contract v2 §3 Business (one id per business, option S): no nested tenant-database row.
+const business = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id,
-  title: name,
+  name,
   status: 'ACTIVE',
   category: 'Yoga & Pilates',
   establishedYear: 2019,
-  website: null,
-  shortDescription: null,
-  gym: {
-    id: `gym-${id}`,
-    name,
-    description: `${name} description`,
-    genderType: 'FEMALE_ONLY',
-    contactPhone: '+92 300 1111111',
-    contactEmail: `${id}@example.test`,
-    website: `https://${id}.example.test`,
-    logoUrl: `https://cdn.example.test/${id}-logo.jpg`,
-    coverImageUrl: null,
-    imagesJson: [`https://cdn.example.test/${id}-a.jpg`, `https://cdn.example.test/${id}-b.jpg`],
-  },
+  description: `${name} description`,
+  genderType: 'FEMALE_ONLY',
+  contactPhone: '+92 300 1111111',
+  website: `https://${id}.example.test`,
+  logoUrl: `https://cdn.example.test/${id}-logo.jpg`,
+  coverImageUrl: null,
+  imagesJson: [`https://cdn.example.test/${id}-a.jpg`, `https://cdn.example.test/${id}-b.jpg`],
   ...over,
 })
 
@@ -73,79 +66,81 @@ const mount = () => {
 const fileInputs = (container: HTMLElement) => Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[]
 const choose = (input: HTMLInputElement, file: File) => fireEvent.change(input, { target: { files: [file] } })
 
-describe('NEW-196 Gym Profile edits each organization', () => {
-  let getGymProfile: ReturnType<typeof vi.spyOn>
-  let updateGymProfile: ReturnType<typeof vi.spyOn>
+describe('NEW-196 Business Profile edits each business', () => {
+  let getBusinessProfile: ReturnType<typeof vi.spyOn>
+  let updateBusinessProfile: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     toast.mockReset()
-    vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok(LISTINGS) as never)
-    vi.spyOn(hostApi, 'getOrganization').mockImplementation(async (id: string) =>
-      ok(organization(id, id === 'org-1' ? 'Iron Gym' : 'Fit Hub')) as never
+    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok(BUSINESSES) as never)
+    vi.spyOn(hostApi, 'getBusiness').mockImplementation(async (id: string) =>
+      ok(business(id, id === 'biz-1' ? 'Iron Gym' : 'Fit Hub')) as never
     )
-    vi.spyOn(hostApi, 'updateOrganization').mockResolvedValue(ok({ id: 'org-2' }) as never)
-    vi.spyOn(hostApi, 'uploadOrganizationPhotos').mockResolvedValue(['https://cdn.example.test/new.jpg'])
-    getGymProfile = vi.spyOn(gymApi, 'getGymProfile')
-    updateGymProfile = vi.spyOn(gymApi, 'updateGymProfile')
+    vi.spyOn(hostApi, 'updateBusiness').mockResolvedValue(ok({ id: 'biz-2' }) as never)
+    vi.spyOn(hostApi, 'uploadStagingImages').mockResolvedValue(['https://cdn.example.test/new.jpg'])
+    getBusinessProfile = vi.spyOn(organizationsApi, 'getBusinessProfile').mockImplementation(async (id: string) =>
+      ok({ business: { id, contactEmail: `${id}@example.test` } }) as never
+    )
+    updateBusinessProfile = vi.spyOn(organizationsApi, 'updateBusinessProfile')
   })
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('lists the organizations and saves the second one through PATCH /host/listings/:id', async () => {
+  it('lists the businesses and saves the second one through PATCH /host/businesses/:businessId', async () => {
     mount()
     fireEvent.click(await screen.findByRole('tab', { name: 'Fit Hub' }))
-    await waitFor(() => expect(hostApi.getOrganization).toHaveBeenCalledWith('org-2'))
+    await waitFor(() => expect(hostApi.getBusiness).toHaveBeenCalledWith('biz-2'))
     const name = await screen.findByDisplayValue('Fit Hub')
     fireEvent.change(name, { target: { value: 'Fit Hub Gulberg' } })
     fireEvent.change(screen.getByDisplayValue('Fit Hub description'), { target: { value: '' } })
     fireEvent.click(screen.getAllByRole('button', { name: /Save Changes/ })[0])
 
-    await waitFor(() => expect(hostApi.updateOrganization).toHaveBeenCalled())
-    const [id, body] = (hostApi.updateOrganization as any).mock.calls[0]
-    expect(id).toBe('org-2')
+    await waitFor(() => expect(hostApi.updateBusiness).toHaveBeenCalled())
+    const [id, body] = (hostApi.updateBusiness as any).mock.calls[0]
+    expect(id).toBe('biz-2')
     expect(body).toEqual({
-      gymName: 'Fit Hub Gulberg',
-      gymDescription: '',
+      businessName: 'Fit Hub Gulberg',
+      businessDescription: '',
       category: 'Yoga & Pilates',
       establishedYear: 2019,
       contactPhone: '+92 300 1111111',
-      contactEmail: 'org-2@example.test',
-      website: 'https://org-2.example.test',
+      contactEmail: 'biz-2@example.test',
+      website: 'https://biz-2.example.test',
       genderType: 'FEMALE_ONLY',
-      logoUrl: 'https://cdn.example.test/org-2-logo.jpg',
+      logoUrl: 'https://cdn.example.test/biz-2-logo.jpg',
       coverImageUrl: '',
-      imagesJson: ['https://cdn.example.test/org-2-a.jpg', 'https://cdn.example.test/org-2-b.jpg'],
+      imagesJson: ['https://cdn.example.test/biz-2-a.jpg', 'https://cdn.example.test/biz-2-b.jpg'],
     })
-    expect(getGymProfile).not.toHaveBeenCalled()
-    expect(updateGymProfile).not.toHaveBeenCalled()
+    expect(getBusinessProfile).toHaveBeenCalledWith('biz-2')
+    expect(updateBusinessProfile).not.toHaveBeenCalled()
   })
 
-  it('a new logo is uploaded without touching any organization, then saved on this one', async () => {
+  it('a new logo is uploaded without touching any business, then saved on this one', async () => {
     const { container } = mount()
     fireEvent.click(await screen.findByRole('tab', { name: 'Fit Hub' }))
     await screen.findByDisplayValue('Fit Hub')
     choose(fileInputs(container)[0], new File(['x'], 'logo.png', { type: 'image/png' }))
     fireEvent.click(screen.getAllByRole('button', { name: /Save Changes/ })[0])
 
-    await waitFor(() => expect(hostApi.updateOrganization).toHaveBeenCalled())
-    expect(hostApi.uploadOrganizationPhotos).toHaveBeenCalledTimes(1)
-    const [id, body] = (hostApi.updateOrganization as any).mock.calls[0]
-    expect(id).toBe('org-2')
+    await waitFor(() => expect(hostApi.updateBusiness).toHaveBeenCalled())
+    expect(hostApi.uploadStagingImages).toHaveBeenCalledTimes(1)
+    const [id, body] = (hostApi.updateBusiness as any).mock.calls[0]
+    expect(id).toBe('biz-2')
     expect(body.logoUrl).toBe('https://cdn.example.test/new.jpg')
   })
 
-  it('gallery: added photos and a removed photo are saved on this organization', async () => {
+  it('gallery: added photos and a removed photo are saved on this business', async () => {
     const { container } = mount()
     await screen.findByDisplayValue('Iron Gym')
     choose(fileInputs(container)[2], new File(['x'], 'g.png', { type: 'image/png' }))
-    await waitFor(() => expect(hostApi.uploadOrganizationPhotos).toHaveBeenCalled())
+    await waitFor(() => expect(hostApi.uploadStagingImages).toHaveBeenCalled())
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove image' })[0])
     fireEvent.click(screen.getAllByRole('button', { name: /Save Changes/ })[0])
 
-    await waitFor(() => expect(hostApi.updateOrganization).toHaveBeenCalled())
-    const [id, body] = (hostApi.updateOrganization as any).mock.calls[0]
-    expect(id).toBe('org-1')
-    expect(body.imagesJson).toEqual(['https://cdn.example.test/org-1-b.jpg', 'https://cdn.example.test/new.jpg'])
+    await waitFor(() => expect(hostApi.updateBusiness).toHaveBeenCalled())
+    const [id, body] = (hostApi.updateBusiness as any).mock.calls[0]
+    expect(id).toBe('biz-1')
+    expect(body.imagesJson).toEqual(['https://cdn.example.test/biz-1-b.jpg', 'https://cdn.example.test/new.jpg'])
   })
 
   it('offers the gender values the API accepts (MALE_ONLY / FEMALE_ONLY, not MALE / FEMALE)', async () => {
@@ -160,7 +155,7 @@ describe('NEW-196 Gym Profile edits each organization', () => {
   it('a refused save shows the API message and the reference', async () => {
     const err = apiError(422, 'contactEmail must be a valid email', 'validation_error') as any
     err.response.data.requestId = 'req-196'
-    ;(hostApi.updateOrganization as any).mockRejectedValue(err)
+    ;(hostApi.updateBusiness as any).mockRejectedValue(err)
     mount()
     await screen.findByDisplayValue('Iron Gym')
     fireEvent.click(screen.getAllByRole('button', { name: /Save Changes/ })[0])
@@ -169,15 +164,15 @@ describe('NEW-196 Gym Profile edits each organization', () => {
     expect(call.description).toContain('req-196')
   })
 
-  it('no organization: an empty state, not an empty form', async () => {
-    ;(hostApi.getListings as any).mockResolvedValue(ok([]))
+  it('no business: an empty state, not an empty form', async () => {
+    ;(hostApi.getBusinesses as any).mockResolvedValue(ok([]))
     mount()
-    expect(await screen.findByText('No organization yet')).toBeTruthy()
-    expect(hostApi.getOrganization).not.toHaveBeenCalled()
+    expect(await screen.findByText('No business yet')).toBeTruthy()
+    expect(hostApi.getBusiness).not.toHaveBeenCalled()
   })
 
   it('a load error shows an error with retry, not a blank form that could be saved', async () => {
-    ;(hostApi.getOrganization as any).mockRejectedValue(apiError(500, 'boom'))
+    ;(hostApi.getBusiness as any).mockRejectedValue(apiError(500, 'boom'))
     mount()
     expect(await screen.findByRole('button', { name: /try again|retry/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Save Changes/ })).toBeNull()

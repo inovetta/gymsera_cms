@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { useDebounce } from '@/hooks/use-debounce'
 
 /**
- * Find one member of this gym by name, e-mail or phone (`/gyms/members?q=`), for matching a device
+ * Find one member of this organization by name, e-mail or phone (`/organizations/me/members?q=`), for matching a device
  * user (Phase 4 import). The server checks again that the member belongs to the gym.
  */
 export function MemberPicker({ id, value, onChange }: { id: string; value: string; onChange: (memberId: string, name: string) => void }) {
@@ -16,7 +16,7 @@ export function MemberPicker({ id, value, onChange }: { id: string; value: strin
   const debounced = useDebounce(search, 400)
   const members = useQuery({
     queryKey: ['device-member-search', debounced],
-    queryFn: () => gymApi.getMembers({ q: debounced, limit: 10 }),
+    queryFn: () => organizationsApi.getMembers({ q: debounced, limit: 10 }),
     enabled: debounced.trim().length >= 2,
   })
   const list = members.data?.data?.members

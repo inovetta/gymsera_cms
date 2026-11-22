@@ -10,7 +10,7 @@ import { Header } from '@/components/layout/header'
 import { PageHeader } from '@/components/features/page-header'
 import { FileUpload } from '@/components/features/file-upload'
 import { MultiImageUpload } from '@/components/features/multi-image-upload'
-import { OrganizationStrip } from '@/components/features/organization-strip'
+import { BusinessStrip } from '@/components/features/business-strip'
 import { EmptyState } from '@/components/features/empty-state'
 import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
@@ -21,22 +21,22 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { hostApi } from '@/lib/api/host'
+import { organizationsApi } from '@/lib/api/organizations'
 import { resolveApiError } from '@/lib/api/error-copy'
 import {
   GENDER_TYPES,
-  ORGANIZATION_CATEGORIES,
-  OrganizationImages,
-  formFromOrganization,
-  imagesFromOrganization,
+  BUSINESS_CATEGORIES,
+  BusinessImages,
+  formFromBusiness,
+  imagesFromBusiness,
   payloadFromForm,
-  visibleOrganizations,
+  visibleBusinesses,
 } from '@/lib/organizations/profile'
 import { useToast } from '@/hooks/use-toast'
 
 /**
- * Gym Profile: one organization at a time, as the mobile Edit Organization (NEW-196). It used to edit
- * /gyms/profile, which is the tenant's first organization whichever one the host meant. A host with
- * several organizations picks one in the strip; addresses and map locations belong to branches
+ * Business profile: one business at a time, as the mobile Edit Business (NEW-196). A host with
+ * several businesses picks one in the strip; addresses and map locations belong to branches
  * (Branches page), as on mobile.
  */
 const profileSchema = z.object({
@@ -69,7 +69,7 @@ const EMPTY_FORM: ProfileForm = {
   genderType: 'MIXED',
 }
 
-const NO_IMAGES: OrganizationImages = { logoUrl: null, coverImageUrl: null, gallery: [] }
+const NO_IMAGES: BusinessImages = { logoUrl: null, coverImageUrl: null, gallery: [] }
 
 export default function GymProfilePage() {
   const { toast } = useToast()
@@ -77,32 +77,39 @@ export default function GymProfilePage() {
   const [selectedId, setSelectedId] = useState<string | undefined>()
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
-  const [images, setImages] = useState<OrganizationImages>(NO_IMAGES)
+  const [images, setImages] = useState<BusinessImages>(NO_IMAGES)
   const [galleryUploading, setGalleryUploading] = useState(false)
 
   const listingsQuery = useQuery({
-    queryKey: ['host-listings'],
-    queryFn: () => hostApi.getListings(),
+    queryKey: ['host-businesses'],
+    queryFn: () => hostApi.getBusinesses(),
   })
-  const organizations = visibleOrganizations(listingsQuery.data?.data ?? [])
-  const organizationId = organizations.find((o) => o.id === selectedId)?.id ?? organizations[0]?.id
+  const businesses = visibleBusinesses(listingsQuery.data?.data ?? [])
+  const businessId = businesses.find((o) => o.id === selectedId)?.id ?? businesses[0]?.id
 
-  const organizationQuery = useQuery({
-    queryKey: ['host-organization', organizationId],
-    queryFn: () => hostApi.getOrganization(organizationId as string),
-    enabled: !!organizationId,
+  const businessQuery = useQuery({
+    queryKey: ['host-business', businessId],
+    queryFn: () => hostApi.getBusiness(businessId as string),
+    enabled: !!businessId,
   })
-  const organization = organizationQuery.data?.data
+  const business = businessQuery.data?.data
+  // The contact e-mail is only on the staff view of the business (contract v2 §3 BusinessProfile).
+  const profileQuery = useQuery({
+    queryKey: ['business-profile', businessId],
+    queryFn: () => organizationsApi.getBusinessProfile(businessId as string),
+    enabled: !!businessId,
+  })
+  const businessProfile = profileQuery.data?.data?.business
 
   const form = useForm<ProfileForm>({ resolver: zodResolver(profileSchema), defaultValues: EMPTY_FORM })
 
   useEffect(() => {
-    if (!organization) return
-    form.reset(formFromOrganization(organization))
-    setImages(imagesFromOrganization(organization))
+    if (!business) return
+    form.reset(formFromBusiness(business, businessProfile))
+    setImages(imagesFromBusiness(business))
     setLogoFile(null)
     setCoverFile(null)
-  }, [organization, form])
+  }, [business, businessProfile, form])
 
   const showError = (title: string, err: unknown) => {
     const { message, requestId } = resolveApiError(err)
@@ -111,28 +118,29 @@ export default function GymProfilePage() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: ProfileForm) => {
-      const id = organizationId as string
-      // New logo or cover: stored first, then saved on this organization only.
+      const id = businessId as string
+      // New logo or cover: stored first, then saved on this business only.
       const upload = async (file: File) => {
-        const [url] = await hostApi.uploadOrganizationPhotos([file])
+        const [url] = await hostApi.uploadStagingImages([file])
         if (!url) throw new Error('The photo could not be uploaded. Please try again.')
         return url
       }
-      const next: OrganizationImages = {
+      const next: BusinessImages = {
         ...images,
         logoUrl: logoFile ? await upload(logoFile) : images.logoUrl,
         coverImageUrl: coverFile ? await upload(coverFile) : images.coverImageUrl,
       }
-      await hostApi.updateOrganization(id, payloadFromForm(values, next))
+      await hostApi.updateBusiness(id, payloadFromForm(values, next))
       return next
     },
     onSuccess: (next) => {
       setImages(next)
       setLogoFile(null)
       setCoverFile(null)
-      queryClient.invalidateQueries({ queryKey: ['host-organization', organizationId] })
-      queryClient.invalidateQueries({ queryKey: ['host-listings'] })
-      toast({ title: 'Saved', description: 'The organization profile was updated.' })
+      queryClient.invalidateQueries({ queryKey: ['host-business', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['business-profile', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
+      toast({ title: 'Saved', description: 'The business profile was updated.' })
     },
     onError: (err) => showError('Could not save the profile', err),
   })
@@ -141,9 +149,9 @@ export default function GymProfilePage() {
     if (files.length === 0) return
     setGalleryUploading(true)
     try {
-      const urls = await hostApi.uploadOrganizationPhotos(files)
+      const urls = await hostApi.uploadStagingImages(files)
       setImages((prev) => ({ ...prev, gallery: [...prev.gallery, ...urls] }))
-      toast({ title: 'Photos added', description: 'Save Changes to keep them on this organization.' })
+      toast({ title: 'Photos added', description: 'Save Changes to keep them on this business.' })
     } catch (err) {
       showError('Upload failed', err)
     } finally {
@@ -155,31 +163,31 @@ export default function GymProfilePage() {
     setImages((prev) => ({ ...prev, gallery: prev.gallery.filter((u) => u !== url) }))
 
   const pick = (id: string) => {
-    if (id === organizationId) return
+    if (id === businessId) return
     setSelectedId(id)
   }
 
-  const loadError = listingsQuery.error || organizationQuery.error
+  const loadError = listingsQuery.error || businessQuery.error
   if (loadError) {
     return (
       <>
-        <Header title="Gym Profile" />
+        <Header title="Business Profile" />
         <div className="p-6">
           <ErrorState
             error={loadError}
-            what="the organization profile"
-            onRetry={() => (listingsQuery.error ? listingsQuery.refetch() : organizationQuery.refetch())}
+            what="the business profile"
+            onRetry={() => (listingsQuery.error ? listingsQuery.refetch() : businessQuery.refetch())}
           />
         </div>
       </>
     )
   }
 
-  const loading = listingsQuery.isLoading || (!!organizationId && organizationQuery.isLoading)
+  const loading = listingsQuery.isLoading || (!!businessId && businessQuery.isLoading)
   if (loading) {
     return (
       <>
-        <Header title="Gym Profile" />
+        <Header title="Business Profile" />
         <div className="p-6 space-y-6" data-testid="profile-loading">
           <Skeleton className="h-8 w-48" />
           <div className="grid gap-6 lg:grid-cols-3">
@@ -193,32 +201,32 @@ export default function GymProfilePage() {
     )
   }
 
-  if (!organizationId || !organization) {
+  if (!businessId || !business) {
     return (
       <>
-        <Header title="Gym Profile" />
+        <Header title="Business Profile" />
         <div className="p-6">
           <EmptyState
             icon={Building2}
-            title="No organization yet"
-            description="An organization appears here once it is created. Add one from the Branches page."
+            title="No business yet"
+            description="A business appears here once it is created. Add one from the Businesses page."
           />
         </div>
       </>
     )
   }
 
-  const categories: string[] = [...ORGANIZATION_CATEGORIES]
+  const categories: string[] = [...BUSINESS_CATEGORIES]
   const currentCategory = form.watch('category')
   if (currentCategory && !categories.includes(currentCategory)) categories.push(currentCategory)
 
   return (
     <>
-      <Header title="Gym Profile" description="Manage each organization's public information" />
+      <Header title="Business Profile" description="Manage each business's public information" />
       <div className="p-6 animate-fade-in">
         <PageHeader
-          title="Gym Profile"
-          description="Update this organization's details and branding"
+          title="Business Profile"
+          description="Update this business's details and branding"
           action={
             <Button onClick={form.handleSubmit((v) => saveMutation.mutate(v))} loading={saveMutation.isPending}>
               <Save className="h-4 w-4 mr-2" />
@@ -227,8 +235,8 @@ export default function GymProfilePage() {
           }
         />
 
-        {organizations.length > 1 && (
-          <OrganizationStrip listings={organizations} selectedId={organizationId} onSelect={pick} />
+        {businesses.length > 1 && (
+          <BusinessStrip businesses={businesses} selectedId={businessId} onSelect={pick} />
         )}
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -239,7 +247,7 @@ export default function GymProfilePage() {
               </CardHeader>
               <CardContent>
                 <FileUpload
-                  key={`logo-${organizationId}`}
+                  key={`logo-${businessId}`}
                   onFileSelect={setLogoFile}
                   currentImageUrl={images.logoUrl ?? undefined}
                   label="Upload Logo"
@@ -253,7 +261,7 @@ export default function GymProfilePage() {
               </CardHeader>
               <CardContent>
                 <FileUpload
-                  key={`cover-${organizationId}`}
+                  key={`cover-${businessId}`}
                   onFileSelect={setCoverFile}
                   currentImageUrl={images.coverImageUrl ?? undefined}
                   label="Upload Cover"
@@ -284,7 +292,7 @@ export default function GymProfilePage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Status:</span>
-                  <span className="font-medium">{organization.status || '—'}</span>
+                  <span className="font-medium">{business.status || '—'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -303,7 +311,7 @@ export default function GymProfilePage() {
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Organization Name *</FormLabel>
+                          <FormLabel>Business name (shown to travellers) *</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. PowerGym Fitness Club" {...field} />
                           </FormControl>
@@ -386,7 +394,7 @@ export default function GymProfilePage() {
                       <FormItem>
                         <FormLabel>Description</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Tell members about this organization..." rows={4} {...field} />
+                          <Textarea placeholder="Tell members about this business..." rows={4} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -55,7 +55,7 @@ export function branchesWithoutVisiblePlan<B extends { id: string }>(branches: B
 }
 
 /**
- * The first plan of a new branch or organization (POST /host/branches, POST /host/listings).
+ * The first plan of a new branch or business (POST /host/branches, POST /host/businesses).
  * One period of the chosen type, as the app's plan dialog sends it: the API multiplies a
  * QUARTERLY value by 3 months and counts YEARLY in years, so 1 is one quarter / one year.
  */

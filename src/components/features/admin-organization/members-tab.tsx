@@ -14,14 +14,14 @@ import { useToast } from '@/hooks/use-toast'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { adminApi } from '@/lib/api/admin'
 import { formatDate, getInitials } from '@/lib/utils'
-import type { Tenant } from '@/types'
+import type { Organization } from '@/types'
 
-/** Member subscriptions of one tenant. Mounted only while its tab is open, so it only fetches then (PERF-10). */
-export function MembersTab({ tenant, tenantId }: { tenant: Tenant; tenantId: string }) {
+/** Member subscriptions of one organization. Mounted only while its tab is open, so it only fetches then (PERF-10). */
+export function MembersTab({ organization, organizationId }: { organization: Organization; organizationId: string }) {
   const { data: membersData, isLoading: membersLoading, error: membersError, refetch } = useQuery({
-    queryKey: ['admin-tenant-members', tenantId],
-    queryFn: () => adminApi.getTenantMembers(tenantId),
-    enabled: tenant.status === 'ACTIVE',
+    queryKey: ['admin-organization-members', organizationId],
+    queryFn: () => adminApi.getOrganizationMembers(organizationId),
+    enabled: organization.status === 'ACTIVE',
   })
 
   const { toast } = useToast()
@@ -32,7 +32,7 @@ export function MembersTab({ tenant, tenantId }: { tenant: Tenant; tenantId: str
   const [reason, setReason] = useState('')
 
   const revealMutation = useMutation({
-    mutationFn: (userId: string) => adminApi.revealTenantMemberContact(tenantId, userId, reason.trim() || undefined),
+    mutationFn: (userId: string) => adminApi.revealMemberContact(organizationId, userId, reason.trim() || undefined),
     onSuccess: (res, userId) => {
       setRevealed((prev) => ({ ...prev, [userId]: { email: res.data.email, phone: res.data.phone } }))
       setAskingFor(null)
@@ -51,8 +51,8 @@ export function MembersTab({ tenant, tenantId }: { tenant: Tenant; tenantId: str
   <Card>
     <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" /> Member Subscriptions</CardTitle></CardHeader>
     <CardContent>
-      {tenant.status !== 'ACTIVE' ? (
-        <p className="text-sm text-muted-foreground text-center py-8">Member data is only available for active tenants.</p>
+      {organization.status !== 'ACTIVE' ? (
+        <p className="text-sm text-muted-foreground text-center py-8">Member data is only available for active organizations.</p>
       ) : membersLoading ? (
         <div className="space-y-4">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="flex items-center gap-4"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-1.5 flex-1"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-56" /></div><Skeleton className="h-6 w-16 rounded-full" /><Skeleton className="h-4 w-24" /></div>)}</div>
       ) : membersError ? (

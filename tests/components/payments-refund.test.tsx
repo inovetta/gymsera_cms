@@ -4,9 +4,8 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PaymentsPage from '@/app/(dashboard)/gym/payments/page'
 import { paymentsApi } from '@/lib/api/payments'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, withPermissions } from '../fixtures/context'
 
@@ -38,7 +37,7 @@ let refundPayment: ReturnType<typeof vi.spyOn>
 
 const renderPage = (context: MyContext) => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <PaymentsPage />
@@ -55,7 +54,7 @@ const openRefund = async (title: string) => {
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(paymentsApi, 'getPayments').mockResolvedValue(ok({ payments: [completed] }) as never)
   refundPayment = vi.spyOn(paymentsApi, 'refundPayment').mockResolvedValue({ status: 200, data: { success: true, data: {} } } as never)
 })

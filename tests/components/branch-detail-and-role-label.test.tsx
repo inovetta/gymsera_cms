@@ -6,12 +6,11 @@ import BranchDetailPage from '@/app/(dashboard)/gym/branches/[id]/page'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { paymentsApi } from '@/lib/api/payments'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi, MyContext } from '@/lib/api/me'
 import { reportsApi } from '@/lib/api/reports'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
 import { attendanceApi } from '@/lib/api/attendance'
-import { tenantsApi } from '@/lib/api/tenants'
 import { approvalsApi } from '@/lib/api/approvals'
 import { notificationsApi } from '@/lib/api/notifications'
 import { ok } from '../fixtures/team'
@@ -49,7 +48,7 @@ const wrap = (ui: React.ReactElement) => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -57,8 +56,8 @@ afterEach(() => vi.restoreAllMocks())
 describe('Branch detail — payment buttons follow permissions at the branch (NEW-45g)', () => {
   const open = async (context: MyContext) => {
     vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-    vi.spyOn(gymApi, 'getBranch').mockResolvedValue(ok({ branch: { id: 'branch-1', branchName: 'Uptown', address: 'x', status: 'ACTIVE' } }) as never)
-    vi.spyOn(gymApi, 'getBranchStaff').mockResolvedValue(ok({ staff: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranch').mockResolvedValue(ok({ branch: { id: 'branch-1', branchName: 'Uptown', address: 'x', status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getBranchStaff').mockResolvedValue(ok({ staff: [] }) as never)
     vi.spyOn(subscriptionsApi, 'getStaffSubscriptions').mockResolvedValue(ok({ subscriptions: [] }) as never)
     vi.spyOn(attendanceApi, 'getAttendance').mockResolvedValue(ok({ logs: [] }) as never)
     vi.spyOn(reportsApi, 'getBranchReport').mockResolvedValue(

@@ -31,7 +31,7 @@ const MANAGER_KEYS = [
 /** An Org Admin: assigned to the whole organization. Account role MEMBER. */
 export const orgAdminContext = context([
   {
-    tenantId: 'tenant-1',
+    organizationId: 'tenant-1',
     name: 'Iron Gym',
     isOwner: false,
     role: { key: 'ORG_ADMIN', name: 'Org Admin', level: 80 },
@@ -51,7 +51,7 @@ export const orgAdminContext = context([
  */
 export const branchManagerContext = context([
   {
-    tenantId: 'tenant-1',
+    organizationId: 'tenant-1',
     name: 'Iron Gym',
     isOwner: false,
     role: { key: 'MANAGER', name: 'Branch Manager', level: 60 },
@@ -65,7 +65,7 @@ export const branchManagerContext = context([
 /** The owner: the server sends the `*` shorthand. */
 export const ownerContext = context([
   {
-    tenantId: 'tenant-1',
+    organizationId: 'tenant-1',
     name: 'Iron Gym',
     isOwner: true,
     role: { key: 'OWNER', name: 'Owner', level: 100 },
@@ -91,7 +91,7 @@ const DESK_KEYS = [
  */
 export const frontDeskContext = context([
   {
-    tenantId: 'tenant-1',
+    organizationId: 'tenant-1',
     name: 'Iron Gym',
     isOwner: false,
     role: { key: 'DESK', name: 'Front Desk', level: 20 },
@@ -119,7 +119,7 @@ export const twoOrgContext: MyContext = {
   ...orgAdminContext,
   needsContextSwitcher: true,
   organizations: [
-    { ...orgAdminContext.organizations[0], tenantId: 'tenant-a', name: 'Iron Gym' },
-    { ...frontDeskContext.organizations[0], tenantId: 'tenant-b', name: 'Fit Hub' },
+    { ...orgAdminContext.organizations[0], organizationId: 'tenant-a', name: 'Iron Gym' },
+    { ...frontDeskContext.organizations[0], organizationId: 'tenant-b', name: 'Fit Hub' },
   ],
 }

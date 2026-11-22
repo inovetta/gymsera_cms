@@ -65,11 +65,11 @@ export default function AdminPlanPaymentsPage() {
   const planName = (n: number) => tierLabel(n) ?? branchCountLabel(n)
   const columns: Column<PlanPaymentRequest>[] = [
     {
-      key: 'business',
-      header: 'Business',
+      key: 'organization',
+      header: 'Organization',
       cell: (r) => (
-        <Link href={`/admin/tenants/${r.tenantId}`} className="text-sm font-medium text-primary hover:underline">
-          {r.tenantName || `Organization ${r.tenantId.slice(0, 8)}…`}
+        <Link href={`/admin/organizations/${r.organizationId}`} className="text-sm font-medium text-primary hover:underline">
+          {r.organizationName || `Organization ${r.organizationId.slice(0, 8)}…`}
         </Link>
       ),
     },
@@ -134,7 +134,7 @@ export default function AdminPlanPaymentsPage() {
           <DialogHeader><DialogTitle>Approve this payment?</DialogTitle></DialogHeader>
           {confirming && (
             <p className="text-sm">
-              {confirming.tenantName || 'This business'} gets {planName(confirming.branchCount)} ({CYCLE[confirming.billingCycle]}) for{' '}
+              {confirming.organizationName || 'This organization'} gets {planName(confirming.branchCount)} ({CYCLE[confirming.billingCycle]}) for{' '}
               {formatCurrency(Number(confirming.amount), confirming.currency)}. Approve only after the money is in the account.
               <Badge variant="outline" className="ml-2 text-xs">The plan starts at once</Badge>
             </p>

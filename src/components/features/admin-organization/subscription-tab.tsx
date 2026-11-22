@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { adminApi, TenantSubscription, AssignSubscriptionPayload } from '@/lib/api/admin'
+import { adminApi, AdminOrganizationSubscription, AssignSubscriptionPayload } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -36,7 +36,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 }
 
 /** Subscription history and manual assignment. Mounted only while its tab is open (PERF-10). */
-export function SubscriptionTab({ tenantId }: { tenantId: string }) {
+export function SubscriptionTab({ organizationId }: { organizationId: string }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const tierLabel = useTierLabel()
@@ -46,8 +46,8 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
   // Same query key as the page header's "Subscribed until" badge, so the cache is shared; opening the
   // tab refreshes it once.
   const { data: subscriptionsData, isLoading: subsLoading, error: subsError, refetch } = useQuery({
-    queryKey: ['admin-tenant-subscriptions', tenantId],
-    queryFn: () => adminApi.getTenantSubscriptions(tenantId),
+    queryKey: ['admin-organization-subscriptions', organizationId],
+    queryFn: () => adminApi.getSubscriptions(organizationId),
   })
 
   // Only the assign dialog needs the package list.
@@ -59,11 +59,11 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
   const packages = Array.isArray(packagesData?.data) ? (packagesData.data as any[]) : []
 
   const assignSubMutation = useMutation({
-    mutationFn: (payload: AssignSubscriptionPayload) => adminApi.assignTenantSubscription(tenantId, payload),
+    mutationFn: (payload: AssignSubscriptionPayload) => adminApi.assignSubscription(organizationId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-subscriptions', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-invoices', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['organization', organizationId] })
       setAssignSubDialog(false)
       toast({ title: 'Subscription assigned successfully' })
     },
@@ -71,16 +71,16 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
   })
 
   // NEW-20: pay-later row being verified (null = dialog closed) and the optional bank reference.
-  const [verifySub, setVerifySub] = useState<TenantSubscription | null>(null)
+  const [verifySub, setVerifySub] = useState<AdminOrganizationSubscription | null>(null)
   const [bankRef, setBankRef] = useState('')
   const verifying = useRef(false) // a second click in the same tick must not send a second request
   const verifyMutation = useMutation({
-    mutationFn: ({ subId, ref }: { subId: string; ref: string }) => adminApi.verifyPayLaterPayment(tenantId, subId, ref.trim() || undefined),
+    mutationFn: ({ subId, ref }: { subId: string; ref: string }) => adminApi.verifyPayLaterPayment(organizationId, subId, ref.trim() || undefined),
     onSettled: () => { verifying.current = false },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['admin-tenant-invoices', tenantId] })
-      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-subscriptions', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-organization-invoices', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['organization', organizationId] })
       setVerifySub(null)
       setBankRef('')
       toast({ title: 'Payment verified', description: 'The plan is active.' })
@@ -89,8 +89,8 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
   })
 
   const revokeSubMutation = useMutation({
-    mutationFn: (subId: string) => adminApi.revokeTenantSubscription(tenantId, subId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-tenant-subscriptions', tenantId] }); toast({ title: 'Subscription revoked' }) },
+    mutationFn: (subId: string) => adminApi.revokeSubscription(organizationId, subId),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-organization-subscriptions', organizationId] }); toast({ title: 'Subscription revoked' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to revoke subscription', variant: 'destructive' }),
   })
 
@@ -118,7 +118,7 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
         </Card>
       ) : (
         <div className="space-y-3">
-          {subscriptionsData.data.subscriptions.map((sub: TenantSubscription) => {
+          {subscriptionsData.data.subscriptions.map((sub: AdminOrganizationSubscription) => {
             const isActive = sub.status === 'ACTIVE'
             const daysLeft = isActive ? Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000) : null
             const isExpired = daysLeft !== null && daysLeft < 0
@@ -136,7 +136,7 @@ export function SubscriptionTab({ tenantId }: { tenantId: string }) {
                         <span className="font-semibold">
                           {/* Store-verified (IOS/ANDROID/STRIPE) rows never have a `package` —
                               branchCount is the real entitlement instead (see
-                              TenantSubscription.model.js on the backend). */}
+                              AdminOrganizationSubscription.model.js on the backend). */}
                           {/* BUG-24: a branch-count plan is named by its tier, as the app names it. */}
                           {sub.branchCount
                             ? `${tierLabel(sub.branchCount) ? `${tierLabel(sub.branchCount)} · ` : ''}${branchCountLabel(sub.branchCount)}`

@@ -1,6 +1,6 @@
 'use client'
 
-import { tenantDisplayName, tenantSubName } from '@/lib/tenants/brand-name'
+import { organizationDisplayName, firstBusinessSubName } from '@/lib/organizations/organization-name'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { StatusBadge } from '@/components/features/status-badge'
-import { ApproveTenantDialog } from '@/components/features/approve-tenant-dialog'
+import { ApproveOrganizationDialog } from '@/components/features/approve-organization-dialog'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { ErrorState } from '@/components/features/error-state'
 import { Button } from '@/components/ui/button'
@@ -20,31 +20,31 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { adminApi, TenantSubscription } from '@/lib/api/admin'
+import { adminApi, AdminOrganizationSubscription } from '@/lib/api/admin'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { GymListingTab } from '@/components/features/gym-listing-tab'
+import { BusinessTab } from '@/components/features/business-tab'
 import { ProvisioningStatus } from '@/components/features/provisioning-status'
-import { OverviewTab } from '@/components/features/admin-tenant/overview-tab'
-import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
-import { CapacityTab } from '@/components/features/admin-tenant/capacity-tab'
-import { InvoicesTab } from '@/components/features/admin-tenant/invoices-tab'
-import { BranchesTab } from '@/components/features/admin-tenant/branches-tab'
-import { MembersTab } from '@/components/features/admin-tenant/members-tab'
-import { PlansTab } from '@/components/features/admin-tenant/plans-tab'
+import { OverviewTab } from '@/components/features/admin-organization/overview-tab'
+import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
+import { CapacityTab } from '@/components/features/admin-organization/capacity-tab'
+import { InvoicesTab } from '@/components/features/admin-organization/invoices-tab'
+import { BranchesTab } from '@/components/features/admin-organization/branches-tab'
+import { MembersTab } from '@/components/features/admin-organization/members-tab'
+import { PlansTab } from '@/components/features/admin-organization/plans-tab'
 
 /**
- * Tenant detail (UX-17 / PERF-10). This page owns the tenant record, the header and the lifecycle
+ * Organization detail (UX-17 / PERF-10). This page owns the organization record, the header and the lifecycle
  * actions (approve, reject, suspend, reactivate). Each tab is its own component that mounts only
  * while it is open and fetches only its own data. The one exception is the subscription list the
  * header badge needs; the Subscription tab shares its query key and so reads the same cache.
  */
-export default function TenantDetailPage() {
+export default function OrganizationDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const tenantId = params.id as string
+  const organizationId = params.id as string
 
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -65,34 +65,34 @@ export default function TenantDetailPage() {
   const [suspendReason, setSuspendReason] = useState('')
 
   const { data, isLoading, error: tenantError, refetch: refetchTenant } = useQuery({
-    queryKey: ['tenant', tenantId],
-    queryFn: () => adminApi.getTenant(tenantId),
+    queryKey: ['organization', organizationId],
+    queryFn: () => adminApi.getOrganization(organizationId),
     // While another run is provisioning, check its step every 10 s.
-    refetchInterval: (query) => (query.state.data?.data?.tenant?.provisioning?.inProgress ? 10_000 : false),
+    refetchInterval: (query) => (query.state.data?.data?.organization?.provisioning?.inProgress ? 10_000 : false),
   })
 
   // For the header's "Subscribed until" badge. Same key as the Subscription tab.
   const { data: subscriptionsData } = useQuery({
-    queryKey: ['admin-tenant-subscriptions', tenantId],
-    queryFn: () => adminApi.getTenantSubscriptions(tenantId),
+    queryKey: ['admin-organization-subscriptions', organizationId],
+    queryFn: () => adminApi.getSubscriptions(organizationId),
   })
 
-  const tenant = data?.data?.tenant
+  const organization = data?.data?.organization
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] })
-    queryClient.invalidateQueries({ queryKey: ['tenants'] })
+    queryClient.invalidateQueries({ queryKey: ['organization', organizationId] })
+    queryClient.invalidateQueries({ queryKey: ['organizations'] })
   }
 
   const approveMutation = useMutation({
     // R-84: only reachable from the approve dialog, after "I checked the photos".
-    mutationFn: (idempotencyKey: string) => adminApi.approveTenant(tenantId, idempotencyKey, { photosChecked: true }),
+    mutationFn: (idempotencyKey: string) => adminApi.approveOrganization(organizationId, idempotencyKey, { photosChecked: true }),
     onSuccess: (res) => {
       invalidate()
       setApproveDialog(false)
       const p = res?.data?.provisioning
       if (p?.inProgress) toast({ title: `Provisioning is already in progress (step ${p.step}/${p.totalSteps})` })
-      else toast({ title: 'Tenant approved — database provisioned' })
+      else toast({ title: 'Organization approved — database provisioned' })
     },
     // Shown in the approve dialog (approvalErrorMessage); the page shows the step it stopped at, with Resume.
     onError: () => invalidate(),
@@ -101,31 +101,31 @@ export default function TenantDetailPage() {
   const resumeProvisioning = openApproveDialog
 
   const rejectMutation = useMutation({
-    mutationFn: () => adminApi.rejectTenant(tenantId, rejectReason),
+    mutationFn: () => adminApi.rejectOrganization(organizationId, rejectReason),
     onSuccess: () => { invalidate(); setRejectDialog(false); setRejectReason(''); toast({ title: 'Application rejected' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reject application', variant: 'destructive' }),
   })
 
   const suspendMutation = useMutation({
-    mutationFn: () => adminApi.suspendTenant(tenantId, suspendReason),
-    onSuccess: () => { invalidate(); setSuspendDialog(false); setSuspendReason(''); toast({ title: 'Tenant suspended' }) },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to suspend tenant', variant: 'destructive' }),
+    mutationFn: () => adminApi.suspendOrganization(organizationId, suspendReason),
+    onSuccess: () => { invalidate(); setSuspendDialog(false); setSuspendReason(''); toast({ title: 'Organization suspended' }) },
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to suspend organization', variant: 'destructive' }),
   })
 
   const reactivateMutation = useMutation({
-    mutationFn: () => adminApi.reactivateTenant(tenantId),
-    onSuccess: () => { invalidate(); setReactivateDialog(false); toast({ title: 'Tenant reactivated' }) },
-    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reactivate tenant', variant: 'destructive' }),
+    mutationFn: () => adminApi.reactivateOrganization(organizationId),
+    onSuccess: () => { invalidate(); setReactivateDialog(false); toast({ title: 'Organization reactivated' }) },
+    onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to reactivate organization', variant: 'destructive' }),
   })
 
   const uploadLogoMutation = useMutation({
-    mutationFn: (file: File) => adminApi.uploadTenantLogo(tenantId, file),
+    mutationFn: (file: File) => adminApi.uploadFirstBusinessLogo(organizationId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Logo updated' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to upload logo', variant: 'destructive' }),
   })
 
   const uploadCoverMutation = useMutation({
-    mutationFn: (file: File) => adminApi.uploadTenantCover(tenantId, file),
+    mutationFn: (file: File) => adminApi.uploadFirstBusinessCover(organizationId, file),
     onSuccess: () => { invalidate(); toast({ title: 'Cover image updated' }) },
     onError: (err: any) => toast({ title: 'Error', description: err?.response?.data?.message || err?.message || 'Failed to upload cover', variant: 'destructive' }),
   })
@@ -133,7 +133,7 @@ export default function TenantDetailPage() {
   if (isLoading) {
     return (
       <>
-        <Header title="Tenant Detail" />
+        <Header title="Organization Detail" />
         <div className="p-6 space-y-6">
           <Skeleton className="h-8 w-24" />
           <Skeleton className="h-48 rounded-lg" />
@@ -149,40 +149,40 @@ export default function TenantDetailPage() {
   if (tenantError) {
     return (
       <>
-        <Header title="Tenant Detail" />
+        <Header title="Organization Detail" />
         <div className="p-6">
-          <ErrorState error={tenantError} what="this tenant" onRetry={() => refetchTenant()} />
+          <ErrorState error={tenantError} what="this organization" onRetry={() => refetchTenant()} />
         </div>
       </>
     )
   }
 
-  if (!tenant) return null
+  if (!organization) return null
 
-  const canApprove = ['PENDING_REVIEW', 'UNDER_REVIEW', 'REJECTED', 'APPROVED'].includes(tenant.status)
-  const canReject = ['PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'ACTIVE', 'SUSPENDED'].includes(tenant.status)
-  const canSuspend = tenant.status === 'ACTIVE'
-  const canReactivate = tenant.status === 'SUSPENDED'
+  const canApprove = ['PENDING_REVIEW', 'UNDER_REVIEW', 'REJECTED', 'APPROVED'].includes(organization.status)
+  const canReject = ['PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'ACTIVE', 'SUSPENDED'].includes(organization.status)
+  const canSuspend = organization.status === 'ACTIVE'
+  const canReactivate = organization.status === 'SUSPENDED'
 
-  const activeSub = subscriptionsData?.data?.subscriptions?.find((s: TenantSubscription) => s.status === 'ACTIVE')
+  const activeSub = subscriptionsData?.data?.subscriptions?.find((s: AdminOrganizationSubscription) => s.status === 'ACTIVE')
 
   return (
     <>
-      <Header title={tenantDisplayName(tenant)} />
+      <Header title={organizationDisplayName(organization)} />
       <div className="p-6 animate-fade-in space-y-6">
         <Button variant="ghost" onClick={() => router.back()} className="-ml-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Tenants
+          Back to Organizations
         </Button>
 
         {/* Header Card */}
         <Card>
           <CardContent className="p-6">
             {/* Cover image strip */}
-            {tenant.coverImageUrl ? (
+            {organization.coverImageUrl ? (
               <div className="relative h-36 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={tenant.coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
+                <img src={organization.coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
                 <button
                   onClick={() => coverInputRef.current?.click()}
                   className="absolute bottom-2 right-2 h-8 w-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
@@ -212,11 +212,11 @@ export default function TenantDetailPage() {
               {/* Logo */}
               <div className="relative shrink-0">
                 <div className="h-20 w-20 rounded-xl border-2 border-border bg-muted flex items-center justify-center overflow-hidden">
-                  {tenant.logoUrl ? (
+                  {organization.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={tenant.logoUrl} alt={tenant.businessName} className="h-full w-full object-contain" />
+                    <img src={organization.logoUrl} alt={organization.organizationName} className="h-full w-full object-contain" />
                   ) : (
-                    <span className="text-2xl font-bold text-primary">{getInitials(tenantDisplayName(tenant))}</span>
+                    <span className="text-2xl font-bold text-primary">{getInitials(organizationDisplayName(organization))}</span>
                   )}
                 </div>
                 <button
@@ -230,11 +230,11 @@ export default function TenantDetailPage() {
 
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <h2 className="text-2xl font-bold">{tenantDisplayName(tenant)}</h2>
-                  <StatusBadge status={tenant.status} />
-                  {tenant.kycStatus && (
+                  <h2 className="text-2xl font-bold">{organizationDisplayName(organization)}</h2>
+                  <StatusBadge status={organization.status} />
+                  {organization.kycStatus && (
                     <Badge variant="outline" className="text-xs capitalize">
-                      KYC: {tenant.kycStatus.replace('_', ' ')}
+                      KYC: {organization.kycStatus.replace('_', ' ')}
                     </Badge>
                   )}
                   {activeSub && (
@@ -243,46 +243,46 @@ export default function TenantDetailPage() {
                     </Badge>
                   )}
                 </div>
-                {tenantSubName(tenant) && (
-                  <p className="-mt-2 mb-3 text-sm text-muted-foreground" data-testid="tenant-gym-name">
-                    First gym: {tenantSubName(tenant)}
+                {firstBusinessSubName(organization) && (
+                  <p className="-mt-2 mb-3 text-sm text-muted-foreground" data-testid="first-business-name">
+                    First business: {firstBusinessSubName(organization)}
                   </p>
                 )}
                 <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 shrink-0" />
-                    <span>{tenant.email}</span>
+                    <span>{organization.email}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 shrink-0" />
-                    <span>{tenant.phone || '—'}</span>
+                    <span>{organization.phone || '—'}</span>
                   </div>
-                  {tenant.city && (
+                  {organization.city && (
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 shrink-0" />
-                      <span>{tenant.city.name}</span>
+                      <span>{organization.city.name}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                    <span>Applied {formatDate(tenant.createdAt)}</span>
+                    <span>Applied {formatDate(organization.createdAt)}</span>
                   </div>
                 </div>
-                {tenant.rejectionReason && (
+                {organization.rejectionReason && (
                   <div className="mt-3 p-3 bg-destructive/10 rounded-md text-sm text-destructive">
-                    <strong>Rejection reason:</strong> {tenant.rejectionReason}
+                    <strong>Rejection reason:</strong> {organization.rejectionReason}
                   </div>
                 )}
-                <ProvisioningStatus status={tenant.status} provisioning={tenant.provisioning}
+                <ProvisioningStatus status={organization.status} provisioning={organization.provisioning}
                   onResume={resumeProvisioning} resuming={approveMutation.isPending} />
               </div>
 
               <div className="flex flex-wrap gap-2 shrink-0">
-                {/* An APPROVED tenant resumes from the provisioning panel; this
+                {/* An APPROVED organization resumes from the provisioning panel; this
                     button stays for one only if the API sent no provisioning state. */}
-                {canApprove && (tenant.status !== 'APPROVED' || !tenant.provisioning) && (
+                {canApprove && (organization.status !== 'APPROVED' || !organization.provisioning) && (
                   <Button onClick={openApproveDialog} variant="success">
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    {tenant.status === 'REJECTED' ? 'Re-approve' : tenant.status === 'APPROVED' ? 'Resume provisioning' : 'Approve'}
+                    {organization.status === 'REJECTED' ? 'Re-approve' : organization.status === 'APPROVED' ? 'Resume provisioning' : 'Approve'}
                   </Button>
                 )}
                 {canReactivate && (
@@ -312,10 +312,10 @@ export default function TenantDetailPage() {
         <Tabs defaultValue="overview">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="gym-listing">
+            <TabsTrigger value="business">
               <Globe className="h-3.5 w-3.5 mr-1" />
-              Gym Listing
-              {tenant.gymListing && <Badge variant="secondary" className="ml-1.5 text-xs bg-green-100 text-green-700">Live</Badge>}
+              Business
+              {organization.businesses?.some((b) => b.status?.toUpperCase() === "ACTIVE") && <Badge variant="secondary" className="ml-1.5 text-xs bg-green-100 text-green-700">Live</Badge>}
             </TabsTrigger>
             <TabsTrigger value="subscription">
               <CreditCard className="h-3.5 w-3.5 mr-1" />
@@ -335,41 +335,41 @@ export default function TenantDetailPage() {
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
-            <OverviewTab tenant={tenant} tenantId={tenantId} />
+            <OverviewTab organization={organization} organizationId={organizationId} />
           </TabsContent>
-          <TabsContent value="gym-listing" className="mt-6">
-            <GymListingTab tenantId={tenantId} hasListing={!!tenant.gymListing} tenantName={tenant.businessName ?? ''} />
+          <TabsContent value="business" className="mt-6">
+            <BusinessTab organizationId={organizationId} businessId={organization.businesses?.[0]?.id ?? null} defaultName={organization.firstBusinessName ?? organization.organizationName ?? ''} />
           </TabsContent>
           <TabsContent value="subscription" className="mt-6">
-            <SubscriptionTab tenantId={tenantId} />
+            <SubscriptionTab organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="capacity" className="mt-6">
-            <CapacityTab tenant={tenant} tenantId={tenantId} />
+            <CapacityTab organization={organization} organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="invoices" className="mt-6">
-            <InvoicesTab tenantId={tenantId} />
+            <InvoicesTab organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="branches" className="mt-6">
-            <BranchesTab tenant={tenant} tenantId={tenantId} />
+            <BranchesTab organization={organization} organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="members" className="mt-6">
-            <MembersTab tenant={tenant} tenantId={tenantId} />
+            <MembersTab organization={organization} organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="plans" className="mt-6">
-            <PlansTab tenant={tenant} tenantId={tenantId} />
+            <PlansTab organization={organization} organizationId={organizationId} />
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Approve / Re-approve / Resume, with the photo check (R-84, NEW-158) */}
-      <ApproveTenantDialog open={approveDialog} onOpenChange={setApproveDialog} tenant={tenant} tenantId={tenantId}
+      <ApproveOrganizationDialog open={approveDialog} onOpenChange={setApproveDialog} organization={organization} organizationId={organizationId}
         loading={approveMutation.isPending} error={approveMutation.error}
         onApprove={() => approveMutation.mutate(approveKeyRef.current)} />
 
 
       {/* Reactivate */}
       <ConfirmDialog open={reactivateDialog} onOpenChange={setReactivateDialog}
-        title="Reactivate Tenant" description={`Reactivate "${tenant.businessName}"? They will regain full platform access immediately.`}
+        title="Reactivate Organization" description={`Reactivate "${organization.organizationName}"? They will regain full platform access immediately.`}
         confirmLabel="Reactivate" variant="default" onConfirm={() => reactivateMutation.mutate()} loading={reactivateMutation.isPending} />
 
 
@@ -390,12 +390,12 @@ export default function TenantDetailPage() {
       {/* Suspend */}
       <Dialog open={suspendDialog} onOpenChange={setSuspendDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Suspend Tenant</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Suspending will immediately revoke platform access for this tenant and all their staff.</p>
+          <DialogHeader><DialogTitle>Suspend Organization</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Suspending will immediately revoke platform access for this organization and all their staff.</p>
           <Textarea placeholder="E.g. Repeated violations of platform terms of service." value={suspendReason} onChange={(e) => setSuspendReason(e.target.value)} rows={3} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setSuspendDialog(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => suspendMutation.mutate()} loading={suspendMutation.isPending} disabled={!suspendReason.trim()}>Suspend Tenant</Button>
+            <Button variant="destructive" onClick={() => suspendMutation.mutate()} loading={suspendMutation.isPending} disabled={!suspendReason.trim()}>Suspend Organization</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
+import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
 import { adminApi } from '@/lib/api/admin'
 import { ok } from '../fixtures/team'
 
@@ -15,17 +15,17 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }))
  */
 const inDays = (d: number) => new Date(Date.now() + d * 86400000).toISOString()
 const row = (over: Record<string, unknown> = {}) => ({
-  id: 'sub-1', tenantId: 't1', platformPackageId: null, platform: 'IOS', branchCount: 1,
+  id: 'sub-1', organizationId: 't1', platformPackageId: null, platform: 'IOS', branchCount: 1,
   startDate: inDays(-1), endDate: inDays(1), amount: 2000, billingCycle: 'MONTHLY', status: 'ACTIVE',
   autoRenew: true, paymentStatus: 'PAID', createdAt: inDays(-1), ...over,
 })
 
 const renderTab = (subs: unknown[]) => {
-  vi.spyOn(adminApi, 'getTenantSubscriptions').mockResolvedValue(ok({ subscriptions: subs }) as never)
+  vi.spyOn(adminApi, 'getSubscriptions').mockResolvedValue(ok({ subscriptions: subs }) as never)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <SubscriptionTab tenantId="t1" />
+      <SubscriptionTab organizationId="t1" />
     </QueryClientProvider>
   )
 }

@@ -6,7 +6,7 @@ import LoginPage from '@/app/(auth)/login/page'
 import DashboardLayout from '@/app/(dashboard)/layout'
 import { authApi } from '@/lib/api/auth'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { approvalsApi } from '@/lib/api/approvals'
 import { useAuthStore } from '@/stores/auth.store'
 import { apiError, ok } from '../fixtures/team'
@@ -122,7 +122,7 @@ describe('CMS login — portal access follows permissions, not the account role 
 
 describe('Dashboard layout — the guard behind every portal page (NEW-43)', () => {
   beforeEach(() => {
-    vi.spyOn(tenantsApi, 'getMyTenant').mockRejectedValue(apiError(403, 'Forbidden'))
+    vi.spyOn(organizationsApi, 'getMine').mockRejectedValue(apiError(403, 'Forbidden'))
     vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
   })
 
@@ -154,7 +154,7 @@ describe('Dashboard layout — the guard behind every portal page (NEW-43)', () 
   it('an owner is unaffected', async () => {
     setSession('GYM_HOST')
     vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-    tenantsApi.getMyTenant = vi.fn().mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null })) as never
+    organizationsApi.getMine = vi.fn().mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null })) as never
     renderLayout()
 
     expect(await screen.findByText('PAGE CONTENT')).toBeInTheDocument()

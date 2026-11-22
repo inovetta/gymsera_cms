@@ -6,7 +6,7 @@ import TrainersPage from '@/app/(dashboard)/gym/trainers/page'
 import { trainersApi } from '@/lib/api/trainers'
 import { teamApi } from '@/lib/api/team'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok, deskMember, managerMember } from '../fixtures/team'
 import { frontDeskContext, ownerContext, branchManagerContext } from '../fixtures/context'
 
@@ -50,7 +50,7 @@ const openMenu = async () => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(trainersApi, 'getTrainers').mockResolvedValue(ok({ trainers: [trainer] }) as never)
   vi.spyOn(teamApi, 'getTeam').mockResolvedValue(ok({ team: [deskMember, managerMember] }) as never)
   createTrainer = vi.spyOn(trainersApi, 'createTrainer').mockResolvedValue(ok({ trainer }) as never)

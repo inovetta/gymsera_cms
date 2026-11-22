@@ -15,21 +15,21 @@ import { adminApi, KycDocument } from '@/lib/api/admin'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/hooks/use-auth'
-import type { Tenant } from '@/types'
+import type { Organization } from '@/types'
 
-/** Owner, gym profile, KYC documents and onboarding progress. Mounted only while its tab is open (PERF-10). */
-export function OverviewTab({ tenant, tenantId }: { tenant: Tenant; tenantId: string }) {
+/** Owner, first business draft, KYC documents and onboarding progress. Mounted only while its tab is open (PERF-10). */
+export function OverviewTab({ organization, organizationId }: { organization: Organization; organizationId: string }) {
   const { toast } = useToast()
   const { user } = useAuth()
-  const owner = tenant.owner || tenant.user
+  const owner = organization.owner || organization.user
   const [viewingKycDoc, setViewingKycDoc] = useState<KycDocument | null>(null)
   const [kycBlobUrl, setKycBlobUrl] = useState<string | null>(null)
   const [kycLoading, setKycLoading] = useState(false)
 
   const { data: kycDocsData } = useQuery({
-    queryKey: ['admin-tenant-kyc-docs', tenantId],
-    queryFn: () => adminApi.getTenantKycDocuments(tenantId),
-    enabled: !!tenantId,
+    queryKey: ['admin-organization-kyc-docs', organizationId],
+    queryFn: () => adminApi.getOrganizationKycDocuments(organizationId),
+    enabled: !!organizationId,
   })
   const kycDocs = kycDocsData?.data || []
 
@@ -76,21 +76,21 @@ export function OverviewTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
       )}
 
       <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4" /> Gym Profile</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4" /> First business (Become a Host draft)</CardTitle></CardHeader>
         <CardContent>
-          {tenant.gymName ? (
+          {organization.firstBusinessName ? (
             <div className="grid gap-3 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Gym Name</span><span className="font-medium">{tenant.gymName}</span></div>
-              {tenant.genderType && <div className="flex justify-between"><span className="text-muted-foreground">Gender Type</span><span className="font-medium capitalize">{tenant.genderType.replace('_', ' ')}</span></div>}
-              {tenant.gymDescription && <div><span className="text-muted-foreground block mb-1">Description</span><p className="text-foreground leading-relaxed">{tenant.gymDescription}</p></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">Business name</span><span className="font-medium">{organization.firstBusinessName}</span></div>
+              {organization.genderType && <div className="flex justify-between"><span className="text-muted-foreground">Gender Type</span><span className="font-medium capitalize">{organization.genderType.replace('_', ' ')}</span></div>}
+              {organization.firstBusinessDescription && <div><span className="text-muted-foreground block mb-1">Description</span><p className="text-foreground leading-relaxed">{organization.firstBusinessDescription}</p></div>}
               <div className="pt-2 border-t mt-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-muted-foreground flex items-center gap-1 text-xs font-semibold uppercase tracking-wider">
-                    <FileCheck className="h-3.5 w-3.5" /> KYC Verification Documents ({kycDocs.length > 0 ? kycDocs.length : (tenant.kycDocumentsJson?.length || 0)})
+                    <FileCheck className="h-3.5 w-3.5" /> KYC Verification Documents ({kycDocs.length > 0 ? kycDocs.length : (organization.kycDocumentsJson?.length || 0)})
                   </span>
-                  {tenant.kycStatus && <StatusBadge status={tenant.kycStatus} />}
+                  {organization.kycStatus && <StatusBadge status={organization.kycStatus} />}
                 </div>
-                {kycDocs.length === 0 && (!tenant.kycDocumentsJson || tenant.kycDocumentsJson.length === 0) ? (
+                {kycDocs.length === 0 && (!organization.kycDocumentsJson || organization.kycDocumentsJson.length === 0) ? (
                   <p className="text-xs text-muted-foreground italic">No KYC documents uploaded.</p>
                 ) : (
                   <div className="space-y-2">
@@ -115,21 +115,21 @@ export function OverviewTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
                   </div>
                 )}
               </div>
-              {tenant.gymListing && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground flex items-center gap-1"><Globe className="h-3.5 w-3.5" /> Public Listing</span>
-                    <div className="flex items-center gap-2"><StatusBadge status={tenant.gymListing.status} />{tenant.gymListing.isFeatured && <Badge className="text-xs">Featured</Badge>}</div>
+              {(organization.businesses ?? []).map((b) => (
+                <div key={b.id} className="flex justify-between" data-testid={`overview-business-${b.id}`}>
+                  <span className="text-muted-foreground flex items-center gap-1"><Globe className="h-3.5 w-3.5" /> {b.name}</span>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={b.status} />
+                    {b.isFeatured && <Badge className="text-xs">Featured</Badge>}
+                    {b.averageRating != null && (
+                      <span className="flex items-center gap-1 font-medium"><Star className="h-3.5 w-3.5" />{(Number(b.averageRating) || 0).toFixed(1)}</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground flex items-center gap-1"><Star className="h-3.5 w-3.5" /> Rating</span>
-                    <span className="font-medium">{(Number(tenant.gymListing.averageRating) || 0).toFixed(1)} ({tenant.gymListing.totalReviews || 0} reviews)</span>
-                  </div>
-                </>
-              )}
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Gym profile not submitted yet.</p>
+            <p className="text-sm text-muted-foreground">First business not submitted yet.</p>
           )}
         </CardContent>
       </Card>
@@ -137,13 +137,13 @@ export function OverviewTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4" /> Subscription Package</CardTitle></CardHeader>
         <CardContent>
-          {tenant.selectedPackage ? (
+          {organization.selectedPackage ? (
             <div className="grid gap-3 text-sm">
-              <div className="flex justify-between items-center"><span className="text-muted-foreground">Plan</span><span className="font-semibold text-base">{tenant.selectedPackage.name}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Price</span><span className="font-medium">{formatCurrency(tenant.selectedPackage.price)} / {tenant.selectedPackage.billingCycle?.toLowerCase()}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="h-3.5 w-3.5" /> Max Branches</span><span className="font-medium">{tenant.selectedPackage.maxBranches}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Users className="h-3.5 w-3.5" /> Max Members</span><span className="font-medium">{tenant.selectedPackage.maxMembers?.toLocaleString()}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" /> Max Trainers</span><span className="font-medium">{tenant.selectedPackage.maxTrainers}</span></div>
+              <div className="flex justify-between items-center"><span className="text-muted-foreground">Plan</span><span className="font-semibold text-base">{organization.selectedPackage.name}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Price</span><span className="font-medium">{formatCurrency(organization.selectedPackage.price)} / {organization.selectedPackage.billingCycle?.toLowerCase()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><GitBranch className="h-3.5 w-3.5" /> Max Branches</span><span className="font-medium">{organization.selectedPackage.maxBranches}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Users className="h-3.5 w-3.5" /> Max Members</span><span className="font-medium">{organization.selectedPackage.maxMembers?.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" /> Max Trainers</span><span className="font-medium">{organization.selectedPackage.maxTrainers}</span></div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No package selected yet.</p>
@@ -156,9 +156,9 @@ export function OverviewTab({ tenant, tenantId }: { tenant: Tenant; tenantId: st
         <CardContent>
           <div className="space-y-3">
             {[
-              { step: 1, label: 'Business Registration', done: (tenant.onboardingStep ?? 0) >= 1 },
-              { step: 2, label: 'Gym Profile & KYC Submitted', done: (tenant.onboardingStep ?? 0) >= 2 },
-              { step: 3, label: 'Package Selected', done: (tenant.onboardingStep ?? 0) >= 3 },
+              { step: 1, label: 'Business Registration', done: (organization.onboardingStep ?? 0) >= 1 },
+              { step: 2, label: 'First business & KYC submitted', done: (organization.onboardingStep ?? 0) >= 2 },
+              { step: 3, label: 'Package Selected', done: (organization.onboardingStep ?? 0) >= 3 },
             ].map(({ step, label, done }) => (
               <div key={step} className="flex items-center gap-3 text-sm">
                 <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${done ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'}`}>

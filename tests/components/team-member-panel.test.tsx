@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemberAccessPanel } from '@/components/features/team/member-access-panel'
 import { teamApi } from '@/lib/api/team'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { apiError, branches, catalogue, deskDetail, ok, rolesForManager, rolesForOwner } from '../fixtures/team'
 
 vi.mock('@/hooks/use-auth', () => ({
@@ -25,7 +25,7 @@ const renderPanel = () => {
 const mockMeta = (roles = rolesForOwner, me = { myLevel: 100, isOwner: true }) => {
   vi.spyOn(teamApi, 'getRoles').mockResolvedValue(ok({ roles, ...me }) as never)
   vi.spyOn(teamApi, 'getPermissionCatalogue').mockResolvedValue(ok({ modules: catalogue }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
 }
 
 const row = (permissionKey: string) => document.querySelector(`[data-permission="${permissionKey}"]`) as HTMLElement

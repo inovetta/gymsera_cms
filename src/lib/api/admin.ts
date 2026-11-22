@@ -1,17 +1,17 @@
 import apiClient from './client'
 import { fetchPrivateFile } from './private-file'
-import { ApiResponse, Tenant, TenantProvisioning, GymReview, PlatformStats } from '@/types'
+import { ApiResponse, Organization, OrganizationProvisioning, BusinessReview, PlatformStats } from '@/types'
+import type { Business } from './host'
 
-export interface TenantSubscription {
+/** Contract v2 §3 OrganizationSubscription, as the admin Subscription tab reads it. */
+export interface AdminOrganizationSubscription {
   id: string
-  tenantId: string
+  organizationId: string
   platformPackageId: string | null
   billingPlanId?: string | null
   // MANUAL is the legacy/bank-transfer path (platformPackageId set, package
   // below populated). IOS/ANDROID/STRIPE are store-verified — branchCount is
-  // the real entitlement, package is deliberately null (see
-  // TenantSubscription.model.js on the backend for why the two catalogs are
-  // kept separate).
+  // the real entitlement, package is deliberately null (the two catalogs are kept separate).
   platform?: 'MANUAL' | 'IOS' | 'ANDROID' | 'STRIPE'
   /** A store test purchase is SANDBOX (R-87, R-114): never live for travellers. */
   environment?: 'SANDBOX' | 'PRODUCTION' | null
@@ -34,13 +34,13 @@ export interface TenantSubscription {
   overQuotaCount?: number
   externalOriginalTransactionId?: string | null
   createdAt: string
-  package?: { id: string; name: string; price: number; billingCycle: string; maxOrganizations: number; maxBranches: number; maxTrainers: number; maxMembers: number }
+  package?: { id: string; name: string; price: number; billingCycle: string; maxBusinesses: number; maxBranches: number; maxTrainers: number; maxMembers: number }
 }
 
 export interface PlatformInvoice {
   id: string
-  tenantId: string
-  tenantSubscriptionId: string | null
+  organizationId: string
+  organizationSubscriptionId: string | null
   invoiceNo: string
   description: string | null
   subtotal: number
@@ -64,7 +64,7 @@ export interface AssignSubscriptionPayload {
 }
 
 export interface CreateInvoicePayload {
-  tenantSubscriptionId?: string
+  organizationSubscriptionId?: string
   description?: string
   subtotal: number
   taxAmount?: number
@@ -80,19 +80,19 @@ export interface UpdateInvoicePayload {
   paidAt?: string
 }
 
-// Mirrors subscription-quota.service.js#auditCapacity's return shape
-// exactly — read-only, reports drift, never repairs.
-export interface CapacityAuditListing {
-  listingId: string
-  title: string
+// subscription-quota.service.js#auditCapacity: read-only, reports drift, never repairs.
+// Contract v2 §2 renames applied (listingId → businessId, title → name, businessName → organizationName).
+export interface CapacityAuditBusiness {
+  businessId: string
+  name: string
   actualReservedSlots: number
   ledgerReservedSlots: number
   drift: number
 }
 
 export interface CapacityAudit {
-  tenantId: string
-  businessName: string
+  organizationId: string
+  organizationName: string
   maxBranches: number
   activeBranches: number | null
   usedCapacity: number | null
@@ -100,22 +100,18 @@ export interface CapacityAudit {
   recordedOverQuota: number
   expectedOverQuota: number | null
   overQuotaMismatch: boolean
-  listings: CapacityAuditListing[]
-  driftedListings: CapacityAuditListing[]
+  businesses: CapacityAuditBusiness[]
+  driftedBusinesses: CapacityAuditBusiness[]
   totalDrift: number
   ok: boolean
 }
 
-export interface TenantBranch {
+export interface AdminBranch {
   /** NEW-265 (R-109 F7): the area request this record waits on, pending or refused. */
   pendingArea?: import('./area-requests').PendingArea | null
   id: string
-  gymId: string
-  // Which organization this branch belongs to — used to group the flat
-  // branch list by organization on the tenant detail page instead of
-  // showing every branch across every organization as one undifferentiated
-  // pile.
-  gymListingId?: string
+  /** The business the branch belongs to (contract v2 §3 Branch; groups the admin branch list). */
+  businessId: string
   branchName: string
   address: string | null
   cityId: number | null
@@ -136,10 +132,10 @@ export interface TenantBranch {
   billingLockedAt?: string | null
   billingLockReason?: string | null
   createdAt: string
-  gym?: { id: string; name: string }
+  business?: { id: string; name: string }
 }
 
-export interface TenantMember {
+export interface OrganizationMemberRow {
   id: string
   userId: string
   branchId: string
@@ -156,16 +152,16 @@ export interface TenantMember {
     fullName: string
     email: string
     phone: string | null
-    /** True while email and phone are masked (SEC-17); the full values come from revealTenantMemberContact. */
+    /** True while email and phone are masked (SEC-17); the full values come from revealMemberContact. */
     contactMasked?: boolean
     status: string
     profileImageUrl: string | null
   }
 }
 
-export interface TenantPlan {
+export interface OrganizationPlan {
   id: string
-  gymId: string
+  businessId: string
   branchId: string | null
   name: string
   price: number
@@ -184,7 +180,7 @@ export interface TenantPlan {
   isDeactivated?: boolean
 }
 
-export interface GetTenantsParams {
+export interface GetOrganizationsParams {
   page?: number
   limit?: number
   search?: string
@@ -196,39 +192,39 @@ export interface GetReviewsParams {
   page?: number
   limit?: number
   status?: string
-  gymListingId?: string
+  businessId?: string
 }
 
-export interface CreateTenantPayload {
+export interface CreateOrganizationPayload {
   ownerEmail: string
   ownerFullName: string
   ownerPhone?: string
-  businessName: string
+  organizationName: string
   email: string
   phone?: string
   cityId?: number
   packageId?: string
 }
 
-// ── Gym listing ───────────────────────────────────────────────────────────────
-export interface GymListingDetail {
+// ── Business (admin) ──────────────────────────────────────────────────────────
+/** Contract v2 §3 Business, as GET /admin/businesses/:businessId sends it. */
+export interface AdminBusiness extends Omit<Business, 'facilitiesJson' | 'cityId' | 'areaId'> {
   /** NEW-265 (R-109 F7): the area request this record waits on, pending or refused. */
   pendingArea?: import('./area-requests').PendingArea | null
-  id: string
-  tenantId: string
+  organizationId: string
   cityId?: number
   areaId?: number
-  title: string
-  shortDescription?: string
+  name: string
+  description?: string | null
   logoUrl?: string | null
   coverImageUrl?: string | null
   genderType: string
   averageRating: string
   isFeatured: boolean
-  contactPhone?: string
-  website?: string
+  contactPhone?: string | null
+  website?: string | null
   facilitiesJson?: Record<string, boolean>
-  imagesJson?: string[]
+  imagesJson?: string[] | null
   status: string
   latitude?: string | null
   longitude?: string | null
@@ -236,9 +232,9 @@ export interface GymListingDetail {
   area?: { id: number; name: string }
 }
 
-export interface UpdateGymListingPayload {
-  title?: string
-  shortDescription?: string
+export interface UpdateBusinessPayload {
+  name?: string
+  description?: string
   genderType?: string
   contactPhone?: string
   website?: string
@@ -251,9 +247,9 @@ export interface UpdateGymListingPayload {
   areaId?: number | null
 }
 
-export interface CreateGymListingPayload {
-  title: string
-  shortDescription?: string
+export interface CreateBusinessPayload {
+  name: string
+  description?: string
   genderType: string
   contactPhone?: string
   website?: string
@@ -263,7 +259,9 @@ export interface CreateGymListingPayload {
   longitude?: number
 }
 
-export interface CreateTenantBranchPayload {
+export interface CreateAdminBranchPayload {
+  /** The business the branch is added to; it must be approved (409 business_not_approved). */
+  businessId: string
   branchName: string
   address: string
   cityId: number
@@ -278,7 +276,7 @@ export interface CreateTenantBranchPayload {
   googlePlaceId?: string
 }
 
-export interface UpdateTenantBranchPayload {
+export interface UpdateAdminBranchPayload {
   branchName?: string
   address?: string
   cityId?: number
@@ -307,8 +305,8 @@ export interface BillingEvent {
   attempts: number
   /** Already redacted by the server. For an IGNORED event it is the reason. */
   lastError: string | null
-  tenantId: string | null
-  tenantName: string | null
+  organizationId: string | null
+  organizationName: string | null
   receivedAt: string
   processedAt: string | null
   /** RECEIVED for over 10 minutes, or FAILED at 5 attempts or more: the cases that raise a platform alert. */
@@ -316,17 +314,19 @@ export interface BillingEvent {
 }
 
 export interface GetBillingEventsParams {
-  /** A tenant id, or 'none' for events not matched to any tenant. */
-  tenantId?: string
+  /** An organization id, or 'none' for events not matched to any organization. */
+  organizationId?: string
   status?: BillingEventStatus
   provider?: BillingEventProvider
   page?: number
   limit?: number
 }
 
+const multipart = { headers: { 'Content-Type': 'multipart/form-data' } }
+
 export const adminApi = {
-  createTenant: async (payload: CreateTenantPayload): Promise<ApiResponse<{ tenant: Tenant }>> => {
-    const { data } = await apiClient.post('/admin/tenants', payload)
+  createOrganization: async (payload: CreateOrganizationPayload): Promise<ApiResponse<{ organization: Organization }>> => {
+    const { data } = await apiClient.post('/admin/organizations', payload)
     return data
   },
 
@@ -335,104 +335,109 @@ export const adminApi = {
     return data
   },
 
-  getTenants: async (params?: GetTenantsParams): Promise<ApiResponse<{ tenants: Tenant[] }>> => {
-    const { data } = await apiClient.get('/admin/tenants', { params })
+  getOrganizations: async (params?: GetOrganizationsParams): Promise<ApiResponse<{ organizations: Organization[]; page?: number; total?: number }>> => {
+    const { data } = await apiClient.get('/admin/organizations', { params })
     return data
   },
 
-  getTenant: async (id: string): Promise<ApiResponse<{ tenant: Tenant }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}`)
+  /** The approval queue: one row per organization (first time) and per business (G1). */
+  getReviewQueue: async (params?: { page?: number; limit?: number; kind?: ReviewQueueKind }): Promise<ApiResponse<{ items: ReviewQueueItem[]; page?: number; total?: number }>> => {
+    const { data } = await apiClient.get('/admin/review-queue', { params })
+    return data
+  },
+
+  getOrganization: async (organizationId: string): Promise<ApiResponse<{ organization: Organization }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}`)
     return data
   },
 
   // Approve, or Resume a provisioning that stopped (FLOW-02). One idempotency
   // key per click: a repeated request replays the first answer. 202 = another
-  // run is provisioning this tenant (data.provisioning.inProgress).
+  // run is provisioning this organization (data.provisioning.inProgress).
   // R-84 (NEW-158): the API refuses an approval without the admin's photo check (photosChecked: true).
-  approveTenant: async (
-    id: string,
+  approveOrganization: async (
+    organizationId: string,
     idempotencyKey: string,
     body: { photosChecked: true }
-  ): Promise<ApiResponse<{ tenant: Tenant; provisioning: TenantProvisioning }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/approve`, body, {
+  ): Promise<ApiResponse<{ organization: Organization; provisioning: OrganizationProvisioning }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/approve`, body, {
       headers: { 'Idempotency-Key': idempotencyKey },
     })
     return data
   },
 
   // R-84: takes one photo off an application before approval (audited by the API).
-  removeApprovalPhoto: async (id: string, imageUrl: string): Promise<ApiResponse<{ removedFrom: string }>> => {
-    const { data } = await apiClient.delete(`/admin/tenants/${id}/approval-photos`, { data: { imageUrl } })
+  removeApprovalPhoto: async (organizationId: string, imageUrl: string): Promise<ApiResponse<{ removedFrom: string }>> => {
+    const { data } = await apiClient.delete(`/admin/organizations/${organizationId}/approval-photos`, { data: { imageUrl } })
     return data
   },
 
-  rejectTenant: async (id: string, reason: string): Promise<ApiResponse<Tenant>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/reject`, { reason })
+  rejectOrganization: async (organizationId: string, reason: string): Promise<ApiResponse<Organization>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/reject`, { reason })
     return data
   },
 
-  suspendTenant: async (id: string, reason: string): Promise<ApiResponse<Tenant>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/suspend`, { reason })
+  suspendOrganization: async (organizationId: string, reason: string): Promise<ApiResponse<Organization>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/suspend`, { reason })
     return data
   },
 
-  reactivateTenant: async (id: string): Promise<ApiResponse<Tenant>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/reactivate`)
+  reactivateOrganization: async (organizationId: string): Promise<ApiResponse<Organization>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/reactivate`)
     return data
   },
 
-  getTenantBranches: async (id: string): Promise<ApiResponse<{ branches: TenantBranch[] }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/branches`)
+  getOrganizationBranches: async (organizationId: string): Promise<ApiResponse<{ branches: AdminBranch[] }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/branches`)
     return data
   },
 
-  // Read-only integrity report — see subscription-quota.service.js#auditCapacity
-  // on the backend. Reports drift between GymListing.reservedSlots and the
-  // capacity_events ledger, and whether overQuotaCount matches real overage.
-  // Never repairs anything itself.
-  getTenantCapacityAudit: async (id: string): Promise<ApiResponse<{ audit: CapacityAudit }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/capacity-audit`)
+  // Read-only integrity report (subscription-quota.service.js#auditCapacity). Reports drift between
+  // each business's reserved slots and the capacity_events ledger, and whether overQuotaCount matches
+  // real overage. Never repairs anything itself.
+  getCapacityAudit: async (organizationId: string): Promise<ApiResponse<{ audit: CapacityAudit }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/capacity-audit`)
     return data
   },
 
-  updateTenantBranchStatus: async (tenantId: string, branchId: string, status: 'ACTIVE' | 'INACTIVE'): Promise<ApiResponse<{ branch: TenantBranch }>> => {
-    const { data } = await apiClient.patch(`/admin/tenants/${tenantId}/branches/${branchId}/status`, { status })
+  updateBranchStatus: async (organizationId: string, branchId: string, status: 'ACTIVE' | 'INACTIVE'): Promise<ApiResponse<{ branch: AdminBranch }>> => {
+    const { data } = await apiClient.patch(`/admin/organizations/${organizationId}/branches/${branchId}/status`, { status })
     return data
   },
 
-  getTenantMembers: async (id: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<{ members: TenantMember[] }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/members`, { params })
+  getOrganizationMembers: async (organizationId: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<{ members: OrganizationMemberRow[] }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/members`, { params })
     return data
   },
 
   /** Full e-mail and phone of one member (SEC-17). Platform admins only; the server writes an audit row for every call. */
-  revealTenantMemberContact: async (
-    id: string,
+  revealMemberContact: async (
+    organizationId: string,
     userId: string,
     reason?: string
   ): Promise<ApiResponse<{ userId: string; email: string; phone: string | null }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/members/${userId}/reveal`, reason ? { reason } : {})
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/members/${userId}/reveal`, reason ? { reason } : {})
     return data
   },
 
-  getTenantMembershipPlans: async (id: string): Promise<ApiResponse<{ plans: TenantPlan[] }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/membership-plans`)
+  getOrganizationMembershipPlans: async (organizationId: string): Promise<ApiResponse<{ plans: OrganizationPlan[] }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/membership-plans`)
     return data
   },
 
-  getReviews: async (params?: GetReviewsParams): Promise<ApiResponse<{ reviews: GymReview[] }>> => {
+  getReviews: async (params?: GetReviewsParams): Promise<ApiResponse<{ reviews: BusinessReview[] }>> => {
     const { data } = await apiClient.get('/admin/reviews', { params })
     return data
   },
 
-  moderateReview: async (id: string, action: 'APPROVE' | 'REJECT'): Promise<ApiResponse<GymReview>> => {
+  moderateReview: async (id: string, action: 'APPROVE' | 'REJECT'): Promise<ApiResponse<BusinessReview>> => {
     // NEW-194: the API accepts only "approve" / "reject" (discovery.service.js moderateReview).
     const { data } = await apiClient.patch(`/admin/reviews/${id}/moderate`, { action: action.toLowerCase() })
     return data
   },
 
-  deleteTenant: async (id: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/admin/tenants/${id}`)
+  deleteOrganization: async (organizationId: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/admin/organizations/${organizationId}`)
     return data
   },
 
@@ -457,147 +462,176 @@ export const adminApi = {
     return data
   },
 
-  // ── Tenant image uploads ──────────────────────────────────────────────────────
-  uploadTenantLogo: async (id: string, file: File): Promise<ApiResponse<{ logoUrl: string }>> => {
+  // ── First-business draft images (Become a Host draft on the organization) ─────
+  uploadFirstBusinessLogo: async (organizationId: string, file: File): Promise<ApiResponse<{ logoUrl: string }>> => {
     const formData = new FormData()
     formData.append('logo', file)
-    const { data } = await apiClient.post(`/admin/tenants/${id}/logo`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/first-business/logo`, formData, multipart)
     return data
   },
 
-  uploadTenantCover: async (id: string, file: File): Promise<ApiResponse<{ coverImageUrl: string }>> => {
+  uploadFirstBusinessCover: async (organizationId: string, file: File): Promise<ApiResponse<{ coverImageUrl: string }>> => {
     const formData = new FormData()
     formData.append('cover', file)
-    const { data } = await apiClient.post(`/admin/tenants/${id}/cover`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/first-business/cover`, formData, multipart)
     return data
   },
 
-  // ── Tenant subscriptions ──────────────────────────────────────────────────────
-  getTenantSubscriptions: async (id: string): Promise<ApiResponse<{ subscriptions: TenantSubscription[] }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/subscriptions`)
+  // ── Organization subscriptions ─────────────────────────────────────────────────
+  getSubscriptions: async (organizationId: string): Promise<ApiResponse<{ subscriptions: AdminOrganizationSubscription[] }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/subscriptions`)
     return data
   },
 
-  assignTenantSubscription: async (id: string, payload: AssignSubscriptionPayload): Promise<ApiResponse<{ subscription: TenantSubscription; invoice: PlatformInvoice | null }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/subscriptions`, payload)
+  assignSubscription: async (organizationId: string, payload: AssignSubscriptionPayload): Promise<ApiResponse<{ subscription: AdminOrganizationSubscription; invoice: PlatformInvoice | null }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/subscriptions`, payload)
     return data
   },
 
-  revokeTenantSubscription: async (id: string, subId: string): Promise<ApiResponse<{ subscription: TenantSubscription }>> => {
-    const { data } = await apiClient.patch(`/admin/tenants/${id}/subscriptions/${subId}/revoke`)
+  revokeSubscription: async (organizationId: string, subId: string): Promise<ApiResponse<{ subscription: AdminOrganizationSubscription }>> => {
+    const { data } = await apiClient.patch(`/admin/organizations/${organizationId}/subscriptions/${subId}/revoke`)
     return data
   },
 
   // Pay later (BILL-13, NEW-20): the admin confirms the bank transfer arrived; the GRACE plan becomes ACTIVE.
-  verifyPayLaterPayment: async (id: string, subId: string, bankTransferRef?: string): Promise<ApiResponse<{ subscription: TenantSubscription }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/subscriptions/${subId}/verify-payment`, bankTransferRef ? { bankTransferRef } : {})
+  verifyPayLaterPayment: async (organizationId: string, subId: string, bankTransferRef?: string): Promise<ApiResponse<{ subscription: AdminOrganizationSubscription }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/subscriptions/${subId}/verify-payment`, bankTransferRef ? { bankTransferRef } : {})
     return data
   },
 
-  // ── Tenant invoices ───────────────────────────────────────────────────────────
-  getTenantInvoices: async (id: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<{ invoices: PlatformInvoice[] }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${id}/invoices`, { params })
+  // ── Organization invoices ──────────────────────────────────────────────────────
+  getInvoices: async (organizationId: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<{ invoices: PlatformInvoice[] }>> => {
+    const { data } = await apiClient.get(`/admin/organizations/${organizationId}/invoices`, { params })
     return data
   },
 
-  createTenantInvoice: async (id: string, payload: CreateInvoicePayload): Promise<ApiResponse<{ invoice: PlatformInvoice }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/invoices`, payload)
+  createInvoice: async (organizationId: string, payload: CreateInvoicePayload): Promise<ApiResponse<{ invoice: PlatformInvoice }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/invoices`, payload)
     return data
   },
 
-  updateTenantInvoice: async (id: string, invoiceId: string, payload: UpdateInvoicePayload): Promise<ApiResponse<{ invoice: PlatformInvoice }>> => {
-    const { data } = await apiClient.patch(`/admin/tenants/${id}/invoices/${invoiceId}`, payload)
+  updateInvoice: async (organizationId: string, invoiceId: string, payload: UpdateInvoicePayload): Promise<ApiResponse<{ invoice: PlatformInvoice }>> => {
+    const { data } = await apiClient.patch(`/admin/organizations/${organizationId}/invoices/${invoiceId}`, payload)
     return data
   },
 
-  sendInvoiceReminder: async (id: string, invoiceId: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/invoices/${invoiceId}/send-reminder`)
+  sendInvoiceReminder: async (organizationId: string, invoiceId: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/invoices/${invoiceId}/send-reminder`)
     return data
   },
 
-  sendInvoiceConfirmation: async (id: string, invoiceId: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${id}/invoices/${invoiceId}/send-confirmation`)
+  sendInvoiceConfirmation: async (organizationId: string, invoiceId: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/invoices/${invoiceId}/send-confirmation`)
     return data
   },
 
-  // ── Gym listing management ────────────────────────────────────────────────────
-  getGymListing: async (tenantId: string): Promise<ApiResponse<{ gymListing: GymListingDetail }>> => {
-    const { data } = await apiClient.get(`/admin/tenants/${tenantId}/gym-listing`)
+  // ── Businesses (one businessId, no compound ids: F7) ─────────────────────────
+  getBusiness: async (businessId: string): Promise<ApiResponse<{ business: AdminBusiness }>> => {
+    const { data } = await apiClient.get(`/admin/businesses/${businessId}`)
     return data
   },
 
-  updateGymListing: async (tenantId: string, payload: UpdateGymListingPayload): Promise<ApiResponse<{ gymListing: GymListingDetail }>> => {
-    const { data } = await apiClient.patch(`/admin/tenants/${tenantId}/gym-listing`, payload)
+  updateBusiness: async (businessId: string, payload: UpdateBusinessPayload): Promise<ApiResponse<{ business: AdminBusiness }>> => {
+    const { data } = await apiClient.patch(`/admin/businesses/${businessId}`, payload)
     return data
   },
 
-  createGymListing: async (tenantId: string, payload: CreateGymListingPayload): Promise<ApiResponse<{ gymListing: GymListingDetail }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/gym-listing`, payload)
+  createBusiness: async (organizationId: string, payload: CreateBusinessPayload): Promise<ApiResponse<{ business: AdminBusiness }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/businesses`, payload)
     return data
   },
 
-  uploadGymListingLogo: async (tenantId: string, file: File): Promise<ApiResponse<{ logoUrl: string }>> => {
+  uploadBusinessLogo: async (businessId: string, file: File): Promise<ApiResponse<{ logoUrl: string }>> => {
     const formData = new FormData()
     formData.append('logo', file)
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/gym-listing/logo`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/logo`, formData, multipart)
     return data
   },
 
-  uploadGymListingCover: async (tenantId: string, file: File): Promise<ApiResponse<{ coverImageUrl: string }>> => {
+  uploadBusinessCover: async (businessId: string, file: File): Promise<ApiResponse<{ coverImageUrl: string }>> => {
     const formData = new FormData()
     formData.append('cover', file)
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/gym-listing/cover`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/cover`, formData, multipart)
     return data
   },
 
-  uploadGymListingImages: async (tenantId: string, files: File[]): Promise<ApiResponse<{ images: string[] }>> => {
+  uploadBusinessImages: async (businessId: string, files: File[]): Promise<ApiResponse<{ images: string[] }>> => {
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/gym-listing/images`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/images`, formData, multipart)
+    return data
+  },
+
+  deleteBusinessImage: async (businessId: string, imageUrl: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/admin/businesses/${businessId}/images`, { data: { imageUrl } })
+    return data
+  },
+
+  /** Approve one business (builds its held first branch); 422 `business_requirements_missing` with `data.missing`. */
+  approveBusiness: async (businessId: string, idempotencyKey: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/approve`, undefined, {
+      headers: { 'Idempotency-Key': idempotencyKey },
     })
     return data
   },
 
-  deleteGymListingImage: async (tenantId: string, imageUrl: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/admin/tenants/${tenantId}/gym-listing/images`, { data: { imageUrl } })
+  rejectBusiness: async (businessId: string, reason: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/reject`, { reason })
+    return data
+  },
+
+  /** Verified badge on (D11); 422 `registration_missing` without a registration document. */
+  verifyBusiness: async (businessId: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/verify`)
+    return data
+  },
+
+  /** The business's documents (G4): proof of premises, registration. */
+  getBusinessDocuments: async (businessId: string): Promise<ApiResponse<KycDocument[]>> => {
+    const { data } = await apiClient.get(`/admin/businesses/${businessId}/documents`)
+    return data
+  },
+
+  approveBusinessDocument: async (businessId: string, documentId: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/documents/${documentId}/approve`)
+    return data
+  },
+
+  rejectBusinessDocument: async (businessId: string, documentId: string, reason: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.post(`/admin/businesses/${businessId}/documents/${documentId}/reject`, { reason })
+    return data
+  },
+
+  /** Verified badge off (D11). */
+  unverifyBusiness: async (businessId: string): Promise<ApiResponse<unknown>> => {
+    const { data } = await apiClient.delete(`/admin/businesses/${businessId}/verify`)
     return data
   },
 
   // ── Admin branch management ───────────────────────────────────────────────────
-  createTenantBranch: async (tenantId: string, payload: CreateTenantBranchPayload): Promise<ApiResponse<{ branch: TenantBranch }>> => {
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/branches`, payload)
+  createBranch: async (organizationId: string, payload: CreateAdminBranchPayload): Promise<ApiResponse<{ branch: AdminBranch }>> => {
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/branches`, payload)
     return data
   },
 
-  updateTenantBranch: async (tenantId: string, branchId: string, payload: UpdateTenantBranchPayload): Promise<ApiResponse<{ branch: TenantBranch }>> => {
-    const { data } = await apiClient.patch(`/admin/tenants/${tenantId}/branches/${branchId}`, payload)
+  updateBranch: async (organizationId: string, branchId: string, payload: UpdateAdminBranchPayload): Promise<ApiResponse<{ branch: AdminBranch }>> => {
+    const { data } = await apiClient.patch(`/admin/organizations/${organizationId}/branches/${branchId}`, payload)
     return data
   },
 
-  uploadTenantBranchImages: async (tenantId: string, branchId: string, files: File[]): Promise<ApiResponse<{ branch: TenantBranch }>> => {
+  uploadBranchImages: async (organizationId: string, branchId: string, files: File[]): Promise<ApiResponse<{ branch: AdminBranch }>> => {
     const formData = new FormData()
     files.forEach((f) => formData.append('images', f))
-    const { data } = await apiClient.post(`/admin/tenants/${tenantId}/branches/${branchId}/images`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const { data } = await apiClient.post(`/admin/organizations/${organizationId}/branches/${branchId}/images`, formData, multipart)
     return data
   },
 
-  deleteTenantBranchImage: async (tenantId: string, branchId: string, imageUrl: string): Promise<ApiResponse<null>> => {
-    const { data } = await apiClient.delete(`/admin/tenants/${tenantId}/branches/${branchId}/images`, { data: { imageUrl } })
+  deleteBranchImage: async (organizationId: string, branchId: string, imageUrl: string): Promise<ApiResponse<null>> => {
+    const { data } = await apiClient.delete(`/admin/organizations/${organizationId}/branches/${branchId}/images`, { data: { imageUrl } })
     return data
   },
 
-  updateBranchTravelerVisibility: async (branchId: string, status: 'active' | 'deactivated', reason?: string): Promise<ApiResponse<{ branch: TenantBranch }>> => {
+  updateBranchTravelerVisibility: async (branchId: string, status: 'active' | 'deactivated', reason?: string): Promise<ApiResponse<{ branch: AdminBranch }>> => {
     const { data } = await apiClient.patch(`/admin/branches/${branchId}/traveler-visibility`, { status, reason })
     return data
   },
@@ -607,13 +641,26 @@ export const adminApi = {
     return data
   },
 
-  getTenantKycDocuments: async (tenantId: string): Promise<ApiResponse<KycDocument[]>> => {
-    const { data } = await apiClient.get(`/tenants/${tenantId}/kyc-documents`)
+  getOrganizationKycDocuments: async (organizationId: string): Promise<ApiResponse<KycDocument[]>> => {
+    const { data } = await apiClient.get(`/organizations/${organizationId}/kyc-documents`)
     return data
   },
 
   // NEW-222: through fetchPrivateFile, which drops the `/api/v1` the API puts in streamUrl.
   downloadKycDocumentBlob: (streamUrl: string): Promise<Blob> => fetchPrivateFile(streamUrl),
+}
+
+export type ReviewQueueKind = 'ORGANIZATION' | 'BUSINESS'
+
+/** One row of GET /admin/review-queue (G1, owner decision 2026-11-22). */
+export interface ReviewQueueItem {
+  kind: ReviewQueueKind
+  organizationId: string
+  businessId: string | null
+  name: string
+  status: string
+  kycStatus: string | null
+  submittedAt: string | null
 }
 
 export interface KycDocument {
@@ -622,6 +669,8 @@ export interface KycDocument {
   mimetype: string
   size: number
   documentType?: string
+  /** Business documents: the admin's decision on this document (G4). */
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | string
   uploadedAt: string
   streamUrl: string
 }

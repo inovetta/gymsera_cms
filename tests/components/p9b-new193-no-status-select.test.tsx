@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
 import { fakePlaces } from '../fixtures/places'
@@ -32,20 +31,20 @@ vi.mock('@/hooks/use-auth', () => ({
   useAuth: () => ({ user: { id: 'user-1', fullName: 'Hira Khan', role: 'GYM_HOST' }, logout: vi.fn(), isPlatformAdmin: false, isGymHost: true, isBranchManager: false }),
 }))
 
-const b1 = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: '1 Mall Road', cityId: 7, gymListingId: 'listing-1', pausedAt: null, latitude: 31.5, longitude: 74.3 }
+const b1 = { id: 'b1', branchName: 'Uptown', status: 'ACTIVE', address: '1 Mall Road', cityId: 7, businessId: 'listing-1', pausedAt: null, latitude: 31.5, longitude: 74.3 }
 let updateBranch: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   fakePlaces()
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 7, name: 'Lahore' }]) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [b1] }) as never)
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [b1] }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 }) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [b1] }) as never)
-  updateBranch = vi.spyOn(gymApi, 'updateBranch').mockResolvedValue(ok({ branch: b1 }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [b1] }) as never)
+  updateBranch = vi.spyOn(organizationsApi, 'updateBranch').mockResolvedValue(ok({ branch: b1 }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 

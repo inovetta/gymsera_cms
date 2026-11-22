@@ -9,7 +9,7 @@ import NewDevicePage from '@/app/(dashboard)/gym/devices/new/page'
 import { MemberDevicesPanel } from '@/components/features/devices/member-devices-panel'
 import { devicesApi, AccessDevice, Cutover, DeviceImport, ImportUser, ImportPreview, MemberDeviceStatus } from '@/lib/api/devices'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext } from '../fixtures/context'
 
@@ -90,7 +90,7 @@ const renderWith = (ui: React.ReactElement, context: MyContext = ownerContext) =
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(devicesApi, 'get').mockResolvedValue(ok({ device: device(), setup }) as never)
 })
 afterEach(() => vi.restoreAllMocks())

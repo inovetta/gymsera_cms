@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { areaRequestsApi } from '@/lib/api/area-requests'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
@@ -50,15 +49,15 @@ const keepTypedArea = async (root: HTMLElement, typed: string) => {
 
 const mountBranches = () => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 7, name: 'Lahore' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [] }) as never)
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(hostApi, 'getAllBranches').mockResolvedValue(ok({ branches: [] }) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 3, usedBranches: 1, remainingBranches: 2, activeBranches: 1, buildableBranches: 2, overQuotaCount: 0 }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <BranchesPage />
@@ -86,7 +85,7 @@ describe('NEW-265: host forms send the area request', () => {
   })
 
   it('New organization → POST /host/listings with areaRequestId', async () => {
-    const createListing = vi.spyOn(hostApi, 'createListing').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
+    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
     mountBranches()
     fireEvent.click(await screen.findByRole('button', { name: /new organization/i }))
     const dialog = await screen.findByRole('dialog')
@@ -123,9 +122,9 @@ describe('NEW-265: host forms send the area request', () => {
 describe('NEW-265 (R-109 F7): admins see the area request instead of an empty area', () => {
   it('admin tenant › Branches shows "under review" and a refused area with its reason', async () => {
     const { adminApi } = await import('@/lib/api/admin')
-    const { BranchesTab } = await import('@/components/features/admin-tenant/branches-tab')
-    const base = { status: 'ACTIVE', address: 'x', gymListingId: 'listing-1', pausedAt: null, billingLockedAt: null, travelerVisibilityStatus: 'active' }
-    vi.spyOn(adminApi, 'getTenantBranches').mockResolvedValue(ok({
+    const { BranchesTab } = await import('@/components/features/admin-organization/branches-tab')
+    const base = { status: 'ACTIVE', address: 'x', businessId: 'listing-1', pausedAt: null, billingLockedAt: null, travelerVisibilityStatus: 'active' }
+    vi.spyOn(adminApi, 'getOrganizationBranches').mockResolvedValue(ok({
       branches: [
         { ...base, id: 'b1', branchName: 'Uptown', pendingArea: { requestId: 4, name: 'Shinwari Town', status: 'pending_review', rejectReason: null } },
         { ...base, id: 'b2', branchName: 'Downtown', pendingArea: { requestId: 5, name: 'Fake Place', status: 'rejected', rejectReason: 'Not in Peshawar' } },
@@ -134,7 +133,7 @@ describe('NEW-265 (R-109 F7): admins see the area request instead of an empty ar
     vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <BranchesTab tenant={{ id: 't1', status: 'ACTIVE', organizations: [] } as never} tenantId="t1" />
+        <BranchesTab organization={{ id: 't1', status: 'ACTIVE', organizations: [] } as never} organizationId="t1" />
       </QueryClientProvider>
     )
     const notes = await screen.findAllByTestId('pending-area')

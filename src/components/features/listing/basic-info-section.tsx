@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { changedFields, DESCRIPTION_MAX, TAGLINE_MAX } from '@/lib/listing/content'
-import type { UpdateListingContentPayload } from '@/lib/api/host'
+import type { UpdatePublicContentPayload } from '@/lib/api/host'
 import { SaveBar } from './section-card'
 import { useListingSave } from './use-listing-save'
 import type { SectionEditorProps } from './types'
@@ -28,7 +28,7 @@ export function BasicInfoSection({ branchId, branch, onClose }: SectionEditorPro
   const areaInvalid = areaNumber !== undefined && (!Number.isInteger(areaNumber) || areaNumber <= 0)
   const nameInvalid = name.trim().length === 0
 
-  const draft: UpdateListingContentPayload = {
+  const draft: UpdatePublicContentPayload = {
     branchName: name,
     tagline,
     description,

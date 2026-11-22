@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { MultiImageUpload } from '@/components/features/multi-image-upload'
 import { SubmittedForApprovalNotice } from '@/components/features/approvals/submitted-for-approval-notice'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { useToast } from '@/hooks/use-toast'
 import { asStringList, MAX_PHOTOS } from '@/lib/listing/content'
@@ -15,9 +15,9 @@ import { listingContentKey, useListingSave } from './use-listing-save'
 import type { SectionEditorProps } from './types'
 
 /**
- * Photos. Adding uploads to POST /gyms/branches/:id/images (needs branch.settings), which also
+ * Photos. Adding uploads to POST /organizations/me/branches/:branchId/images (needs branch.settings), which also
  * writes the branch's list on the server, so the list is simply read again afterwards. Removing
- * saves the shorter list through listing-content, the way the mobile editor does.
+ * saves the shorter list through public-content, the way the mobile editor does.
  */
 export function PhotosSection({ branchId, branch, access }: SectionEditorProps) {
   const queryClient = useQueryClient()
@@ -36,7 +36,7 @@ export function PhotosSection({ branchId, branch, access }: SectionEditorProps) 
     }
     setUploading(true)
     try {
-      await gymApi.uploadBranchImages(branchId, files)
+      await organizationsApi.uploadBranchImages(branchId, files)
       await queryClient.invalidateQueries({ queryKey: listingContentKey(branchId) })
       toast({ title: files.length === 1 ? 'Photo added' : `${files.length} photos added` })
     } catch (err) {

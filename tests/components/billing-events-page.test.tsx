@@ -35,8 +35,8 @@ const event = (over: Partial<BillingEvent> & Record<string, unknown> = {}): Bill
   status: 'PROCESSED',
   attempts: 1,
   lastError: null,
-  tenantId: TENANT_A,
-  tenantName: 'Alpha Fitness',
+  organizationId: TENANT_A,
+  organizationName: 'Alpha Fitness',
   receivedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
   processedAt: new Date().toISOString(),
   stuck: false,
@@ -54,9 +54,9 @@ const tenants = {
   success: true,
   message: 'OK',
   data: {
-    tenants: [
-      { id: TENANT_A, businessName: 'Alpha Fitness' },
-      { id: TENANT_B, businessName: 'Beta Fitness' },
+    organizations: [
+      { id: TENANT_A, organizationName: "Alpha Fitness" },
+      { id: TENANT_B, organizationName: "Beta Fitness" },
     ],
   },
 }
@@ -76,7 +76,7 @@ const lastParams = () => (list.mock.calls[list.mock.calls.length - 1][0] ?? {}) 
 
 beforeEach(() => {
   searchParams = new URLSearchParams()
-  vi.spyOn(adminApi, 'getTenants').mockResolvedValue(tenants as never)
+  vi.spyOn(adminApi, 'getOrganizations').mockResolvedValue(tenants as never)
   list = vi.spyOn(adminApi, 'getBillingEvents')
 })
 afterEach(() => vi.restoreAllMocks())
@@ -86,8 +86,8 @@ describe('billing events: the list', () => {
     list.mockResolvedValue(
       page([
         event({ providerEventId: 'uuid-renew', eventType: 'DID_RENEW', status: 'PROCESSED' }),
-        event({ provider: 'STRIPE', providerEventId: 'evt_stripe_1', eventType: 'customer.subscription.updated', status: 'FAILED', attempts: 6, lastError: 'Stripe API timeout', tenantId: TENANT_B, tenantName: 'Beta Fitness' }),
-        event({ provider: 'GOOGLE', providerEventId: 'pubsub-9', eventType: null, status: 'IGNORED', tenantId: null, tenantName: null }),
+        event({ provider: 'STRIPE', providerEventId: 'evt_stripe_1', eventType: 'customer.subscription.updated', status: 'FAILED', attempts: 6, lastError: 'Stripe API timeout', organizationId: TENANT_B, organizationName: 'Beta Fitness' }),
+        event({ provider: 'GOOGLE', providerEventId: 'pubsub-9', eventType: null, status: 'IGNORED', organizationId: null, organizationName: null }),
       ]) as never
     )
     renderPage()
@@ -108,7 +108,7 @@ describe('billing events: the list', () => {
     list.mockResolvedValue(page([event()]) as never)
     renderPage()
     const link = await screen.findByRole('link', { name: 'Alpha Fitness' })
-    expect(link).toHaveAttribute('href', `/admin/tenants/${TENANT_A}`)
+    expect(link).toHaveAttribute('href', `/admin/organizations/${TENANT_A}`)
   })
 
   it('flags only the events that need attention', async () => {
@@ -153,7 +153,7 @@ describe('billing events: filters and paging', () => {
     await screen.findByText('uuid-0001')
     expect(lastParams()).toMatchObject({ page: 1 })
     expect(lastParams().status).toBeUndefined()
-    expect(lastParams().tenantId).toBeUndefined()
+    expect(lastParams().organizationId).toBeUndefined()
   })
 
   it('filters by status, and shows which filter is on', async () => {
@@ -176,28 +176,28 @@ describe('billing events: filters and paging', () => {
     const select = await screen.findByLabelText('Organization')
     await waitFor(() => expect(within(select).getByRole('option', { name: 'Beta Fitness' })).toBeInTheDocument())
     fireEvent.change(select, { target: { value: TENANT_B } })
-    await waitFor(() => expect(lastParams().tenantId).toBe(TENANT_B))
+    await waitFor(() => expect(lastParams().organizationId).toBe(TENANT_B))
     fireEvent.change(select, { target: { value: 'none' } })
-    await waitFor(() => expect(lastParams().tenantId).toBe('none'))
+    await waitFor(() => expect(lastParams().organizationId).toBe('none'))
     fireEvent.change(select, { target: { value: '' } })
-    await waitFor(() => expect(lastParams().tenantId).toBeUndefined())
+    await waitFor(() => expect(lastParams().organizationId).toBeUndefined())
   })
 
-  it('opens already filtered when linked with ?tenantId= (from a tenant page)', async () => {
-    searchParams = new URLSearchParams(`tenantId=${TENANT_B}`)
+  it('opens already filtered when linked with ?organizationId= (from a tenant page)', async () => {
+    searchParams = new URLSearchParams(`organizationId=${TENANT_B}`)
     list.mockResolvedValue(page([event()]) as never)
     renderPage()
     await screen.findByText('uuid-0001')
-    expect(lastParams().tenantId).toBe(TENANT_B)
+    expect(lastParams().organizationId).toBe(TENANT_B)
     await waitFor(() => expect((screen.getByLabelText('Organization') as HTMLSelectElement).value).toBe(TENANT_B))
   })
 
-  it('ignores a ?tenantId= that is not an id (the server would answer 422)', async () => {
-    searchParams = new URLSearchParams('tenantId=<script>')
+  it('ignores a ?organizationId= that is not an id (the server would answer 422)', async () => {
+    searchParams = new URLSearchParams('organizationId=<script>')
     list.mockResolvedValue(page([event()]) as never)
     renderPage()
     await screen.findByText('uuid-0001')
-    expect(lastParams().tenantId).toBeUndefined()
+    expect(lastParams().organizationId).toBeUndefined()
   })
 
   it('changing a filter goes back to page 1', async () => {
@@ -274,7 +274,7 @@ describe('billing events: loading, empty, error and 403', () => {
   })
 
   it('the organization filter still works when the organization list fails to load', async () => {
-    vi.spyOn(adminApi, 'getTenants').mockRejectedValue({ message: 'Network Error' })
+    vi.spyOn(adminApi, 'getOrganizations').mockRejectedValue({ message: 'Network Error' })
     list.mockResolvedValue(page([event()]) as never)
     renderPage()
     expect(await screen.findByText('uuid-0001')).toBeInTheDocument()
