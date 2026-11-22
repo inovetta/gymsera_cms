@@ -54,11 +54,23 @@ export interface RefundRequestRow {
   createdAt: string
 }
 
+/** D12: the refund policy belongs to one branch (contract v2 §3 "Refund policy"). */
 export interface RefundPolicy {
-  gymId: string | null
+  branchId: string
+  /** Present on the list (G9) when the server names the branch. */
+  branchName?: string
   refundsAllowed: boolean
   refundWindowDays: number | null
 }
+
+/** The answer to a write with `applyToAllBranches: true`. */
+export interface RefundPolicyBulkResult {
+  updatedBranchIds: string[]
+  skippedBranchIds: string[]
+}
+
+/** Contract v2: `branchId` or `applyToAllBranches: true`; neither → 422 `branch_required`. */
+export type RefundPolicyScope = { branchId: string } | { applyToAllBranches: true }
 
 export const REFUND_REQUESTS_KEY = ['refund-requests'] as const
 
@@ -81,13 +93,27 @@ export const refundsApi = {
     return data
   },
 
-  getPolicy: async (): Promise<ApiResponse<RefundPolicy>> => {
+  /** Every branch the caller can see, each with its own policy (G9: GET without branchId). */
+  getPolicies: async (): Promise<ApiResponse<{ branches: RefundPolicy[] }>> => {
     const { data } = await apiClient.get('/subscriptions/staff/refund-policy')
     return data
   },
 
-  updatePolicy: async (body: { refundsAllowed?: boolean; refundWindowDays?: number | null }): Promise<ApiResponse<RefundPolicy>> => {
-    const { data } = await apiClient.put('/subscriptions/staff/refund-policy', body)
+  /** One branch's policy. */
+  getPolicy: async (branchId: string): Promise<ApiResponse<RefundPolicy>> => {
+    const { data } = await apiClient.get('/subscriptions/staff/refund-policy', { params: { branchId } })
+    return data
+  },
+
+  /**
+   * One branch, or every branch the caller may refund at (`applyToAllBranches`). Branches without
+   * that grant are skipped by the server and listed in `skippedBranchIds`.
+   */
+  updatePolicy: async (
+    scope: RefundPolicyScope,
+    body: { refundsAllowed: boolean; refundWindowDays: number | null }
+  ): Promise<ApiResponse<RefundPolicy | RefundPolicyBulkResult>> => {
+    const { data } = await apiClient.put('/subscriptions/staff/refund-policy', { ...scope, ...body })
     return data
   },
 }
