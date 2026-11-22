@@ -12,6 +12,7 @@ import apiClient from '@/lib/api/client'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
 import { fakePlaces, pickPlace, MM_ALAM } from '../fixtures/places'
+import { addPhotos, fakeStagingUploads } from '../fixtures/branch-form'
 
 /**
  * Phase 7 P9, NEW-140: the CMS branch forms take the city, area and address from Google through
@@ -35,11 +36,12 @@ let createBranch: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   places = fakePlaces()
+  fakeStagingUploads()
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
   vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 1, name: 'Peshawar' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
-  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', name: 'Iron Gym', status: 'ACTIVE', canReceiveBranches: true }]) as never)
   vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 3, usedBranches: 1, remainingBranches: 2, activeBranches: 1, buildableBranches: 2, overQuotaCount: 0 }) as never)
@@ -61,11 +63,12 @@ const openAddBranch = async () => {
 describe('NEW-140: Add Branch on /gym/branches', () => {
   it('city, area and address come from /places; the branch is sent with their ids, the point and the place id', async () => {
     const dialog = await openAddBranch()
-    fireEvent.change(within(dialog).getByPlaceholderText(/main branch, gulberg/i), { target: { value: 'MM Alam' } })
+    fireEvent.change(within(dialog).getByLabelText(/^branch name/i), { target: { value: 'MM Alam' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     await pickPlace('Area', 'Gul', /Gulberg/, dialog)
     await pickPlace('Address', '12 MM', /12 MM Alam Road/, dialog)
-    fireEvent.change(within(dialog).getByLabelText(/plan name/i), { target: { value: 'Monthly' } })
+    await addPhotos(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '4000' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /^create branch$/i }))
 
@@ -142,7 +145,8 @@ describe('NEW-140: Add Branch on /gym/branches', () => {
 
   it('no plan is invented: the plan name and price start empty and Create waits for them', async () => {
     const dialog = await openAddBranch()
-    expect(within(dialog).getByLabelText(/plan name/i)).toHaveValue('')
+    expect(within(dialog).getByLabelText(/first plan/i)).toHaveValue('')
+    expect(within(dialog).getByRole('button', { name: /^create branch$/i })).toBeDisabled()
     expect(within(dialog).getByLabelText(/^price/i)).toHaveValue(null)
     expect(within(dialog).queryByDisplayValue('Standard Membership')).not.toBeInTheDocument()
   })

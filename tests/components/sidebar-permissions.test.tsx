@@ -130,7 +130,7 @@ describe('Sidebar — menu follows effective permissions, not the account role (
     getMine.mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     renderSidebar(ownerContext)
 
-    expect(await menu()).toEqual(['Dashboard', ...GYM_PAGES, 'Organization Profile', 'Subscription & Billing'])
+    expect(await menu()).toEqual(['Dashboard', 'Businesses', ...GYM_PAGES, 'Organization Profile', 'Subscription & Billing'])
   })
 
   it('an owner whose organization is not active sees the settings but no gym pages (unchanged)', async () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -30,7 +31,6 @@ import {
   formFromBusiness,
   imagesFromBusiness,
   payloadFromForm,
-  visibleBusinesses,
 } from '@/lib/organizations/profile'
 import { useToast } from '@/hooks/use-toast'
 
@@ -74,7 +74,9 @@ const NO_IMAGES: BusinessImages = { logoUrl: null, coverImageUrl: null, gallery:
 export default function GymProfilePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [selectedId, setSelectedId] = useState<string | undefined>()
+  // ?business=<id> from the Businesses page opens that business.
+  const searchParams = useSearchParams()
+  const [selectedId, setSelectedId] = useState<string | undefined>(() => searchParams?.get('business') ?? undefined)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [images, setImages] = useState<BusinessImages>(NO_IMAGES)
@@ -84,7 +86,8 @@ export default function GymProfilePage() {
     queryKey: ['host-businesses'],
     queryFn: () => hostApi.getBusinesses(),
   })
-  const businesses = visibleBusinesses(listingsQuery.data?.data ?? [])
+  // Every business can be edited, also one under review (it is how the host fixes it).
+  const businesses = listingsQuery.data?.data ?? []
   const businessId = businesses.find((o) => o.id === selectedId)?.id ?? businesses[0]?.id
 
   const businessQuery = useQuery({

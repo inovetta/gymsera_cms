@@ -65,6 +65,8 @@ interface NavItem {
    * from GET /meta/app-config `features.payouts`. Unknown counts as off.
    */
   payouts?: 'on' | 'off'
+  /** Only the organization's owner (the page calls owner-only /host routes). */
+  ownerOnly?: boolean
 }
 
 interface NavSection {
@@ -85,6 +87,8 @@ const navSections: NavSection[] = [
   {
     title: 'Gym Management',
     items: [
+      // Enterprise D9: the organization, its businesses and their branches (owner: the /host routes).
+      { title: 'Businesses', href: '/gym/businesses', icon: Building2, permission: 'listing.manage', scope: 'org', ownerOnly: true },
       { title: 'Business Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
       { title: 'Branches', href: '/gym/branches', icon: GitBranch, permission: 'branch.settings', scope: 'org' },
       { title: 'Plans', href: '/gym/plans', icon: CreditCard, permission: 'plans.view', scope: 'branch' },
@@ -176,6 +180,7 @@ export function Sidebar() {
   const featureOn = (item: NavItem) => !item.payouts || item.payouts === (payoutsEnabled ? 'on' : 'off')
   const canSee = (item: NavItem) =>
     featureOn(item) &&
+    (!item.ownerOnly || isOrganizationOwner) &&
     (!item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch')))
   const canSeeApprovals = gymPagesOpen && holdsPermission(organization, 'approvals.view', 'org')
 

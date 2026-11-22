@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
+import BusinessesPage from '@/app/(dashboard)/gym/businesses/page'
 import { hostApi } from '@/lib/api/host'
 import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
@@ -11,11 +12,12 @@ import { areaRequestsApi } from '@/lib/api/area-requests'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
 import { fakePlaces, pickPlace } from '../fixtures/places'
+import { addPhotos, fakeStagingUploads } from '../fixtures/branch-form'
 import { branchFixture, renderEditor } from '../fixtures/listing'
 
 /**
  * NEW-265 Part A (A4, A7, R-109 F7): the host forms that write an area send `areaRequestId` when the
- * host kept a typed area (New organization → POST /host/listings, Add branch → POST /host/branches,
+ * host kept a typed area (Add Business → POST /host/businesses, Add branch → POST /host/branches,
  * Listing › Location → PATCH listing-content), never with an `areaId`; an existing pending area is shown
  * as "(under review)" and kept when the host saves other fields.
  */
@@ -47,12 +49,13 @@ const keepTypedArea = async (root: HTMLElement, typed: string) => {
   expect(await within(root).findByTestId('area-status')).toHaveTextContent(`${typed} (under review)`)
 }
 
-const mountBranches = () => {
+const mountBranches = (Page: React.ComponentType = BranchesPage) => {
+  fakeStagingUploads()
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
   vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([{ id: 7, name: 'Lahore' }]) as never)
   vi.spyOn(citiesApi, 'getAreas').mockResolvedValue(ok({ areas: [] }) as never)
-  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', name: 'Iron Gym', status: 'ACTIVE', canReceiveBranches: true }]) as never)
   vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(hostApi, 'getAllBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
@@ -60,7 +63,7 @@ const mountBranches = () => {
   vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-      <BranchesPage />
+      <Page />
     </QueryClientProvider>
   )
 }
@@ -71,11 +74,12 @@ describe('NEW-265: host forms send the area request', () => {
     mountBranches()
     fireEvent.click((await screen.findAllByRole('button', { name: /add branch/i }))[0])
     const dialog = await screen.findByRole('dialog')
-    fireEvent.change(within(dialog).getByPlaceholderText(/main branch, gulberg/i), { target: { value: 'North' } })
+    fireEvent.change(within(dialog).getByLabelText(/^branch name/i), { target: { value: 'North' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     await keepTypedArea(dialog, 'Zz Town')
     fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '1 Road' } })
-    fireEvent.change(within(dialog).getByLabelText(/plan name/i), { target: { value: 'Monthly' } })
+    await addPhotos(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '4000' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /^create branch$/i }))
 
@@ -84,19 +88,20 @@ describe('NEW-265: host forms send the area request', () => {
     expect(createBranch.mock.calls[0][0]).not.toHaveProperty('areaId')
   })
 
-  it('New organization → POST /host/listings with areaRequestId', async () => {
-    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
-    mountBranches()
-    fireEvent.click(await screen.findByRole('button', { name: /new organization/i }))
+  it('Add Business → POST /host/businesses with areaRequestId', async () => {
+    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ business: { id: 'listing-3', name: 'Peak', status: 'PENDING' }, branch: null, heldFirstBranch: true }) as never)
+    mountBranches(BusinessesPage)
+    fireEvent.click(await screen.findByRole('button', { name: /add business/i }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.change(await within(dialog).findByLabelText(/organization name/i), { target: { value: 'Peak Fitness' } })
+    fireEvent.change(await within(dialog).findByLabelText(/business name/i), { target: { value: 'Peak Fitness' } })
     fireEvent.change(within(dialog).getByLabelText(/description/i), { target: { value: 'A new gym' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     await keepTypedArea(dialog, 'Zz Colony')
     fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+    await addPhotos(dialog)
     fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '3000' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
     expect(createListing.mock.calls[0][0]).toMatchObject({ cityId: 7, areaRequestId: 5 })

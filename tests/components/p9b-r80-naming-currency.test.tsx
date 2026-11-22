@@ -11,6 +11,8 @@ import { organizationsApi } from '@/lib/api/organizations'
 import { adminApi } from '@/lib/api/admin'
 import { packagesApi } from '@/lib/api/packages'
 import { hostApi } from '@/lib/api/host'
+import { AddBusinessDialog } from '@/components/features/add-business-dialog'
+import { addPhotos, fakeStagingUploads } from '../fixtures/branch-form'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
 import { firstPlanPackage } from '@/lib/plans/plan-display'
@@ -106,28 +108,22 @@ describe('First plan of a new branch or organization: one period, as the app sen
     expect(firstPlanPackage('Gold', 3000, type)).toEqual({ name: 'Gold', price: 3000, durationType: type, durationValue: value })
   })
 
-  it('New Organization sends one year for a yearly first plan', async () => {
+  it('Add Business sends one year for a yearly first plan', async () => {
     fakePlaces()
-    vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
-    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
-    vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-    vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
-    vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 6, usedBranches: 1, remainingBranches: 5, activeBranches: 1, buildableBranches: 5, overQuotaCount: 0 }) as never)
-    vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
-    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
-    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ id: 'listing-3', title: 'Peak', status: 'PENDING' }) as never)
+    fakeStagingUploads()
+    const createListing = vi.spyOn(hostApi, 'createBusiness').mockResolvedValue(ok({ business: { id: 'b3', name: 'Peak', status: 'PENDING' }, branch: null, heldFirstBranch: true }) as never)
 
-    wrap(<BranchesPage />)
-    fireEvent.click(await screen.findByRole('button', { name: /new organization/i }))
+    wrap(<AddBusinessDialog open onOpenChange={() => {}} onCreated={() => {}} />)
     const dialog = await screen.findByRole('dialog')
-    fireEvent.change(await within(dialog).findByLabelText(/organization name/i), { target: { value: 'Peak Fitness' } })
+    fireEvent.change(within(dialog).getByLabelText(/business name/i), { target: { value: 'Peak Fitness' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
+    await pickPlace('Area', 'Gul', /Gulberg/, dialog)
     fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+    await addPhotos(dialog)
     fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Yearly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '30000' } })
-    fireEvent.change(dialog.querySelector('#org-plan-duration') as HTMLSelectElement, { target: { value: 'YEARLY' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: /create organization/i }))
+    fireEvent.change(within(dialog).getByLabelText('Billing'), { target: { value: 'YEARLY' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
     expect((createListing.mock.calls[0][0] as any).packages[0]).toMatchObject({ durationType: 'YEARLY', durationValue: 1 })

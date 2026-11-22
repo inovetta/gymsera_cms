@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
+import { AddBusinessDialog } from '@/components/features/add-business-dialog'
 import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi } from '@/lib/api/me'
@@ -91,13 +92,16 @@ const blocked = () => ({
   },
 })
 
-describe('NEW-167: New Organization has no "move an existing branch"', () => {
+describe('NEW-167: Add Business has no "move an existing branch"', () => {
   it('opens straight on building the first branch; nothing calls the removed move route', async () => {
-    mount()
-    fireEvent.click(await screen.findByRole('button', { name: /new organization/i }))
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <AddBusinessDialog open onOpenChange={() => {}} onCreated={() => {}} />
+      </QueryClientProvider>
+    )
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).queryByText(/move an existing branch/i)).not.toBeInTheDocument()
-    expect(within(dialog).getByLabelText(/organization name/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/business name/i)).toBeInTheDocument()
     expect(within(dialog).getByLabelText('City', { exact: true })).toBeInTheDocument()
     expect(within(dialog).queryByDisplayValue('Standard Membership')).not.toBeInTheDocument()
     expect((hostApi as Record<string, unknown>).moveBranch).toBeUndefined()

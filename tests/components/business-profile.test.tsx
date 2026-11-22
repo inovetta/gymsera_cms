@@ -15,7 +15,7 @@ import { apiError, ok } from '../fixtures/team'
 
 const toast = vi.fn()
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast }) }))
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }))
 vi.mock('next/image', () => ({ default: ({ src, alt }: any) => <img src={src} alt={alt} /> }))
 vi.mock('@/components/layout/header', () => ({ Header: () => <div /> }))
 // Radix Select does not open in jsdom: stand in a native <select> with the same props.
