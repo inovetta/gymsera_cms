@@ -12,28 +12,25 @@ export function resolveNotificationPath(
   metadata?: Record<string, unknown> | null
 ): string | null {
   if (!deepLink) return null
-  let link = deepLink.trim()
+  const link = deepLink.trim()
   if (!link.startsWith('/')) return null
-
-  // `/admin/organizations/[organizationId]` is a template the server fills from metadataJson
-  // (contract v2 §1 rule 8: `organizationId`). Deep-link strings are open item G11.
-  if (link.includes('[organizationId]')) {
-    const organizationId = metadata && typeof metadata.organizationId === 'string' ? metadata.organizationId : null
-    if (!organizationId) return null
-    link = link.replace('[organizationId]', organizationId)
-  }
 
   const [path] = link.split('?')
 
+  // Every deep link the server sends (contract v2 A1 G11). Those without a CMS page return null.
   if (path === '/host/today' || path === '/staff/dashboard') return '/dashboard'
   if (path === '/host/subscriptions') return '/gym/subscriptions'
   if (path === '/host/approvals') return '/gym/approvals'
-  if (path === '/host/branches' || path === '/host/gyms') {
-    return link.includes('tab=subscriptions') ? '/gym/subscriptions' : '/gym/branches'
-  }
-  if (path === '/host/listings' || path === '/host/profile') return '/gym/profile'
-  if (/^\/host\/gyms\/[^/]+\/staff(-requests)?$/.test(path)) return '/gym/team'
+  // The host tab shown as "Gyms" in the app: member subscriptions to approve.
+  if (path === '/host/operations') return '/gym/subscriptions'
+  if (path === '/host/branches') return '/gym/branches'
+  if (path === '/host/businesses' || /^\/host\/businesses\/[^/]+$/.test(path)) return '/gym/businesses'
+  if (path === '/host/profile') return '/gym/profile'
+  if (/^\/host\/branches\/[^/]+\/staff(-requests)?$/.test(path)) return '/gym/team'
   if (path === '/notifications') return '/notifications'
+  // `/admin/organizations/<organizationId>` is filled in by the server; the id is a path segment.
+  if (/^\/admin\/organizations\/[^/]+$/.test(path)) return path
+  if (path === '/admin/plan-payments') return path
 
   // Already a CMS route.
   if (/^\/(gym|admin|settings)\//.test(path) || path === '/dashboard') return link

@@ -118,7 +118,8 @@ describe('First plan of a new branch or organization: one period, as the app sen
     fireEvent.change(within(dialog).getByLabelText(/business name/i), { target: { value: 'Peak Fitness' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     await pickPlace('Area', 'Gul', /Gulberg/, dialog)
-    fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+    await pickPlace('Address', '12 MM', /12 MM Alam Road/, dialog)
+    fireEvent.change(within(dialog).getByLabelText(/^phone/i), { target: { value: '+92 300 1111111' } })
     await addPhotos(dialog)
     fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Yearly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '30000' } })
@@ -126,6 +127,6 @@ describe('First plan of a new branch or organization: one period, as the app sen
     fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
-    expect((createListing.mock.calls[0][0] as any).packages[0]).toMatchObject({ durationType: 'YEARLY', durationValue: 1 })
+    expect((createListing.mock.calls[0][0] as any).firstBranch.packages[0]).toMatchObject({ durationType: 'YEARLY', durationValue: 1 })
   })
 })

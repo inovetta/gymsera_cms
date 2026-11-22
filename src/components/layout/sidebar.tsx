@@ -123,6 +123,7 @@ const navSections: NavSection[] = [
     title: 'Platform Admin',
     adminOnly: true,
     items: [
+      { title: 'Review queue', href: '/admin/review-queue', icon: ClipboardCheck },
       { title: 'Organizations', href: '/admin/organizations', icon: ShieldCheck },
       { title: 'Reviews', href: '/admin/reviews', icon: Star },
       // NEW-256: reported reviews and chat messages, and the word filter.

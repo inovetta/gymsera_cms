@@ -59,6 +59,7 @@ export interface RefundPolicy {
   branchId: string
   /** Present on the list (G9) when the server names the branch. */
   branchName?: string
+  businessId?: string
   refundsAllowed: boolean
   refundWindowDays: number | null
 }

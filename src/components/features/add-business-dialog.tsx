@@ -93,27 +93,34 @@ export function AddBusinessDialog({ open, onOpenChange, onCreated }: AddBusiness
   // The first branch is named after the business on approval; only its location, hours and photos are asked here.
   const missing = [
     ...(name.trim() ? [] : ['Business name']),
+    ...(contactPhone.trim() ? [] : ['Phone']),
+    ...(location.latitude === undefined || location.longitude === undefined ? ['A map pin'] : []),
     ...branchDraftMissing({ branchName: name || 'first', location, photos, planName, planPrice: price }, false),
   ]
 
   const submit = () => {
     setError(null)
+    // A2 H2: the first branch is nested; its name is the business's until the host renames it.
     const body: CreateBusinessPayload = {
       businessName: name.trim(),
       businessDescription: description.trim(),
       genderType,
       ...(contactPhone.trim() ? { contactPhone: contactPhone.trim() } : {}),
-      images: photos,
-      cityId: location.cityId,
-      ...areaPayload(location), // NEW-265: the area, or a typed area waiting for review
-      address: location.address.trim(),
-      ...(location.latitude !== undefined ? { latitude: location.latitude } : {}),
-      ...(location.longitude !== undefined ? { longitude: location.longitude } : {}),
-      ...(location.googlePlaceId ? { googlePlaceId: location.googlePlaceId } : {}),
-      openingTime,
-      closingTime,
-      // One period of the chosen type (R-80): the API counts QUARTERLY n as 3n months, YEARLY n as n years.
-      packages: [firstPlanPackage(planName.trim(), price, planDuration)],
+      firstBranch: {
+        branchName: `${name.trim()} – Main`,
+        cityId: location.cityId as number,
+        ...areaPayload(location), // NEW-265: the area, or a typed area waiting for review
+        address: location.address.trim(),
+        latitude: location.latitude as number,
+        longitude: location.longitude as number,
+        ...(location.googlePlaceId ? { googlePlaceId: location.googlePlaceId } : {}),
+        phone: contactPhone.trim(),
+        openingTime,
+        closingTime,
+        imagesJson: photos,
+        // One period of the chosen type (R-80): the API counts QUARTERLY n as 3n months, YEARLY n as n years.
+        packages: [firstPlanPackage(planName.trim(), price, planDuration)],
+      },
     }
     setLastBody(body)
     buildMutation.mutate(body)
@@ -150,7 +157,7 @@ export function AddBusinessDialog({ open, onOpenChange, onCreated }: AddBusiness
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="business-phone">Phone</Label>
+                <Label htmlFor="business-phone">Phone *</Label>
                 <Input id="business-phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+92 300 0000000" />
               </div>
             </div>

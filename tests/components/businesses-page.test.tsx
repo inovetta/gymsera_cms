@@ -125,7 +125,8 @@ describe('Businesses page: Add Business (first branch held until approval)', () 
     fireEvent.change(within(dialog).getByLabelText(/business name/i), { target: { value: 'Core Gym' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
     await pickPlace('Area', 'Gul', /Gulberg/, dialog)
-    fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+    await pickPlace('Address', '12 MM', /12 MM Alam Road/, dialog)
+    fireEvent.change(within(dialog).getByLabelText(/^phone/i), { target: { value: '+92 300 1111111' } })
     await addPhotos(dialog)
     fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '3000' } })
@@ -141,9 +142,16 @@ describe('Businesses page: Add Business (first branch held until approval)', () 
     fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => expect(createBusiness).toHaveBeenCalledTimes(1))
-    const body = createBusiness.mock.calls[0][0] as Record<string, unknown>
-    expect(body).toMatchObject({ businessName: 'Core Gym', cityId: 7, areaId: 70, address: '12 Mall Road', openingTime: '06:00', closingTime: '22:00', images: PHOTO_URLS })
-    // Contract v2: no branchSource, no copied logo or cover (F9), no old keys.
+    const body = createBusiness.mock.calls[0][0] as Record<string, any>
+    // A2 H2: the first branch is nested as `firstBranch`; no branch key is sent at the top level.
+    expect(body).toMatchObject({ businessName: 'Core Gym', contactPhone: '+92 300 1111111' })
+    expect(body.firstBranch).toMatchObject({
+      branchName: 'Core Gym – Main', cityId: 7, areaId: 71, phone: '+92 300 1111111', latitude: 31.5101, longitude: 74.3442,
+      openingTime: '06:00', closingTime: '22:00', imagesJson: PHOTO_URLS,
+    })
+    expect(body.firstBranch.packages[0]).toMatchObject({ name: 'Monthly', price: 3000 })
+    for (const k of ['cityId', 'areaId', 'address', 'images', 'packages', 'latitude']) expect(body).not.toHaveProperty(k)
+    // No copied logo or cover (F9), no old keys.
     expect(body).not.toHaveProperty('branchSource')
     expect(body).not.toHaveProperty('logoUrl')
     expect(body).not.toHaveProperty('gymName')
@@ -187,7 +195,7 @@ describe('Businesses page: Add Business (first branch held until approval)', () 
 
 describe('Businesses page: documents (D10) and the verified badge (D11)', () => {
   it('uploads proof of premises with its document type; registration is optional', async () => {
-    vi.spyOn(hostApi, 'getBusinessDocuments').mockResolvedValue(ok([]) as never)
+    vi.spyOn(hostApi, 'getBusinessDocuments').mockResolvedValue([])
     const upload = vi.spyOn(hostApi, 'uploadBusinessDocuments').mockResolvedValue(ok([]) as never)
     mount()
     const pending = await screen.findByTestId('business-card-biz-2')

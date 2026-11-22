@@ -135,25 +135,23 @@ describe('Notifications feed page', () => {
   })
 })
 
-describe('deep links: server mobile routes map to CMS pages', () => {
+describe('deep links: every string the server sends (contract v2 A1 G11) maps to a CMS page', () => {
   it.each([
     ['/host/today', '/dashboard'],
     ['/staff/dashboard', '/dashboard'],
     ['/host/subscriptions', '/gym/subscriptions'],
-    ['/host/gyms?tab=subscriptions&filter=PENDING&subscriptionId=abc', '/gym/subscriptions'],
+    ['/host/operations?tab=subscriptions&filter=PENDING&subscriptionId=abc', '/gym/subscriptions'],
+    ['/host/businesses', '/gym/businesses'],
+    ['/host/businesses/biz-1', '/gym/businesses'],
     ['/host/branches', '/gym/branches'],
     ['/host/profile', '/gym/profile'],
-    ['/host/gyms/branch-9/staff', '/gym/team'],
-    ['/host/gyms/branch-9/staff-requests', '/gym/team'],
+    ['/host/branches/branch-9/staff', '/gym/team'],
+    ['/host/branches/branch-9/staff-requests', '/gym/team'],
     ['/admin/organizations/tenant-5', '/admin/organizations/tenant-5'],
+    ['/admin/plan-payments', '/admin/plan-payments'],
     ['/notifications', '/notifications'],
   ])('%s opens %s', (link, expected) => {
     expect(resolveNotificationPath(link)).toBe(expected)
-  })
-
-  it('fills the organization template from the metadata', () => {
-    expect(resolveNotificationPath('/admin/organizations/[organizationId]', { organizationId: 't-7' })).toBe('/admin/organizations/t-7')
-    expect(resolveNotificationPath('/admin/organizations/[organizationId]', {})).toBeNull()
   })
 
   it('has no page for the traveler screens or the host inbox: stays put, never a 404', () => {

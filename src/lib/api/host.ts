@@ -40,15 +40,26 @@ export type MissingForApproval = 'PROOF_OF_PREMISES' | 'PHOTOS_MIN_3'
 /** Business document types (contract v2 §5, enterprise D10). */
 export type BusinessDocumentType = 'PROOF_OF_PREMISES' | 'BUSINESS_REGISTRATION'
 
-/** One uploaded business document (same shape as the organization's documents, R-85). */
+export type BusinessDocumentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+/**
+ * One business document (contract v2 A2 H3). No storage key, file name or URL is sent; the file is
+ * read only through the `…/stream` routes.
+ */
 export interface BusinessDocument {
-  documentId: string
-  originalName: string
-  mimetype: string
-  size: number
-  documentType?: BusinessDocumentType | string
+  id: string
+  type: BusinessDocumentType
+  status: BusinessDocumentStatus
   uploadedAt: string
-  streamUrl: string
+  reviewedAt: string | null
+  rejectionReason: string | null
+}
+
+/** The documents of an answer: the list itself, or `{ documents }` (A1 G4 for the admin route). */
+export const documentsFrom = (data: unknown): BusinessDocument[] => {
+  if (Array.isArray(data)) return data as BusinessDocument[]
+  const docs = (data as { documents?: unknown } | null | undefined)?.documents
+  return Array.isArray(docs) ? (docs as BusinessDocument[]) : []
 }
 
 /**
@@ -164,27 +175,41 @@ export interface CreateHostBranchPayload {
  * POST /host/businesses (Add Business, contract v2 §3). The first branch is held until the
  * business is approved; the answer is `{ business, branch: null, heldFirstBranch: true }`.
  */
-export interface CreateBusinessPayload {
-  /** NEW-265: a pending area request instead of areaId (one of the two is required). */
+/** Contract v2 A2 H2 "FirstBranch": the branch-create body without `businessId`. */
+export interface FirstBranch {
+  branchName: string
+  cityId: number
+  /** Exactly one of areaId / areaRequestId (NEW-265). */
+  areaId?: number
   areaRequestId?: number
+  address: string
+  googlePlaceId?: string
+  latitude: number
+  longitude: number
+  phone: string
+  /** Default every day 06:00-22:00; `openingTime` / `closingTime` are the one-slot form. */
+  openingTime?: string
+  closingTime?: string
+  facilitiesJson?: string[]
+  /** URLs from POST /host/businesses/staging-images: at least 3. */
+  imagesJson: string[]
+  packages: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
+}
+
+/**
+ * POST /host/businesses (Add Business, contract v2 A2 H2). The first branch is nested as
+ * `firstBranch` and held until the business is approved; the answer is
+ * `{ business, branch: null, heldFirstBranch: true }`. Top-level branch keys are not accepted.
+ */
+export interface CreateBusinessPayload {
   businessName: string
-  businessDescription: string
+  businessDescription?: string
   genderType: string
   contactPhone?: string
   logoUrl?: string
   coverImageUrl?: string
-  images?: string[]
   facilitiesJson?: string[]
-  openingTime?: string
-  closingTime?: string
-  packages?: Array<{ name: string; price: number; durationType?: string; durationValue?: number; description?: string }>
-  cityId?: number
-  areaId?: number
-  address?: string
-  latitude?: number
-  longitude?: number
-  /** NEW-140: the Google place the first branch's address was picked from. */
-  googlePlaceId?: string
+  firstBranch: FirstBranch
 }
 
 /** One subscription a check-in would accept, as the member lookup returns it (NEW-56). */
@@ -322,19 +347,20 @@ export const hostApi = {
   },
 
   /** GET /host/businesses/:businessId/kyc-documents: the business's documents (enterprise D10). */
-  getBusinessDocuments: async (businessId: string): Promise<ApiResponse<BusinessDocument[]>> => {
+  getBusinessDocuments: async (businessId: string): Promise<BusinessDocument[]> => {
     const { data } = await apiClient.get(`/host/businesses/${businessId}/kyc-documents`)
-    return data
+    // CONTRACT GAP (G17): the host list's wrapper is not named (the admin one is `{ documents }`).
+    return documentsFrom(data?.data)
   },
 
-  /** POST /host/businesses/:businessId/kyc-documents: body `documentType`, files `documents`. */
+  /** POST /host/businesses/:businessId/kyc-documents: body `type`, files `documents` (A2 H3). */
   uploadBusinessDocuments: async (
     businessId: string,
-    documentType: BusinessDocumentType,
+    type: BusinessDocumentType,
     files: File[]
-  ): Promise<ApiResponse<BusinessDocument[]>> => {
+  ): Promise<ApiResponse<unknown>> => {
     const formData = new FormData()
-    formData.append('documentType', documentType)
+    formData.append('type', type)
     files.forEach((f) => formData.append('documents', f))
     const { data } = await apiClient.post(`/host/businesses/${businessId}/kyc-documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

@@ -3,7 +3,7 @@
 import { organizationDisplayName, firstBusinessSubName } from '@/lib/organizations/organization-name'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft, Mail, Phone, MapPin, CheckCircle, XCircle, ShieldOff, Globe, RefreshCw,
   CreditCard, FileText, GitBranch, Camera, ImageIcon,
@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { adminApi, AdminOrganizationSubscription } from '@/lib/api/admin'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { BusinessTab } from '@/components/features/business-tab'
+import { BusinessesTab } from '@/components/features/admin-organization/businesses-tab'
 import { ProvisioningStatus } from '@/components/features/provisioning-status'
 import { OverviewTab } from '@/components/features/admin-organization/overview-tab'
 import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
@@ -45,6 +45,9 @@ export default function OrganizationDetailPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const organizationId = params.id as string
+  // ?business=<id> from the review queue opens that business.
+  const searchParams = useSearchParams()
+  const queueBusinessId = searchParams?.get('business') ?? null
 
   const logoInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -309,13 +312,13 @@ export default function OrganizationDetailPage() {
         </Card>
 
         {/* Tabs: each one mounts, and fetches, only while open */}
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue={queueBusinessId ? 'business' : 'overview'}>
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="business">
               <Globe className="h-3.5 w-3.5 mr-1" />
-              Business
-              {organization.businesses?.some((b) => b.status?.toUpperCase() === "ACTIVE") && <Badge variant="secondary" className="ml-1.5 text-xs bg-green-100 text-green-700">Live</Badge>}
+              Businesses
+              <Badge variant="secondary" className="ml-1.5 text-xs">{organization.businesses?.length ?? 0}</Badge>
             </TabsTrigger>
             <TabsTrigger value="subscription">
               <CreditCard className="h-3.5 w-3.5 mr-1" />
@@ -338,7 +341,7 @@ export default function OrganizationDetailPage() {
             <OverviewTab organization={organization} organizationId={organizationId} />
           </TabsContent>
           <TabsContent value="business" className="mt-6">
-            <BusinessTab organizationId={organizationId} businessId={organization.businesses?.[0]?.id ?? null} defaultName={organization.firstBusinessName ?? organization.organizationName ?? ''} />
+            <BusinessesTab organization={organization} organizationId={organizationId} initialBusinessId={queueBusinessId} />
           </TabsContent>
           <TabsContent value="subscription" className="mt-6">
             <SubscriptionTab organizationId={organizationId} />

@@ -10,6 +10,7 @@ import { ok } from '../fixtures/team'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
   useParams: () => ({ id: 'tenant-1' }),
 }))
 vi.mock('@/components/layout/header', () => ({ Header: () => <div data-testid="header" /> }))

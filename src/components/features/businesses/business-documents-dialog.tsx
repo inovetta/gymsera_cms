@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { hostApi, type Business, type BusinessDocument, type BusinessDocumentType } from '@/lib/api/host'
 import { resolveApiError } from '@/lib/api/error-copy'
+import { StatusBadge } from '@/components/features/status-badge'
 import { GET_VERIFIED_PROMPT, VERIFIED_EXPLANATION, VerifiedCheck } from './verified-check'
 
 const KINDS: Array<{ type: BusinessDocumentType; label: string; required: boolean; hint: string }> = [
@@ -26,7 +27,7 @@ export function BusinessDocumentsDialog({ business, open, onOpenChange }: { busi
   const key = ['business-documents', businessId]
 
   const docsQuery = useQuery({ queryKey: key, queryFn: () => hostApi.getBusinessDocuments(businessId), enabled: open && !!businessId })
-  const docs: BusinessDocument[] = docsQuery.data?.data ?? []
+  const docs: BusinessDocument[] = docsQuery.data ?? []
 
   const upload = useMutation({
     mutationFn: ({ type, files }: { type: BusinessDocumentType; files: File[] }) => hostApi.uploadBusinessDocuments(businessId, type, files),
@@ -52,7 +53,7 @@ export function BusinessDocumentsDialog({ business, open, onOpenChange }: { busi
         </DialogHeader>
         <div className="space-y-4">
           {KINDS.map((k) => {
-            const mine = docs.filter((d) => d.documentType === k.type)
+            const mine = docs.filter((d) => d.type === k.type)
             return (
               <div key={k.type} className="rounded-lg border p-3" data-testid={`doc-kind-${k.type}`}>
                 <div className="flex items-center justify-between gap-2">
@@ -78,8 +79,11 @@ export function BusinessDocumentsDialog({ business, open, onOpenChange }: { busi
                 {mine.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {mine.map((d) => (
-                      <li key={d.documentId} className="flex items-center gap-2 text-xs">
-                        <FileText className="h-3.5 w-3.5 text-primary" /> {d.originalName}
+                      <li key={d.id} className="flex flex-wrap items-center gap-2 text-xs" data-testid={`host-doc-${d.id}`}>
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        {k.label}, added {new Date(d.uploadedAt).toLocaleDateString()}
+                        <StatusBadge status={d.status} />
+                        {d.status === 'REJECTED' && d.rejectionReason && <span className="text-destructive">{d.rejectionReason}</span>}
                       </li>
                     ))}
                   </ul>

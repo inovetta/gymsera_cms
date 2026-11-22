@@ -1,7 +1,7 @@
 import apiClient from './client'
 import { fetchPrivateFile } from './private-file'
 import { ApiResponse, Organization, OrganizationProvisioning, BusinessReview, PlatformStats } from '@/types'
-import type { Business } from './host'
+import { documentsFrom, type Business, type BusinessDocument } from './host'
 
 /** Contract v2 §3 OrganizationSubscription, as the admin Subscription tab reads it. */
 export interface AdminOrganizationSubscription {
@@ -587,10 +587,14 @@ export const adminApi = {
   },
 
   /** The business's documents (G4): proof of premises, registration. */
-  getBusinessDocuments: async (businessId: string): Promise<ApiResponse<KycDocument[]>> => {
+  getBusinessDocuments: async (businessId: string): Promise<BusinessDocument[]> => {
     const { data } = await apiClient.get(`/admin/businesses/${businessId}/documents`)
-    return data
+    return documentsFrom(data?.data)
   },
+
+  /** One business document, through the private stream route (no URL is sent in the item). */
+  downloadBusinessDocument: (businessId: string, documentId: string): Promise<Blob> =>
+    fetchPrivateFile(`/admin/businesses/${businessId}/documents/${documentId}/stream`),
 
   approveBusinessDocument: async (businessId: string, documentId: string): Promise<ApiResponse<unknown>> => {
     const { data } = await apiClient.post(`/admin/businesses/${businessId}/documents/${documentId}/approve`)
@@ -656,7 +660,8 @@ export type ReviewQueueKind = 'ORGANIZATION' | 'BUSINESS'
 export interface ReviewQueueItem {
   kind: ReviewQueueKind
   organizationId: string
-  businessId: string | null
+  /** BUSINESS items only; absent on ORGANIZATION items. */
+  businessId?: string
   name: string
   status: string
   kycStatus: string | null
@@ -669,8 +674,6 @@ export interface KycDocument {
   mimetype: string
   size: number
   documentType?: string
-  /** Business documents: the admin's decision on this document (G4). */
-  status?: 'PENDING' | 'APPROVED' | 'REJECTED' | string
   uploadedAt: string
   streamUrl: string
 }

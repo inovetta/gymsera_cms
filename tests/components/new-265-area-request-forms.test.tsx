@@ -96,16 +96,18 @@ describe('NEW-265: host forms send the area request', () => {
     fireEvent.change(await within(dialog).findByLabelText(/business name/i), { target: { value: 'Peak Fitness' } })
     fireEvent.change(within(dialog).getByLabelText(/description/i), { target: { value: 'A new gym' } })
     await pickPlace('City', 'Lah', /Lahore/, dialog)
+    // The picked address brings its own area; the host then keeps a typed one instead.
+    await pickPlace('Address', '12 MM', /12 MM Alam Road/, dialog)
     await keepTypedArea(dialog, 'Zz Colony')
-    fireEvent.change(within(dialog).getByLabelText('Address', { exact: true }), { target: { value: '12 Mall Road' } })
+    fireEvent.change(within(dialog).getByLabelText(/^phone/i), { target: { value: '+92 300 1111111' } })
     await addPhotos(dialog)
     fireEvent.change(within(dialog).getByLabelText(/first plan/i), { target: { value: 'Monthly' } })
     fireEvent.change(within(dialog).getByLabelText(/^price/i), { target: { value: '3000' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /submit for review/i }))
 
     await waitFor(() => expect(createListing).toHaveBeenCalledTimes(1))
-    expect(createListing.mock.calls[0][0]).toMatchObject({ cityId: 7, areaRequestId: 5 })
-    expect(createListing.mock.calls[0][0]).not.toHaveProperty('areaId')
+    expect((createListing.mock.calls[0][0] as any).firstBranch).toMatchObject({ cityId: 7, areaRequestId: 5 })
+    expect((createListing.mock.calls[0][0] as any).firstBranch).not.toHaveProperty('areaId')
   })
 
   it('Listing › Location: a pending area is shown; keeping a typed area sends areaRequestId', async () => {
