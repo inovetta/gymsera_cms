@@ -14,7 +14,11 @@ Owner of this file: the CMS/website agent. It does not replace `gymsera_be/docs/
   neither client calls these routes (they are mobile-only today). Nothing to change; check again if a screen adds them.
 - Notification `organization_reactivated`: neither client names the old type.
 - Business documents: A3 does not name the host list wrapper. `documentsFrom` (`src/lib/api/host.ts`) reads both a bare array and
-  `{ documents: [...] }`. Keep it until the live pass shows which one the server sends.
+  `{ documents: [...] }`. A3 J11 (final): the documents wrapper is `{ documents: [...] }`, host and admin; the tolerant helper stays for now.
+- J10-J12 compared 2026-11-24: CMS Add Business matches. Website mismatches (not fixed, owner to decide): the wizard's
+  `POST /organizations/:id/first-business` sends `firstBranchDraft` + flat `address/latitude/longitude` and draft keys
+  `name/placeId/plans`, where J10 wants `firstBranch` with `branchName/googlePlaceId/packages/areaId/imagesJson`; and it
+  uploads photos to `first-business/images` before the complete `firstBranch` exists (J12 says no partial server save).
 
 ## Decisions
 - Documents item is `{ id, type, status, uploadedAt, reviewedAt, rejectionReason }`; upload body key is `type`.
