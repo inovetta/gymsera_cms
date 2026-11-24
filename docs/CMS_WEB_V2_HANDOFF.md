@@ -39,5 +39,10 @@ Owner of this file: the CMS/website agent. It does not replace `gymsera_be/docs/
 - Wizard now posts `organizationName?`, `firstBusinessName`, `firstBusinessDescription`, `genderType`, `firstBranch` (FirstBranch:
   branchName, cityId, areaId, address, latitude, longitude, googlePlaceId, phone, openingTime/closingTime, imagesJson, packages).
 - Photo upload before submit stays on `first-business/images` until the owner sends the stateless route (J12).
-- Open: the wizard has no typed-area fallback, so a pick with no matched area sends neither `areaId` nor `areaRequestId` (the API will
-  refuse it); `hours` goes in the one-slot form; no `facilitiesJson`. Needs a decision before the live pass.
+- Resolved (owner go-ahead 2026-11-24): area = `areaId` when matched, else `areaRequestId` (typed area kept via
+  `/places/area-requests/check` then create, as the CMS); the location step does not continue with neither. `hours` is the
+  contract WeeklyHours (one slot on all 7 days, default 06:00-22:00). No `facilitiesJson` (wizard collects none).
+- Photos now go to `POST /host/staging-images` (field `images`, `data.urls`), kept in wizard state, at least 3 and at most 10;
+  the old `first-business/images` calls are removed. Remove drops the URL locally.
+- Not ported: the CMS's Google roads/landmarks (`extended`) area search; the wizard offers real areas and typed requests only.
+- Not sent by the wizard (optional in the body): `logoUrl`, `coverImageUrl`; `genderType` is sent. No `kycDocumentsJson`.
