@@ -34,3 +34,10 @@ Owner of this file: the CMS/website agent. It does not replace `gymsera_be/docs/
 1. Wait for Agent A's API on a live server, then run the live-server pass (CMS and website against the real API).
 2. Resolve the host documents wrapper (see above) and drop the tolerance if only one shape is sent.
 3. Open pull requests only when the owner asks. No merge, no deploy.
+
+## Update 2026-11-24 (J10 decision applied on the website)
+- Wizard now posts `organizationName?`, `firstBusinessName`, `firstBusinessDescription`, `genderType`, `firstBranch` (FirstBranch:
+  branchName, cityId, areaId, address, latitude, longitude, googlePlaceId, phone, openingTime/closingTime, imagesJson, packages).
+- Photo upload before submit stays on `first-business/images` until the owner sends the stateless route (J12).
+- Open: the wizard has no typed-area fallback, so a pick with no matched area sends neither `areaId` nor `areaRequestId` (the API will
+  refuse it); `hours` goes in the one-slot form; no `facilitiesJson`. Needs a decision before the live pass.
