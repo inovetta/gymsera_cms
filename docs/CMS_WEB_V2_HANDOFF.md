@@ -101,3 +101,13 @@ Full flow passes: register → organization → first-business → finalize → 
   Documents; "GymsEra is reviewing" while waiting); the website proof card follows nextStep instead of guessing from the list.
   The CMS client fallbacks for items 1-2 stay until the server sends the contract shapes.
 - Tests: CMS 807 / 807 (run alone after another job's xcodebuild finished; 9 timeouts during that job), website 219 / 219; tsc and lint clean.
+
+## Recheck 2026-11-26 (be `feat/naming-v2-r2` `36930cd`, M3e fixes): 26 / 26 live checks pass
+- Fixed on the server: review queue `kind` + `{ items, page, total }`; `organization.businesses` (no `organizations`);
+  `businessVerified` on `GET /discovery/businesses/:id`; `organization_not_active`; first-business takes `genderType`
+  (`MIXED | MALE_ONLY | FEMALE_ONLY`), `logoUrl`, `coverImageUrl` and keeps them; notifications `organization_approved`
+  → `/host/businesses/<id>/documents` (first business waiting for proof) and `business_approved` → `/host/businesses/<id>`,
+  no `tenant_` / `listing_` types left. `/host/status` `nextStep`: null → upload_proof_of_premises → wait_for_business_approval → null.
+- Clients: CMS `withBusinesses` and `reviewQueueFor` removed (the API is read as sent; `page` / `total` required in the type);
+  `/host/businesses/<id>/documents` opens Businesses (nextStep banner). Website first-business sends `genderType` again.
+- Tests: CMS 806 / 806, website 219 / 219; tsc and lint clean. No server issue open from this list.

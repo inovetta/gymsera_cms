@@ -143,6 +143,7 @@ describe('deep links: every string the server sends (contract v2 A1 G11) maps to
     ['/host/operations?tab=subscriptions&filter=PENDING&subscriptionId=abc', '/gym/subscriptions'],
     ['/host/businesses', '/gym/businesses'],
     ['/host/businesses/biz-1', '/gym/businesses'],
+    ['/host/businesses/biz-1/documents', '/gym/businesses'],
     ['/host/branches', '/gym/branches'],
     ['/host/profile', '/gym/profile'],
     ['/host/branches/branch-9/staff', '/gym/team'],

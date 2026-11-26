@@ -24,7 +24,9 @@ export function resolveNotificationPath(
   // The host tab shown as "Gyms" in the app: member subscriptions to approve.
   if (path === '/host/operations') return '/gym/subscriptions'
   if (path === '/host/branches') return '/gym/branches'
-  if (path === '/host/businesses' || /^\/host\/businesses\/[^/]+$/.test(path)) return '/gym/businesses'
+  // business_approved → /host/businesses/<id>; organization_approved (first business waiting for proof of
+  // premises) → /host/businesses/<id>/documents: Businesses shows the nextStep banner with the upload.
+  if (path === '/host/businesses' || /^\/host\/businesses\/[^/]+(\/documents)?$/.test(path)) return '/gym/businesses'
   if (path === '/host/profile') return '/gym/profile'
   if (/^\/host\/branches\/[^/]+\/staff(-requests)?$/.test(path)) return '/gym/team'
   if (path === '/notifications') return '/notifications'
