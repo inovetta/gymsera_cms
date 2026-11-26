@@ -84,3 +84,20 @@ Owner of this file: the CMS/website agent. It does not replace `gymsera_be/docs/
 - Website 219 / 219 (`tests/components/proof-of-premises.test.tsx` new; wizard tests send the phone and pin the new keys),
   tsc 0, lint 0, `next build` OK.
 - Untouched, for the owner: tracked `tests/components/*.test.tsx-E` files on the website branch (sed backups from an earlier commit).
+
+## Recheck 2026-11-26 (local API at :3000, be `feat/naming-v2-r2` `cd5e17a`, seeded throwaway database)
+Full flow passes: register → organization → first-business → finalize → approve organization → nextStep
+`upload_proof_of_premises` → upload at `nextStep.businessId` → `wait_for_business_approval` → approve business → nextStep
+`null` → verify → branch in discovery. **Still failing on the server (not fixed here):**
+1. `GET /admin/review-queue`: `kind` ignored (both kinds come back), no `page` / `total`.
+2. `GET /admin/organizations/:id`: businesses still under `organization.organizations`; no `businesses` key (G2).
+3. `GET /discovery/businesses/:id`: `business.businessVerified` missing (admin business shows it true).
+4. Error code still `tenant_not_active` (`POST /host/businesses`, `GET /host/branches` while the organization waits); G16 says `organization_not_active`.
+5. `POST /organizations/:id/first-business` still refuses `genderType` (422 unknown_field); the business is saved `MIXED`.
+6. Business approval notification: type `listing_approved`, deepLink `/host/branches`; G11 says `/host/businesses/<businessId>`
+   (organization approval: `tenant_approved` → `/host/today`; old type names).
+- Works: `/host/status` `nextStep` (null → upload_proof_of_premises → wait_for_business_approval → null), with the right `businessId`.
+- Clients: CMS Businesses shows a nextStep banner ("Upload your proof of premises to go live" opens that business's
+  Documents; "GymsEra is reviewing" while waiting); the website proof card follows nextStep instead of guessing from the list.
+  The CMS client fallbacks for items 1-2 stay until the server sends the contract shapes.
+- Tests: CMS 807 / 807 (run alone after another job's xcodebuild finished; 9 timeouts during that job), website 219 / 219; tsc and lint clean.

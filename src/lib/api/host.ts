@@ -290,6 +290,12 @@ export type UpdatePublicContentPayload = Partial<{
   googlePlaceId: string
 }>
 
+/** HostStatus.nextStep (contract v2 §3, NEW-303 M3e). */
+export interface HostNextStep {
+  key: 'upload_proof_of_premises' | 'wait_for_business_approval'
+  businessId: string
+}
+
 export const hostApi = {
   getBranchQuota: async (businessId?: string): Promise<ApiResponse<BranchQuota>> => {
     const { data } = await apiClient.get('/host/branch-quota', {
@@ -304,6 +310,15 @@ export const hostApi = {
   },
 
   /** GET /host/businesses: every non-deleted business of the organization. */
+  /**
+   * `nextStep` of GET /host/status (NEW-303 M3e, R-121): what the owner does next for a first business
+   * that still holds its first branch; null when nothing is waiting.
+   */
+  getNextStep: async (): Promise<HostNextStep | null> => {
+    const { data } = await apiClient.get('/host/status')
+    return data?.data?.nextStep ?? null
+  },
+
   getBusinesses: async (): Promise<ApiResponse<Business[]>> => {
     const { data } = await apiClient.get('/host/businesses')
     return data

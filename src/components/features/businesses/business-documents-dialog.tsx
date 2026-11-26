@@ -35,6 +35,7 @@ export function BusinessDocumentsDialog({ business, open, onOpenChange }: { busi
       setError(null)
       queryClient.invalidateQueries({ queryKey: key })
       queryClient.invalidateQueries({ queryKey: ['host-businesses'] })
+      queryClient.invalidateQueries({ queryKey: ['host-next-step'] })
     },
     onError: (err) => setError(resolveApiError(err).message),
   })

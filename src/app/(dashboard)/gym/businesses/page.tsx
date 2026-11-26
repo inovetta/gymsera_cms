@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/features/status-badge'
 import { AddBusinessDialog } from '@/components/features/add-business-dialog'
 import { AddBranchDialog } from '@/components/features/branches/add-branch-dialog'
 import { BusinessDocumentsDialog } from '@/components/features/businesses/business-documents-dialog'
+import { NextStepBanner } from '@/components/features/businesses/next-step-banner'
 import { GET_VERIFIED_PROMPT, VerifiedCheck } from '@/components/features/businesses/verified-check'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -164,6 +165,7 @@ export default function BusinessesPage() {
           }
         />
         {blockedMessage && <p className="-mt-3 text-right text-xs text-muted-foreground" data-testid="add-business-blocked">{blockedMessage}</p>}
+        <NextStepBanner businesses={businesses} onUpload={setDocumentsFor} />
 
         {businessesQuery.error ? (
           <ErrorState error={businessesQuery.error} what="your businesses" onRetry={() => businessesQuery.refetch()} />
