@@ -24,6 +24,7 @@ import { adminApi, AdminOrganizationSubscription } from '@/lib/api/admin'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { BusinessesTab } from '@/components/features/admin-organization/businesses-tab'
+import { FirstBusinessApproval } from '@/components/features/admin-organization/first-business-approval'
 import { ProvisioningStatus } from '@/components/features/provisioning-status'
 import { OverviewTab } from '@/components/features/admin-organization/overview-tab'
 import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
@@ -310,6 +311,9 @@ export default function OrganizationDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* The organization and its first business are approved on one page (enterprise §5, D10). */}
+        <FirstBusinessApproval organization={organization} organizationId={organizationId} />
 
         {/* Tabs: each one mounts, and fetches, only while open */}
         <Tabs defaultValue={queueBusinessId ? 'business' : 'overview'}>

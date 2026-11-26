@@ -46,3 +46,41 @@ Owner of this file: the CMS/website agent. It does not replace `gymsera_be/docs/
   the old `first-business/images` calls are removed. Remove drops the URL locally.
 - Not ported: the CMS's Google roads/landmarks (`extended`) area search; the wizard offers real areas and typed requests only.
 - Not sent by the wizard (optional in the body): `logoUrl`, `coverImageUrl`; `genderType` is sent. No `kycDocumentsJson`.
+
+## Live pass 2026-11-26 (local API, be `feat/naming-v2-r2` `bb5913c`, no mocks)
+- Setup: local Docker MySQL 5.7 (`gymsera-walkthrough-mysql57`, port 3306), a fresh platform database `gymsera_v2_live`
+  (model sync + platform migrations, one city/area, one admin, one package), API on port 3100, Redis off, mail to an
+  invalid host. The only shortcut: the OTP is set in the database (no mail). Script and answers: kept outside the repo.
+- Flow run (43 checks pass): register → OTP → organization → staging photos → first-business → package → finalize
+  (PENDING_REVIEW) → review queue (ORGANIZATION) → approve organization (tenant provisioned) → review queue (BUSINESS) →
+  Add Branch into the pending business = 409 `business_not_approved` → approve = 422 `business_requirements_missing`
+  `missing: [PROOF_OF_PREMISES]` → host uploads proof → document view/approve → approve business (held first branch built)
+  → verify without registration = 422 `registration_missing` → registration upload → verify → **branch appears in
+  `GET /discovery/branches`** with `businessVerified: true` → revoke → false.
+- Client changes from the pass:
+  - CMS: the organization page shows the first business's approval under the organization (before approval: what comes
+    next); `withBusinesses` reads the live `organization.organizations`; `reviewQueueFor` keeps the tab's kind and counts rows;
+    error copy for `business_requirements_missing` and `registration_missing`; the organization list points to the review queue.
+  - Website: first-business sends `organizationName` (required) and no `genderType` (refused, 422 unknown_field); branch
+    phone is required before Photos (the API requires it); after submit, "Upload your proof of premises to go live" on the
+    confirmation step and at `/gym-owner/proof-of-premises` (protected route).
+
+### Server issues found (not fixed here; for Agent A / the owner)
+1. The first business exists only after the organization is approved. After submit, `GET /host/businesses` is `[]` and
+   `POST /host/businesses/:id/kyc-documents` answers 409 `tenant_not_active`, so a new host cannot upload proof of premises
+   until the organization is approved, and the review queue has no BUSINESS row for it until then.
+2. `GET /admin/review-queue` ignores `kind` (both kinds come back) and sends no `page` / `total`.
+3. `GET /admin/organizations/:id` sends the businesses as `organization.organizations` (+ `gymListing`), not `businesses`
+   (contract A1 G2). The contract's own F7 note says "organizations as before": the two notes disagree.
+4. `GET /discovery/businesses/:id` → `business` has no `businessVerified` (contract §3); branch lists do have it.
+5. The error code is still `tenant_not_active` ("Your gym is not live yet…"); A1 G16 renamed it `organization_not_active`.
+6. `POST /organizations/:id/first-business` refuses `genderType`, so the first business is saved `MIXED` whatever the host
+   picked (Add Business accepts `genderType`).
+- Not a bug: Add Business answered 403 `branch_limit_reached` (pool max 1 with PAY_LATER and no paid plan).
+
+### Tests
+- CMS 803 / 803 (`tests/components/live-pass-review.test.tsx` new), tsc 0, lint 0 errors. The NEW-256 word-list test failed once
+  in a full run and passed alone and on the rerun (timing).
+- Website 219 / 219 (`tests/components/proof-of-premises.test.tsx` new; wizard tests send the phone and pin the new keys),
+  tsc 0, lint 0, `next build` OK.
+- Untouched, for the owner: tracked `tests/components/*.test.tsx-E` files on the website branch (sed backups from an earlier commit).

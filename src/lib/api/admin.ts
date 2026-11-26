@@ -324,6 +324,28 @@ export interface GetBillingEventsParams {
 
 const multipart = { headers: { 'Content-Type': 'multipart/form-data' } }
 
+/**
+ * Contract A1 G2 names the organization's businesses `businesses`. The live API (feat/naming-v2-r2,
+ * 2026-11-26) still sends them as `organization.organizations` (the first one also as `gymListing`),
+ * so every screen reads `businesses` and this fills it from the old key when only that one is sent.
+ */
+export function withBusinesses<T extends { data?: { organization?: Organization } }>(res: T): T {
+  const org = res?.data?.organization as (Organization & { organizations?: Organization['businesses'] }) | undefined
+  if (org && !org.businesses && Array.isArray(org.organizations)) org.businesses = org.organizations
+  return res
+}
+
+/**
+ * The live API answers `{ items }` only: it ignores `kind` and sends no `total` (2026-11-26). The tab
+ * shows only its kind either way, and the page count falls back to the rows received.
+ */
+export function reviewQueueFor<T extends { data?: { items?: ReviewQueueItem[]; total?: number } }>(res: T, kind?: ReviewQueueKind): T {
+  if (!res?.data?.items) return res
+  const items = kind ? res.data.items.filter((i) => i.kind === kind) : res.data.items
+  const total = kind && items.length !== res.data.items.length ? items.length : (res.data.total ?? items.length)
+  return { ...res, data: { ...res.data, items, total } }
+}
+
 export const adminApi = {
   createOrganization: async (payload: CreateOrganizationPayload): Promise<ApiResponse<{ organization: Organization }>> => {
     const { data } = await apiClient.post('/admin/organizations', payload)
@@ -343,12 +365,12 @@ export const adminApi = {
   /** The approval queue: one row per organization (first time) and per business (G1). */
   getReviewQueue: async (params?: { page?: number; limit?: number; kind?: ReviewQueueKind }): Promise<ApiResponse<{ items: ReviewQueueItem[]; page?: number; total?: number }>> => {
     const { data } = await apiClient.get('/admin/review-queue', { params })
-    return data
+    return reviewQueueFor(data, params?.kind)
   },
 
   getOrganization: async (organizationId: string): Promise<ApiResponse<{ organization: Organization }>> => {
     const { data } = await apiClient.get(`/admin/organizations/${organizationId}`)
-    return data
+    return withBusinesses(data)
   },
 
   // Approve, or Resume a provisioning that stopped (FLOW-02). One idempotency

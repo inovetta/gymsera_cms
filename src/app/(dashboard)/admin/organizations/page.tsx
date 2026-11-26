@@ -4,6 +4,7 @@ import { organizationDisplayName, firstBusinessSubName } from '@/lib/organizatio
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -227,6 +228,11 @@ export default function TenantsPage() {
               className="pl-9"
             />
           </div>
+          {/* F7: this list holds organizations only; a business waiting for approval is in the review queue. */}
+          <p className="text-sm text-muted-foreground sm:ml-auto sm:self-center" data-testid="review-queue-pointer">
+            Businesses waiting for approval are in the{' '}
+            <Link href="/admin/review-queue" className="font-medium text-primary hover:underline">Review queue</Link>.
+          </p>
         </div>
 
         <Card>

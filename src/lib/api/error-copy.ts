@@ -36,6 +36,20 @@ export const ERROR_COPY_FALLBACK: Record<string, ErrorCopyEntry> = {
     ar: 'هذا النشاط التجاري لا يزال قيد المراجعة. يمكنك إضافة فروع بعد الموافقة عليه.',
     action: 'none',
   },
+  // Contract v2 §6 (new): approve without proof of premises or 3 photos; the list is in `data.missing`.
+  business_requirements_missing: {
+    en: 'This business cannot be approved yet: proof of premises and at least 3 photos are needed.',
+    ur: 'یہ بزنس ابھی منظور نہیں ہو سکتا: جگہ کا ثبوت اور کم از کم 3 تصاویر درکار ہیں۔',
+    ar: 'لا يمكن الموافقة على هذا النشاط التجاري بعد: يلزم إثبات المقر و3 صور على الأقل.',
+    action: 'none',
+  },
+  // Enterprise D11: Verify needs an uploaded registration document.
+  registration_missing: {
+    en: 'Upload a business registration document first.',
+    ur: 'پہلے بزنس رجسٹریشن کی دستاویز اپ لوڈ کریں۔',
+    ar: 'ارفع وثيقة تسجيل النشاط التجاري أولاً.',
+    action: 'none',
+  },
   branch_delete_blocked: {
     en: 'This branch still has active members, upcoming bookings or payments to settle. Settle them or wait until they end, or pause the branch instead.',
     ur: 'اس برانچ میں ابھی فعال ممبرز، آنے والی بکنگز یا زیرِ التوا ادائیگیاں موجود ہیں۔ پہلے انہیں نمٹائیں یا ان کے ختم ہونے کا انتظار کریں، یا اس کے بجائے برانچ کو روک دیں۔',
