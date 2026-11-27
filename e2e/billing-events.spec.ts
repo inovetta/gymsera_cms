@@ -15,8 +15,8 @@ const event = (over: Record<string, unknown> = {}) => ({
   status: 'PROCESSED',
   attempts: 1,
   lastError: null,
-  tenantId: TENANT,
-  tenantName: 'Alpha Fitness',
+  organizationId: TENANT,
+  organizationName: 'Alpha Fitness',
   receivedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
   processedAt: new Date().toISOString(),
   stuck: false,
@@ -40,7 +40,7 @@ test.describe('Billing events', () => {
             ];
         return json(route, rows, 200, { pagination: { total: rows.length, page: 1, limit: 20, totalPages: 1 } });
       }
-      if (path === '/admin/tenants') return json(route, { tenants: [{ id: TENANT, businessName: 'Alpha Fitness' }] }, 200, { pagination: { total: 1, page: 1, limit: 100, totalPages: 1 } });
+      if (path === '/admin/organizations') return json(route, { organizations: [{ id: TENANT, organizationName: 'Alpha Fitness' }], page: 1, total: 1 });
       if (path === '/notifications/unread-count') return json(route, { unreadCount: 0 });
       if (path === '/notifications') return json(route, { notifications: [] });
       return json(route, {});
@@ -65,7 +65,7 @@ test.describe('Billing events', () => {
     await page.route('**/api/v1/**', async (route) => {
       const path = apiPath(route);
       if (path === '/admin/billing-events') return fail(route, 403, { error: { code: 'forbidden', message: 'Forbidden' } });
-      if (path === '/admin/tenants') return fail(route, 403, { error: { code: 'forbidden', message: 'Forbidden' } });
+      if (path === '/admin/organizations') return fail(route, 403, { error: { code: 'forbidden', message: 'Forbidden' } });
       if (path === '/notifications/unread-count') return json(route, { unreadCount: 0 });
       if (path === '/notifications') return json(route, { notifications: [] });
       return json(route, {});

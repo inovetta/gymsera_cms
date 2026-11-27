@@ -25,10 +25,11 @@ async function serve(page: Page) {
     const url = new URL(route.request().url());
     const method = route.request().method();
     if (await answerShell(route, path, contextFor(true, ['*']))) return;
-    if (path === '/host/listings') return json(route, [{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]);
-    if (path === '/host/listings/listing-1/branches') return json(route, { branches: [] });
-    if (path === '/host/organization-quota') return json(route, { maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null });
-    if (path === '/host/branch-quota') return json(route, { maxBranches: 3, usedBranches: 1, remainingBranches: 2, activeBranches: 1, buildableBranches: 2, overQuotaCount: 0 });
+    // Contract v2: GET /host/businesses (Business keys), /host/businesses/:businessId/branches, /host/business-quota.
+    if (path === '/host/businesses') return json(route, [{ id: 'business-1', name: 'Iron Gym', status: 'ACTIVE', canReceiveBranches: true, branchCount: 0, businessVerified: false }]);
+    if (path === '/host/businesses/business-1/branches') return json(route, { branches: [] });
+    if (path === '/host/business-quota') return json(route, { pool: { max: 3, used: 1, reserved: 0, free: 2 }, canAddBusiness: true, blockingBusinessStatus: null });
+    if (path === '/host/branch-quota') return json(route, { maxBranches: 3, usedBranches: 1, remainingBranches: 2, activeBranches: 1, buildableBranches: 2, overQuotaCount: 0, pool: { max: 3, used: 1, reserved: 0, free: 2 } });
     if (path === '/cities') return json(route, []);
     if (path === '/places/autocomplete') {
       const kind = url.searchParams.get('kind');
@@ -39,6 +40,10 @@ async function serve(page: Page) {
     }
     if (path === '/places/details/city-lahore') return json(route, CITY);
     if (path === '/places/details/addr-mm-alam') return json(route, ADDRESS);
+    // Photos go to the stateless upload first (J13); the URLs ride on the create call.
+    if (path === '/host/businesses/staging-images' && method === 'POST') {
+      return json(route, { urls: ['https://cdn.test/p1.jpg', 'https://cdn.test/p2.jpg', 'https://cdn.test/p3.jpg'] });
+    }
     if (path === '/host/branches' && method === 'POST') {
       created.push(route.request().postDataJSON());
       return json(route, { branch: { id: 'b-new', branchName: 'MM Alam' } }, 201);
@@ -55,7 +60,7 @@ test('Add Branch: city and address from /places; the branch carries the ids, the
 
   await page.getByRole('button', { name: /add branch/i }).first().click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByPlaceholder(/main branch, gulberg/i).fill('MM Alam');
+  await dialog.getByLabel(/branch name/i).fill('MM Alam');
 
   await dialog.getByLabel('City', { exact: true }).fill('Lah');
   await dialog.getByRole('button', { name: /Lahore/ }).click();
@@ -66,14 +71,19 @@ test('Add Branch: city and address from /places; the branch carries the ids, the
   await expect(dialog.getByLabel('Address', { exact: true })).toHaveValue(ADDRESS.formattedAddress);
   await expect(dialog.getByLabel('Latitude', { exact: true })).toHaveValue('31.5101');
 
-  await dialog.getByLabel(/plan name/i).fill('Monthly');
+  await dialog.locator('#add-branch-photos').setInputFiles(
+    [1, 2, 3].map((n) => ({ name: `p${n}.jpg`, mimeType: 'image/jpeg', buffer: Buffer.from('jpg') }))
+  );
+  await expect(dialog.getByTestId('add-branch-photo-count')).toContainText('3');
+  await dialog.getByLabel(/first plan/i).fill('Monthly');
   await dialog.getByLabel(/^price/i).fill('4000');
   await dialog.getByRole('button', { name: /^create branch$/i }).click();
 
   await expect.poll(() => created.length).toBe(1);
   expect(created[0]).toMatchObject({
-    branchName: 'MM Alam', cityId: 7, areaId: 71, address: ADDRESS.formattedAddress,
+    businessId: 'business-1', branchName: 'MM Alam', cityId: 7, areaId: 71, address: ADDRESS.formattedAddress,
     latitude: 31.5101, longitude: 74.3442, googlePlaceId: 'addr-mm-alam',
+    imagesJson: ['https://cdn.test/p1.jpg', 'https://cdn.test/p2.jpg', 'https://cdn.test/p3.jpg'],
   });
   // No Google search from the browser; with no web key in the test build there is no map either.
   expect(googleCalls.filter((u) => /place|geocode|autocomplete/i.test(u))).toEqual([]);

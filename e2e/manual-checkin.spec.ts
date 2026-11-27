@@ -42,8 +42,9 @@ test.describe('Manual check-in', () => {
       const path = url.pathname.replace('/api/v1', '');
       const method = route.request().method();
 
-      if (path === '/tenants/me') return json(route, { tenant: { id: 't1', status: 'ACTIVE' }, subscription: null });
-      if (path === '/gyms/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
+      // Contract v2: GET /organizations/me → { organization, subscription }; GET /organizations/me/branches.
+      if (path === '/organizations/me') return json(route, { organization: { id: 't1', status: 'ACTIVE' }, subscription: null });
+      if (path === '/organizations/me/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
       if (path === `/host/branches/${BRANCH_ID}/members/lookup`) {
         lookupQuery = url.searchParams.get('email');
         return json(route, { exists: true, user: { id: USER_ID, fullName: 'Ali Raza', email: 'ali@example.test' } });
@@ -84,8 +85,9 @@ test.describe('Manual check-in', () => {
   test('shows the server’s reason when the member is already checked in', async ({ page }) => {
     await page.route('**/api/v1/**', async (route) => {
       const path = new URL(route.request().url()).pathname.replace('/api/v1', '');
-      if (path === '/tenants/me') return json(route, { tenant: { id: 't1', status: 'ACTIVE' }, subscription: null });
-      if (path === '/gyms/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
+      // Contract v2: GET /organizations/me → { organization, subscription }; GET /organizations/me/branches.
+      if (path === '/organizations/me') return json(route, { organization: { id: 't1', status: 'ACTIVE' }, subscription: null });
+      if (path === '/organizations/me/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
       if (path.endsWith('/members/lookup')) return json(route, { exists: true, user: { id: USER_ID, fullName: 'Ali Raza', email: 'ali@example.test' } });
       if (path === '/subscriptions/staff') {
         return json(route, { subscriptions: [{ id: SUB_ID, userId: USER_ID, branchId: BRANCH_ID, status: 'ACTIVE', endDate: '2999-01-01', remainingVisits: null }] });

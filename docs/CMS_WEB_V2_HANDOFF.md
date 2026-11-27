@@ -111,3 +111,16 @@ Full flow passes: register → organization → first-business → finalize → 
 - Clients: CMS `withBusinesses` and `reviewQueueFor` removed (the API is read as sent; `page` / `total` required in the type);
   `/host/businesses/<id>/documents` opens Businesses (nextStep banner). Website first-business sends `genderType` again.
 - Tests: CMS 806 / 806, website 219 / 219; tsc and lint clean. No server issue open from this list.
+
+## Playwright on v2 (2026-11-27)
+- CI failures (web PR #39: 1, CMS PR #68: 15 of 52) were the e2e mocks still on v1 routes and keys. Mocks moved to the
+  contract: `/organizations/me` `{ organization }`, `/organizations/me/branches`, `/organizations/me/members`,
+  `/me/context` `organizations[].organizationId`, `X-Organization-Id` (the switcher spec also checks `X-Tenant-Id` is
+  never sent), `/host/businesses*` (Business keys), `/host/business-quota` `{ pool, canAddBusiness }`,
+  `/host/businesses/staging-images`, `/host/branches/:id/public-content`, `/admin/organizations`, billing events
+  `organizationId` / `organizationName`, `/discovery/branches` `{ branches }` with `businessVerified`. No test removed or loosened.
+- Result: website 4 / 4, CMS 52 / 52 (one repo at a time, no other heavy job).
+- **Server issue found:** contract §3 Business lists `canReceiveBranches` (also `travellerVisible`), but the server never
+  sends it (`grep canReceiveBranches gymsera_be/src`: nothing). The CMS shows Add Branch only for a business with
+  `canReceiveBranches: true` (as the contract says), so against the live API no business can get a branch from the CMS.
+  Not worked around in the client.

@@ -3,7 +3,7 @@ import { answerShell, apiPath, BRANCH_ID, contextFor, fail, json, signIn } from 
 
 /**
  * Branch listing editor (Prompt 3D, UX-21): the sections of the mobile listing hub on
- * GET / PATCH /host/branches/:id/listing-content. No backend is started; every call is answered here.
+ * GET / PATCH /host/branches/:branchId/public-content (contract v2; was listing-content). No backend is started; every call is answered here.
  */
 
 const branch = {
@@ -34,8 +34,8 @@ async function serve(page: Page, context: unknown, onPatch: (body: any) => { sta
     const path = apiPath(route);
     const method = route.request().method();
     if (await answerShell(route, path, context)) return;
-    if (path === `/host/branches/${BRANCH_ID}/listing-content` && method === 'GET') return json(route, { branch });
-    if (path === `/host/branches/${BRANCH_ID}/listing-content` && method === 'PATCH') {
+    if (path === `/host/branches/${BRANCH_ID}/public-content` && method === 'GET') return json(route, { branch });
+    if (path === `/host/branches/${BRANCH_ID}/public-content` && method === 'PATCH') {
       const body = route.request().postDataJSON();
       patches.push(body);
       const reply = onPatch(body);
@@ -94,7 +94,7 @@ test.describe('Listing editor', () => {
     await page.route('**/api/v1/**', async (route) => {
       const path = apiPath(route);
       if (await answerShell(route, path, contextFor(false, ['members.view']))) return;
-      if (path.includes('listing-content')) listingCalls += 1;
+      if (path.includes('public-content')) listingCalls += 1;
       return json(route, {});
     });
     await signIn(page, 'MEMBER');
