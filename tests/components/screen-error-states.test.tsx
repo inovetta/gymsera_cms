@@ -9,8 +9,8 @@ import PlansPage from '@/app/(dashboard)/gym/plans/page'
 import GymProfilePage from '@/app/(dashboard)/gym/profile/page'
 import CitiesPage from '@/app/(dashboard)/admin/cities/page'
 import BillingSettingsPage from '@/app/(dashboard)/settings/billing/page'
-import TenantsPage from '@/app/(dashboard)/admin/tenants/page'
-import { gymApi } from '@/lib/api/gym'
+import TenantsPage from '@/app/(dashboard)/admin/organizations/page'
+import { organizationsApi } from '@/lib/api/organizations'
 import { hostApi } from '@/lib/api/host'
 import { plansApi } from '@/lib/api/plans'
 import { usersApi } from '@/lib/api/users'
@@ -21,7 +21,6 @@ import { attendanceApi } from '@/lib/api/attendance'
 import { paymentsApi } from '@/lib/api/payments'
 import { reportsApi } from '@/lib/api/reports'
 import { hostBillingApi } from '@/lib/api/host-billing'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 
 vi.mock('next/navigation', () => ({
@@ -70,8 +69,8 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
   afterEach(() => vi.restoreAllMocks())
 
   it('members list', async () => {
-    vi.spyOn(gymApi, 'getMembers').mockRejectedValue(serverDown)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(organizationsApi, 'getMembers').mockRejectedValue(serverDown)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
     vi.spyOn(plansApi, 'getHostPlans').mockResolvedValue(ok({ plans: [] }) as never)
     renderPage(<MembersPage />)
     await expectRetryableError(/no members found/i)
@@ -79,10 +78,10 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
 
   it('members list: Retry calls the query again and recovers', async () => {
     const spy = vi
-      .spyOn(gymApi, 'getMembers')
+      .spyOn(organizationsApi, 'getMembers')
       .mockRejectedValueOnce(serverDown)
       .mockResolvedValue(ok({ members: [], pagination: { totalPages: 1 } }) as never)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
     vi.spyOn(plansApi, 'getHostPlans').mockResolvedValue(ok({ plans: [] }) as never)
     renderPage(<MembersPage />)
     fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
@@ -92,7 +91,7 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
 
   it('membership plans (card grid)', async () => {
     vi.spyOn(plansApi, 'getHostPlans').mockRejectedValue(serverDown)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
     renderPage(<PlansPage />)
     await expectRetryableError(/no plans yet/i)
   })
@@ -100,8 +99,8 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
   it('gym profile: the edit form is not shown over data that never loaded', async () => {
     // NEW-196: the page loads the chosen organization (GET /host/listings/:id), not /gyms/profile;
     // its name field is "Organization Name".
-    vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'org-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-    vi.spyOn(hostApi, 'getOrganization').mockRejectedValue(serverDown)
+    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'org-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+    vi.spyOn(hostApi, 'getBusiness').mockRejectedValue(serverDown)
     renderPage(<GymProfilePage />)
     await expectRetryableError(/organization name/i)
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull()
@@ -117,8 +116,8 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
   })
 
   it('branch detail', async () => {
-    vi.spyOn(gymApi, 'getBranch').mockRejectedValue(serverDown)
-    vi.spyOn(gymApi, 'getBranchStaff').mockResolvedValue(ok({ staff: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranch').mockRejectedValue(serverDown)
+    vi.spyOn(organizationsApi, 'getBranchStaff').mockResolvedValue(ok({ staff: [] }) as never)
     vi.spyOn(subscriptionsApi, 'getStaffSubscriptions').mockResolvedValue(ok({ subscriptions: [] }) as never)
     vi.spyOn(attendanceApi, 'getAttendance').mockResolvedValue(ok({ logs: [] }) as never)
     vi.spyOn(paymentsApi, 'getPayments').mockResolvedValue(ok({ payments: [] }) as never)
@@ -134,7 +133,7 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
   })
 
   it('admin tenants table: a network failure says it could not reach the server', async () => {
-    vi.spyOn(adminApi, 'getTenants').mockRejectedValue(noNetwork)
+    vi.spyOn(adminApi, 'getOrganizations').mockRejectedValue(noNetwork)
     renderPage(<TenantsPage />)
     expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument()
     expect(screen.queryByText(/no tenants found/i)).toBeNull()
@@ -142,10 +141,10 @@ describe('screens show a retryable error instead of an empty or blank page (UX-0
 
   describe('billing settings: only a 404 means "no plan"', () => {
     const stubOthers = () => {
-      vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't', status: 'ACTIVE' } }) as never)
+      vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't', status: 'ACTIVE' } }) as never)
       vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({}) as never)
       vi.spyOn(hostBillingApi, 'getCatalog').mockResolvedValue(ok([]) as never)
-      vi.spyOn(tenantsApi, 'getPackages').mockResolvedValue(ok([]) as never)
+      vi.spyOn(organizationsApi, 'getPackages').mockResolvedValue(ok([]) as never)
     }
 
     it('a 503 shows the error with Retry and not "No active subscription"', async () => {

@@ -79,7 +79,7 @@ const COPY = {
     description: 'Balance, payout requests and bank details',
     noAccessWhat: 'payouts',
     noAccessNeeds: 'View payouts',
-    cardDescription: 'Where payouts are sent and what travellers see when they pay by bank transfer, for every organization and branch of your business. Changing them needs your password and pauses new payout requests for 24 hours.',
+    cardDescription: 'Where payouts are sent and what travellers see when they pay by bank transfer, for every business and branch of your organization. Changing them needs your password and pauses new payout requests for 24 hours.',
     empty: 'No payout account yet. Set one up before you request a payout.',
     savedToast: 'You were notified by email and in the app. New payout requests are paused for 24 hours.',
     changedNote: 'New payout requests wait 24 hours after a change.',
@@ -92,7 +92,7 @@ const COPY = {
     description: 'The account travellers pay into by bank transfer',
     noAccessWhat: 'bank details',
     noAccessNeeds: 'Manage bank details',
-    cardDescription: 'What travellers see when they pay by bank transfer, for every organization and branch of your business. Changing them needs your password.',
+    cardDescription: 'What travellers see when they pay by bank transfer, for every business and branch of your organization. Changing them needs your password.',
     empty: 'No bank details yet. Add them so travellers can pay you by bank transfer.',
     savedToast: 'You were notified by email and in the app.',
     changedNote: '',
@@ -132,8 +132,8 @@ export function PayoutsView({ mode }: { mode: PayoutsViewMode }) {
     queryFn: () => payoutsApi.list({ ...(branchId ? { branchId } : {}), page, limit: 20 }),
     enabled: showPayouts && mayView && !!organization,
   })
-  // P7b (NEW-217, R-94): the tenant's payout account (every organization and branch), read only by
-  // someone who may manage it. It used to come from the organization profile (/gyms/profile).
+  // P7b (NEW-217, R-94): the organization payout account (every business and branch), read only by
+  // someone who may manage it. It used to come from the organization profile (the old /gyms/profile).
   const accountQuery = useQuery({
     queryKey: ['payout-account'],
     queryFn: () => payoutsApi.getAccount(),

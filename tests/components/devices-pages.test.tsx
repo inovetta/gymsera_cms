@@ -7,7 +7,7 @@ import NewDevicePage from '@/app/(dashboard)/gym/devices/new/page'
 import DeviceDetailPage from '@/app/(dashboard)/gym/devices/[id]/page'
 import { devicesApi, AccessDevice, DeviceSetup } from '@/lib/api/devices'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { branchManagerContext, frontDeskContext, orgAdminContext, ownerContext, plainMemberContext } from '../fixtures/context'
 
@@ -77,7 +77,7 @@ const withDeviceKeys = (source: MyContext, keys: string[]): MyContext => ({
 let list: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   push.mockReset()
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   list = vi.spyOn(devicesApi, 'list').mockResolvedValue(ok({ devices: [
     device(),
     device({ id: 'd2', name: 'Exit', direction: 'out', connection: 'awaiting_connection', status: 'awaiting_connection', model: null, firmware: null, lastSeenAt: null, lastSeenSecondsAgo: null, scheme: null, encrypted: null }),

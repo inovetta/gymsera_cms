@@ -21,7 +21,7 @@ import { appConfigApi } from '@/lib/api/app-config'
 import { payoutsApi } from '@/lib/api/payouts'
 import { meApi, MyContext } from '@/lib/api/me'
 import { approvalsApi } from '@/lib/api/approvals'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext } from '../fixtures/context'
 
@@ -59,14 +59,14 @@ const wrap = (ui: React.ReactElement, context: MyContext = ownerContext) => {
 
 const menu = async () => {
   await screen.findByRole('link', { name: 'Dashboard' })
-  await screen.findByRole('link', { name: 'Gym Profile' })
+  await screen.findByRole('link', { name: 'Business Profile' })
   await new Promise((r) => setTimeout(r, 50))
   const nav = screen.getAllByRole('navigation')[0]
   return within(nav).getAllByRole('link').map((a) => a.textContent?.replace(/\d+$/, '').trim())
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
   balance = vi.spyOn(payoutsApi, 'balance').mockResolvedValue(ok({ branchId: null, totalCollected: 1, totalRefunded: 0, totalExpenses: 0, totalPayouts: 0, availableBalance: 1, currency: 'PKR' }) as never)
   list = vi.spyOn(payoutsApi, 'list').mockResolvedValue(ok({ payouts: [] }) as never)
@@ -115,7 +115,7 @@ describe.each([
 describe('R-99 off: who sees Bank details', () => {
   it('a front desk without payouts.bank.manage sees neither Payouts nor Bank details', async () => {
     vi.spyOn(appConfigApi, 'get').mockResolvedValue(config({ payouts: false }) as never)
-    vi.spyOn(tenantsApi, 'getMyTenant').mockRejectedValue(Object.assign(new Error('Forbidden'), { response: { status: 403 } }))
+    vi.spyOn(organizationsApi, 'getMine').mockRejectedValue(Object.assign(new Error('Forbidden'), { response: { status: 403 } }))
     wrap(<Sidebar />, frontDeskContext)
     await screen.findByRole('link', { name: 'Dashboard' })
     await new Promise((r) => setTimeout(r, 80))

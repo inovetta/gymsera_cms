@@ -7,7 +7,7 @@ import AdminPlanPaymentsPage from '@/app/(dashboard)/admin/plan-payments/page'
 import { PLAN_PAYMENT_COPY } from '@/components/features/host-plan-payment'
 import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
 import { adminPlanPaymentsApi } from '@/lib/api/admin-plan-payments'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 
@@ -31,7 +31,7 @@ const receipt = (size = 2000, type = 'image/jpeg') => {
 }
 
 const mountBilling = (overview: Record<string, unknown> = {}, sub: unknown = null) => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't1', status: 'ACTIVE' } }) as never)
   if (sub) vi.spyOn(hostBillingApi, 'getCurrentSubscription').mockResolvedValue(ok(sub) as never)
   else vi.spyOn(hostBillingApi, 'getCurrentSubscription').mockRejectedValue({ response: { status: 404, data: {} } })
   vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 1, activeBranches: 3, usedBranches: 3, buildableBranches: 0, remainingBranches: 0 }) as never)
@@ -121,7 +121,7 @@ describe('host: pay for a plan by bank transfer', () => {
 })
 
 describe('admin: Plan payments', () => {
-  const row = { id: 'r1', tenantId: 't-1', tenantName: 'Iron Gym', status: 'PENDING', branchCount: 3, billingCycle: 'YEARLY', amount: '49900.00', currency: 'PKR', hasProof: true, payerReference: 'TRX-1', createdAt: '2026-11-05T10:00:00Z' }
+  const row = { id: 'r1', organizationId: 't-1', organizationName: 'Iron Gym', status: 'PENDING', branchCount: 3, billingCycle: 'YEARLY', amount: '49900.00', currency: 'PKR', hasProof: true, payerReference: 'TRX-1', createdAt: '2026-11-05T10:00:00Z' }
 
   it('lists pending payments; approve asks first, then calls the API', async () => {
     vi.spyOn(adminPlanPaymentsApi, 'list').mockResolvedValue(ok({ requests: [row] }) as never)

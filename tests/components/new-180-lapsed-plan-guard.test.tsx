@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BillingPage from '@/app/(dashboard)/settings/billing/page'
 import { billingNoticesFrom } from '@/lib/billing-notices'
 import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 
@@ -42,7 +42,7 @@ describe('NEW-180: a plan that does not entitle is never shown as the current pl
     ['REVOKED', 'Refunded'],
     ['PAUSED', 'Paused'],
   ])('%s: no "Current Plan", no renewal date, bank transfer offered; the lapse view says what happened', async (status, title) => {
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't1', status: 'ACTIVE' } }) as never)
     vi.spyOn(hostBillingApi, 'getCurrentSubscription').mockResolvedValue(ok(lapsed(status)) as never)
     vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 0, activeBranches: 3, usedBranches: 3, buildableBranches: 0, remainingBranches: 0 }) as never)
     vi.spyOn(hostBillingApi, 'getCatalog').mockResolvedValue(ok({ plans: [] }) as never)
@@ -64,7 +64,7 @@ describe('NEW-180: a plan that does not entitle is never shown as the current pl
   })
 
   it('an entitling plan is unchanged: still the current plan with its notices', async () => {
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't1', status: 'ACTIVE' } }) as never)
     vi.spyOn(hostBillingApi, 'getCurrentSubscription').mockResolvedValue(
       ok({ ...lapsed('ACTIVE'), entitled: true, lapse: null, overQuotaCount: 1, overQuotaGraceRemainingDays: 4 }) as never
     )

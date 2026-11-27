@@ -11,7 +11,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MembersPage from '@/app/(dashboard)/gym/members/page'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 
 vi.mock('next/navigation', () => ({
@@ -80,9 +80,9 @@ describe('NEW-244: Members list shows the plan status like the app', () => {
   afterEach(() => vi.restoreAllMocks())
 
   const mockList = () => {
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
     return vi
-      .spyOn(gymApi, 'getMembers')
+      .spyOn(organizationsApi, 'getMembers')
       .mockResolvedValue({ ...ok({ members: MEMBERS }), pagination: { total: MEMBERS.length, totalPages: 1 } } as never)
   }
 

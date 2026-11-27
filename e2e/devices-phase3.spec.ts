@@ -132,7 +132,7 @@ async function mockApi(page: Page, permissions: string[], isOwner = true): Promi
     if (path === '/host/devices/unlinked-users') {
       return json(route, { users: [{ deviceId: DOOR, deviceName: 'Front door', branchId: BRANCH_ID, pin: '7', name: 'Old Seven', cardNo: null, source: 'upload', firstSeenAt: '2026-11-09T09:00:00Z', lastSeenAt: '2026-11-10T09:00:00Z', hits: 2 }] });
     }
-    if (path === '/gyms/members') return json(route, { members: [{ id: MEMBER_ID, fullName: 'Ayesha Noor', email: 'ayesha@example.test' }] });
+    if (path === '/organizations/me/members') return json(route, { members: [{ id: MEMBER_ID, fullName: 'Ayesha Noor', email: 'ayesha@example.test' }] }); // contract v2 (was /gyms/members)
     if (/^\/host\/devices\/[\w-]+\/unlinked-users\/7\/(link|dismiss)$/.test(path)) return json(route, { pin: '7', memberId: MEMBER_ID });
     if (path === `/host/devices/branch-settings/${BRANCH_ID}` && method === 'GET') return json(route, { settings });
     if (path === `/host/devices/branch-settings/${BRANCH_ID}` && method === 'PUT') {

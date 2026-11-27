@@ -4,10 +4,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { apiError, ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
 
@@ -33,8 +32,8 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }))
 
-const live = { id: 'b1', branchName: 'Uptown Gym', status: 'ACTIVE', address: 'x', gymListingId: 'listing-1' }
-const deleted = { id: 'b7', branchName: 'Old Gym', status: 'INACTIVE', address: 'y', gymListingId: 'listing-1' }
+const live = { id: 'b1', branchName: 'Uptown Gym', status: 'ACTIVE', address: 'x', businessId: 'listing-1' }
+const deleted = { id: 'b7', branchName: 'Old Gym', status: 'INACTIVE', address: 'y', businessId: 'listing-1' }
 const quota = { maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0 }
 
 let getQuota: ReturnType<typeof vi.spyOn>
@@ -53,14 +52,14 @@ const mount = (context: MyContext) => {
 
 beforeEach(() => {
   accountRole = 'GYM_HOST'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-  vi.spyOn(hostApi, 'getListings').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
-  vi.spyOn(hostApi, 'getListingBranches').mockImplementation((async (_id: string, includeInactive?: boolean) =>
+  vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(ok([{ id: 'listing-1', title: 'Iron Gym', status: 'ACTIVE' }]) as never)
+  vi.spyOn(hostApi, 'getBusinessBranches').mockImplementation((async (_id: string, includeInactive?: boolean) =>
     ok({ branches: includeInactive ? [live, deleted] : [live] })) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   getQuota = vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(ok(quota) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [live] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [live] }) as never)
   deleteBranch = vi.spyOn(hostApi, 'deleteBranch').mockResolvedValue(ok(null) as never)
   restoreBranch = vi.spyOn(hostApi, 'restoreBranch').mockResolvedValue(ok({}) as never)
 })
@@ -92,7 +91,7 @@ describe('Delete branch — re-auth and the last-branch 409 (UX-19)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Invalid password or credentials.')
     expect(screen.getByText('Uptown Gym')).toBeInTheDocument()
-    expect(screen.queryByText('Last branch in this organization')).not.toBeInTheDocument()
+    expect(screen.queryByText('Last branch of this business')).not.toBeInTheDocument()
   })
 
   it('re-auth required (401 reauth_required): says the password must be confirmed', async () => {
@@ -104,40 +103,40 @@ describe('Delete branch — re-auth and the last-branch 409 (UX-19)', () => {
   })
 
   const lastBranch = () =>
-    Object.assign(apiError(409, 'This is the last branch in this organization.', 'last_branch_in_organization'), {
+    Object.assign(apiError(409, 'This is the last branch of this business.', 'last_branch_in_business'), {
       response: {
         status: 409,
-        data: { success: false, code: 'last_branch_in_organization', message: 'last', data: { organizationName: 'Iron Gym' } },
+        data: { success: false, code: 'last_branch_in_business', message: 'last', data: { businessName: 'Iron Gym' } },
       },
     })
 
-  it('409 last_branch_in_organization: asks first, with the mobile wording, and sends nothing more until confirmed', async () => {
+  it('409 last_branch_in_business: asks first, with the mobile wording, and sends nothing more until confirmed', async () => {
     deleteBranch.mockRejectedValueOnce(lastBranch())
     mount(ownerContext)
     await startDelete()
 
-    expect(await screen.findByText('Last branch in this organization')).toBeInTheDocument()
-    expect(screen.getByText(/"Uptown Gym" is the last branch in "Iron Gym"\./)).toBeInTheDocument()
-    expect(screen.getByText(/Continuing will also remove "Iron Gym", because an organization can't exist without a branch\./)).toBeInTheDocument()
+    expect(await screen.findByText('Last branch of this business')).toBeInTheDocument()
+    expect(screen.getByText(/"Uptown Gym" is the last branch of "Iron Gym"\./)).toBeInTheDocument()
+    expect(screen.getByText(/Continuing will also remove "Iron Gym", because a business can't exist without a branch\./)).toBeInTheDocument()
     expect(screen.getByText(/The branch capacity you paid for is not lost/)).toBeInTheDocument()
     expect(deleteBranch).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-    await waitFor(() => expect(screen.queryByText('Last branch in this organization')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText('Last branch of this business')).not.toBeInTheDocument())
     expect(deleteBranch).toHaveBeenCalledTimes(1)
   })
 
-  it('confirming sends the same credentials again with confirmOrganizationDeletion', async () => {
+  it('confirming sends the same credentials again with confirmBusinessDeletion', async () => {
     deleteBranch.mockRejectedValueOnce(lastBranch())
     mount(ownerContext)
     await startDelete()
     fireEvent.click(await screen.findByRole('button', { name: /delete anyway/i }))
 
     await waitFor(() => expect(deleteBranch).toHaveBeenCalledTimes(2))
-    expect(deleteBranch).toHaveBeenLastCalledWith('b1', { password: 'placeholder-pass', confirmOrganizationDeletion: true })
-    await waitFor(() => expect(screen.queryByText('Last branch in this organization')).not.toBeInTheDocument())
+    expect(deleteBranch).toHaveBeenLastCalledWith('b1', { password: 'placeholder-pass', confirmBusinessDeletion: true })
+    await waitFor(() => expect(screen.queryByText('Last branch of this business')).not.toBeInTheDocument())
     // The organization went too: its list is read again.
-    await waitFor(() => expect(hostApi.getListings.mock.calls.length).toBeGreaterThan(1))
+    await waitFor(() => expect(hostApi.getBusinesses.mock.calls.length).toBeGreaterThan(1))
   })
 
   it('someone who is not the owner has no delete action (the route is owner-only)', async () => {
@@ -152,7 +151,7 @@ describe('Restore branch (mobile listing_branches_screen)', () => {
   it('lists the organization’s deleted branches and restores one after a confirmation', async () => {
     mount(ownerContext)
     expect(await screen.findByText('Deleted branches')).toBeInTheDocument()
-    expect(hostApi.getListingBranches).toHaveBeenCalledWith('listing-1', true)
+    expect(hostApi.getBusinessBranches).toHaveBeenCalledWith('listing-1', true)
 
     fireEvent.click(await screen.findByRole('button', { name: /restore old gym/i }))
     expect(await screen.findByText('Restore Branch?')).toBeInTheDocument()

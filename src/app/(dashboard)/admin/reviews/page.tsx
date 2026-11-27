@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { adminApi } from '@/lib/api/admin'
-import { GymReview } from '@/types'
+import { BusinessReview } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -33,12 +33,12 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ReviewCard({ review, onAction }: {
-  review: GymReview
+  review: BusinessReview
   onAction: (id: string, action: 'APPROVE' | 'REJECT') => void
 }) {
-  // BUG-29: the API names the gym by the traveller rule (gymTitle); an older API sends only the
-  // organization (gym.title). The reviewer comes as `reviewer` (discovery.service.js adminListReviews).
-  const gymName = review.gymTitle || review.gym?.title || null
+  // BUG-29: the API names the business by the traveller rule (`businessName`), else the business
+  // object's `name`. The reviewer comes as `reviewer`.
+  const businessName = review.businessName || review.business?.name || null
   const reviewer = review.reviewer ?? review.user
   return (
     <Card>
@@ -88,10 +88,10 @@ function ReviewCard({ review, onAction }: {
           <p className="text-sm text-muted-foreground mt-1">{review.body}</p>
         </div>
 
-        {gymName && (
+        {businessName && (
           <div className="mt-3 pt-3 border-t">
             <p className="text-xs text-muted-foreground">
-              Gym: <span className="font-medium text-foreground">{gymName}</span>
+              Business: <span className="font-medium text-foreground">{businessName}</span>
             </p>
           </div>
         )}

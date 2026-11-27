@@ -21,7 +21,7 @@ describe('adminApi KYC documents (SEC-10)', () => {
         originalName: 'license.pdf',
         mimetype: 'application/pdf',
         size: 1024,
-        streamUrl: '/api/v1/tenants/t-1/kyc-documents/doc_1/stream',
+        streamUrl: '/api/v1/organizations/t-1/kyc-documents/doc_1/stream',
       },
     ]
 
@@ -29,9 +29,9 @@ describe('adminApi KYC documents (SEC-10)', () => {
       data: { success: true, data: mockDocs },
     } as any)
 
-    const res = await adminApi.getTenantKycDocuments('t-1')
+    const res = await adminApi.getOrganizationKycDocuments('t-1')
 
-    expect(apiClient.get).toHaveBeenCalledWith('/tenants/t-1/kyc-documents')
+    expect(apiClient.get).toHaveBeenCalledWith('/organizations/t-1/kyc-documents')
     expect(res.data).toEqual(mockDocs)
   })
 
@@ -42,13 +42,13 @@ describe('adminApi KYC documents (SEC-10)', () => {
       data: mockBlob,
     } as any)
 
-    const blob = await adminApi.downloadKycDocumentBlob('/api/v1/tenants/t-1/kyc-documents/doc_1/stream')
+    const blob = await adminApi.downloadKycDocumentBlob('/api/v1/organizations/t-1/kyc-documents/doc_1/stream')
 
     // NEW-222: this used to expect the API's full path, which axios appends to a baseURL that
     // already ends in /api/v1 (→ /api/v1/api/v1/..., 404). The client is called with the path
     // relative to its baseURL; tests/api/private-file.test.ts checks the real URL axios builds.
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/tenants/t-1/kyc-documents/doc_1/stream',
+      '/organizations/t-1/kyc-documents/doc_1/stream',
       { responseType: 'blob' }
     )
     expect(blob).toBe(mockBlob)

@@ -14,12 +14,12 @@ describe('NEW-110: CMS logout clears per-user state', () => {
   it('forgets the organization owner A picked', () => {
     useAuthStore.getState().setAuth(userA, 'access-a', 'refresh-a')
     useSelectedOrgStore.getState().select('tenant-of-a')
-    expect(localStorage.getItem('gymsera_selected_tenant')).toBe('tenant-of-a')
+    expect(localStorage.getItem('gymsera_selected_organization')).toBe('tenant-of-a')
 
     useAuthStore.getState().logout()
 
-    expect(useSelectedOrgStore.getState().tenantId).toBeNull()
-    expect(localStorage.getItem('gymsera_selected_tenant')).toBeNull()
+    expect(useSelectedOrgStore.getState().organizationId).toBeNull()
+    expect(localStorage.getItem('gymsera_selected_organization')).toBeNull()
   })
 
   it('empties the query cache on logout and on a switch to another account', () => {

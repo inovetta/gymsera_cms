@@ -26,7 +26,7 @@ import { useGymAccess } from '@/hooks/use-gym-access'
 import { useAuth } from '@/hooks/use-auth'
 import { holdsAtBranch } from '@/lib/access/menu'
 import { reportsApi } from '@/lib/api/reports'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { AttendanceLog } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -59,7 +59,7 @@ export default function AttendancePage() {
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
+    queryFn: () => organizationsApi.getBranches(),
   })
 
   const { data: weeklyData } = useQuery({

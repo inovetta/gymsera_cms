@@ -65,6 +65,8 @@ interface NavItem {
    * from GET /meta/app-config `features.payouts`. Unknown counts as off.
    */
   payouts?: 'on' | 'off'
+  /** Only the organization's owner (the page calls owner-only /host routes). */
+  ownerOnly?: boolean
 }
 
 interface NavSection {
@@ -85,7 +87,9 @@ const navSections: NavSection[] = [
   {
     title: 'Gym Management',
     items: [
-      { title: 'Gym Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
+      // Enterprise D9: the organization, its businesses and their branches (owner: the /host routes).
+      { title: 'Businesses', href: '/gym/businesses', icon: Building2, permission: 'listing.manage', scope: 'org', ownerOnly: true },
+      { title: 'Business Profile', href: '/gym/profile', icon: Building2, permission: 'listing.manage', scope: 'org' },
       { title: 'Branches', href: '/gym/branches', icon: GitBranch, permission: 'branch.settings', scope: 'org' },
       { title: 'Plans', href: '/gym/plans', icon: CreditCard, permission: 'plans.view', scope: 'branch' },
       { title: 'Members', href: '/gym/members', icon: Users, permission: 'members.view', scope: 'branch' },
@@ -111,7 +115,7 @@ const navSections: NavSection[] = [
     title: 'Settings',
     ownerOnly: true,
     items: [
-      { title: 'Business Profile', href: '/settings/profile', icon: Settings },
+      { title: 'Organization Profile', href: '/settings/profile', icon: Settings },
       { title: 'Subscription & Billing', href: '/settings/billing', icon: Layers },
     ],
   },
@@ -119,7 +123,8 @@ const navSections: NavSection[] = [
     title: 'Platform Admin',
     adminOnly: true,
     items: [
-      { title: 'Tenants', href: '/admin/tenants', icon: ShieldCheck },
+      { title: 'Review queue', href: '/admin/review-queue', icon: ClipboardCheck },
+      { title: 'Organizations', href: '/admin/organizations', icon: ShieldCheck },
       { title: 'Reviews', href: '/admin/reviews', icon: Star },
       // NEW-256: reported reviews and chat messages, and the word filter.
       { title: 'Moderation', href: '/admin/moderation', icon: Flag },
@@ -169,13 +174,14 @@ export function Sidebar() {
 
   // NEW-42: what the user may see comes from their effective permissions (the same
   // GET /me/context the mobile app reads), not from the account role.
-  const { organization, isTenantOwner, gymPagesOpen, roleLabel, contextLoading, tenantLoading } = useGymAccess()
-  const isAccessLoading = contextLoading || tenantLoading
+  const { organization, isOrganizationOwner, gymPagesOpen, roleLabel, contextLoading, myOrganizationLoading } = useGymAccess()
+  const isAccessLoading = contextLoading || myOrganizationLoading
 
   const { payoutsEnabled } = usePayoutsEnabled()
   const featureOn = (item: NavItem) => !item.payouts || item.payouts === (payoutsEnabled ? 'on' : 'off')
   const canSee = (item: NavItem) =>
     featureOn(item) &&
+    (!item.ownerOnly || isOrganizationOwner) &&
     (!item.permission || (gymPagesOpen && holdsPermission(organization, item.permission, item.scope ?? 'branch')))
   const canSeeApprovals = gymPagesOpen && holdsPermission(organization, 'approvals.view', 'org')
 
@@ -236,7 +242,7 @@ export function Sidebar() {
         <nav className="space-y-6">
           {navSections.map((section) => {
             if (section.adminOnly && !isPlatformAdmin) return null
-            if (section.ownerOnly && !isTenantOwner) return null
+            if (section.ownerOnly && !isOrganizationOwner) return null
 
             // NEW-46c: after switching organization, do not treat in-flight queries
             // as "no permissions"; show skeleton menu items until tenant and context have loaded.

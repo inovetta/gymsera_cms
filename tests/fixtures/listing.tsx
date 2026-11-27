@@ -3,9 +3,9 @@ import { vi } from 'vitest'
 import { configure, render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ListingEditorPage from '@/app/(dashboard)/gym/branches/[id]/listing/page'
-import { hostApi, type BranchListingContent } from '@/lib/api/host'
+import { hostApi, type BranchPublicContent } from '@/lib/api/host'
 import { meApi, type MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { plansApi } from '@/lib/api/plans'
 import type { MembershipPlan } from '@/types'
 import { ok } from './team'
@@ -15,12 +15,12 @@ import { ownerContext } from './context'
 // whole suite runs in parallel, so wait longer than the 1s default. Assertions are unchanged.
 configure({ asyncUtilTimeout: 4000 })
 
-/** A branch as GET /host/branches/:id/listing-content returns it. */
-export const branchFixture: BranchListingContent = {
+/** A branch as GET /host/branches/:id/public-content returns it. */
+export const branchFixture: BranchPublicContent = {
   id: 'branch-1',
   branchName: 'Uptown Iron',
   status: 'ACTIVE',
-  gymListingId: 'listing-1',
+  businessId: 'listing-1',
   tagline: 'Lift heavy',
   category: 'Strength, Boxing',
   description: 'A serious gym.',
@@ -71,14 +71,14 @@ export const contextWith = (keys: string[]): MyContext => ({
 
 export function renderEditor(
   context: MyContext = ownerContext,
-  branch: BranchListingContent = branchFixture,
+  branch: BranchPublicContent = branchFixture,
   plans: MembershipPlan[] = [planFixture()]
 ) {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
-  const get = vi.spyOn(hostApi, 'getBranchListingContent').mockResolvedValue(ok({ branch }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
+  const get = vi.spyOn(hostApi, 'getBranchPublicContent').mockResolvedValue(ok({ branch }) as never)
   const getPlans = vi.spyOn(plansApi, 'getHostPlans').mockResolvedValue(ok({ plans }) as never)
-  const patch = vi.spyOn(hostApi, 'updateBranchListingContent').mockResolvedValue(patchResponse(200))
+  const patch = vi.spyOn(hostApi, 'updateBranchPublicContent').mockResolvedValue(patchResponse(200))
   const view = render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ListingEditorPage />

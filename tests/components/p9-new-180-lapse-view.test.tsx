@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BillingPage from '@/app/(dashboard)/settings/billing/page'
 import { hostBillingApi, planPaymentsApi } from '@/lib/api/host-billing'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { PLAN_PAYMENT_OVERVIEW } from '../fixtures/plan-payments'
 
@@ -40,7 +40,7 @@ const mount = (sub: unknown) => {
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { id: 't1', status: 'ACTIVE' } }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { id: 't1', status: 'ACTIVE' } }) as never)
   vi.spyOn(hostBillingApi, 'getBranchQuota').mockResolvedValue(ok({ maxBranches: 0, activeBranches: 3, usedBranches: 3, buildableBranches: 0, remainingBranches: 0 }) as never)
   vi.spyOn(hostBillingApi, 'getCatalog').mockResolvedValue(ok({ plans: [] }) as never)
   bank = vi.spyOn(hostBillingApi, 'getBankInstructions').mockResolvedValue(ok(BANK) as never)

@@ -6,7 +6,7 @@ import DeviceDetailPage from '@/app/(dashboard)/gym/devices/[id]/page'
 import { devicesApi, AccessDevice } from '@/lib/api/devices'
 import { deviceTypeText, scanOutcomeText } from '@/components/features/devices/device-copy'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
 
@@ -42,7 +42,7 @@ const renderPage = () => {
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 

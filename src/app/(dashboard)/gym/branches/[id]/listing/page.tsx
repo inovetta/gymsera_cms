@@ -33,7 +33,7 @@ type SectionId = 'photos' | 'basic' | 'category' | 'amenities' | 'hours' | 'loca
 
 /**
  * The branch listing editor (UX-21): the same sections as the mobile listing_editor_hub_screen.dart,
- * on the same endpoints (GET / PATCH /host/branches/:branchId/listing-content). Sections show from
+ * on the same endpoints (GET / PATCH /host/branches/:branchId/public-content). Sections show from
  * the person's grants; the server still decides every save.
  */
 export default function ListingEditorPage() {
@@ -48,7 +48,7 @@ export default function ListingEditorPage() {
 
   const contentQuery = useQuery({
     queryKey: listingContentKey(branchId),
-    queryFn: () => hostApi.getBranchListingContent(branchId),
+    queryFn: () => hostApi.getBranchPublicContent(branchId),
     enabled: access.manage,
   })
   const branch = contentQuery.data?.data?.branch

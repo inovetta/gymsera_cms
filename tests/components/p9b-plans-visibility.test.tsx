@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PlansPage from '@/app/(dashboard)/gym/plans/page'
 import { plansApi } from '@/lib/api/plans'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 
 /**
@@ -48,7 +48,7 @@ let createPlan: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   vi.spyOn(plansApi, 'getHostPlans').mockResolvedValue(ok({ plans: [p1, p2, p3] }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches }) as never)
   togglePublic = vi.fn().mockResolvedValue(ok({ isPublic: true }))
   ;(plansApi as any).togglePlanPublic = togglePublic
   toggleStatus = vi.spyOn(plansApi, 'togglePlanStatus').mockResolvedValue(ok({}) as never)

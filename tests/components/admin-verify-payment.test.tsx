@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { SubscriptionTab } from '@/components/features/admin-tenant/subscription-tab'
+import { SubscriptionTab } from '@/components/features/admin-organization/subscription-tab'
 import { adminApi } from '@/lib/api/admin'
 import apiClient from '@/lib/api/client'
 import { ok } from '../fixtures/team'
@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast }) }))
 const inDays = (d: number) => new Date(Date.now() + d * 86400000).toISOString()
 const row = (over: Record<string, unknown> = {}) => ({
   id: 'sub-1',
-  tenantId: 't1',
+  organizationId: 't1',
   platformPackageId: null,
   platform: 'MANUAL',
   branchCount: 2,
@@ -31,11 +31,11 @@ const row = (over: Record<string, unknown> = {}) => ({
 })
 
 const renderTab = (subs: unknown[]) => {
-  vi.spyOn(adminApi, 'getTenantSubscriptions').mockResolvedValue(ok({ subscriptions: subs }) as never)
+  vi.spyOn(adminApi, 'getSubscriptions').mockResolvedValue(ok({ subscriptions: subs }) as never)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <SubscriptionTab tenantId="t1" />
+      <SubscriptionTab organizationId="t1" />
     </QueryClientProvider>
   )
 }
@@ -78,8 +78,8 @@ describe('NEW-20: Verify payment for pay-later tenants', () => {
     fireEvent.change(within(dialog).getByLabelText(/bank reference/i), { target: { value: 'TXN-884' } })
     fireEvent.click(within(dialog).getByRole('button', { name: /confirm.*received/i }))
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
-    expect(post).toHaveBeenCalledWith('/admin/tenants/t1/subscriptions/sub-1/verify-payment', { bankTransferRef: 'TXN-884' })
-    await waitFor(() => expect(adminApi.getTenantSubscriptions).toHaveBeenCalledTimes(2))
+    expect(post).toHaveBeenCalledWith('/admin/organizations/t1/subscriptions/sub-1/verify-payment', { bankTransferRef: 'TXN-884' })
+    await waitFor(() => expect(adminApi.getSubscriptions).toHaveBeenCalledTimes(2))
   })
 
   it('sends no bank reference when the field is empty, and only once however often it is clicked', async () => {
@@ -92,7 +92,7 @@ describe('NEW-20: Verify payment for pay-later tenants', () => {
     fireEvent.click(confirm)
     fireEvent.click(confirm)
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
-    expect(post).toHaveBeenCalledWith('/admin/tenants/t1/subscriptions/sub-1/verify-payment', {})
+    expect(post).toHaveBeenCalledWith('/admin/organizations/t1/subscriptions/sub-1/verify-payment', {})
   })
 
   it('shows the server message when the row can no longer be verified', async () => {

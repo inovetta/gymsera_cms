@@ -1,12 +1,13 @@
 /**
- * NEW-196 (P10b): the organization profile, as the mobile Edit Organization reads and writes it
- * (`edit_organization_screen.dart`): one organization through GET / PATCH /host/listings/:id.
- * /gyms/profile edited only the tenant's first organization.
+ * NEW-196 (P10b): one business's profile, as the mobile Edit Business reads and writes it:
+ * GET / PATCH /host/businesses/:businessId (contract v2). The contact e-mail is only on the
+ * staff view of the business (GET /organizations/me/businesses/:businessId/profile).
  */
-import type { HostListing, HostOrganization, UpdateOrganizationPayload } from '@/lib/api/host'
+import type { Business, UpdateBusinessPayload } from '@/lib/api/host'
+import type { BusinessProfile } from '@/types'
 
 /** The categories the mobile screen offers; a category set elsewhere is kept as it is. */
-export const ORGANIZATION_CATEGORIES = [
+export const BUSINESS_CATEGORIES = [
   'General',
   'Fitness & Bodybuilding',
   'CrossFit & Functional',
@@ -24,7 +25,7 @@ export const GENDER_TYPES = [
 
 export type GenderType = (typeof GENDER_TYPES)[number]['value']
 
-export interface OrganizationProfileForm {
+export interface BusinessProfileForm {
   name: string
   category: string
   establishedYear: string
@@ -35,7 +36,7 @@ export interface OrganizationProfileForm {
   genderType: GenderType
 }
 
-export interface OrganizationImages {
+export interface BusinessImages {
   logoUrl: string | null
   coverImageUrl: string | null
   gallery: string[]
@@ -47,36 +48,34 @@ const text = (...values: unknown[]): string => {
 }
 
 /**
- * The organizations a host picks from: the same rule as the Branches page strip (the ACTIVE ones,
- * or every one returned when none is ACTIVE yet). The API leaves out deleted organizations.
+ * The businesses a host picks from in a strip: the ACTIVE ones, or every one returned when none is
+ * ACTIVE yet. The API leaves out deleted businesses.
  */
-export function visibleOrganizations<T extends Pick<HostListing, 'status'>>(listings: T[]): T[] {
-  const active = listings.filter((l) => l.status?.toUpperCase() === 'ACTIVE')
-  return active.length > 0 ? active : listings
+export function visibleBusinesses<T extends Pick<Business, 'status'>>(businesses: T[]): T[] {
+  const active = businesses.filter((b) => b.status?.toUpperCase() === 'ACTIVE')
+  return active.length > 0 ? active : businesses
 }
 
-/** The form as the mobile screen fills it: the organization's own gym first, then the organization. */
-export function formFromOrganization(org: HostOrganization): OrganizationProfileForm {
-  const gym = org.gym ?? {}
-  const gender = text(gym.genderType, org.genderType)
+/** The form as the mobile screen fills it, from the business (option S: one id, one record). */
+export function formFromBusiness(business: Business, profile?: Pick<BusinessProfile, 'contactEmail'> | null): BusinessProfileForm {
+  const gender = text(business.genderType)
   return {
-    name: text(gym.name, org.title),
-    category: text(org.category),
-    establishedYear: text(org.establishedYear),
-    description: text(gym.description, org.shortDescription),
-    phone: text(gym.contactPhone, org.contactPhone),
-    email: text(gym.contactEmail),
-    website: text(gym.website, org.website),
+    name: text(business.name),
+    category: text(business.category),
+    establishedYear: text(business.establishedYear),
+    description: text(business.description),
+    phone: text(business.contactPhone),
+    email: text(profile?.contactEmail),
+    website: text(business.website),
     genderType: (GENDER_TYPES.some((g) => g.value === gender) ? gender : 'MIXED') as GenderType,
   }
 }
 
-export function imagesFromOrganization(org: HostOrganization): OrganizationImages {
-  const gym = org.gym ?? {}
-  const images = gym.imagesJson ?? org.imagesJson
+export function imagesFromBusiness(business: Business): BusinessImages {
+  const images = business.imagesJson
   return {
-    logoUrl: (gym.logoUrl ?? org.logoUrl ?? null) || null,
-    coverImageUrl: (gym.coverImageUrl ?? org.coverImageUrl ?? null) || null,
+    logoUrl: business.logoUrl || null,
+    coverImageUrl: business.coverImageUrl || null,
     gallery: Array.isArray(images) ? images.map(String) : [],
   }
 }
@@ -85,11 +84,11 @@ export function imagesFromOrganization(org: HostOrganization): OrganizationImage
  * PATCH body. Empty text is sent as '' so a cleared field is cleared (the API stores null), as on
  * mobile; an empty established year is null.
  */
-export function payloadFromForm(values: OrganizationProfileForm, images: OrganizationImages): UpdateOrganizationPayload {
+export function payloadFromForm(values: BusinessProfileForm, images: BusinessImages): UpdateBusinessPayload {
   const year = values.establishedYear.trim()
   return {
-    gymName: values.name.trim(),
-    gymDescription: values.description.trim(),
+    businessName: values.name.trim(),
+    businessDescription: values.description.trim(),
     category: values.category || null,
     establishedYear: year ? Number.parseInt(year, 10) : null,
     contactPhone: values.phone.trim(),

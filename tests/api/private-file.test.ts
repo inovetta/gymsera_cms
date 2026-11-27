@@ -10,7 +10,7 @@ import { toClientPath, fetchPrivateFile } from '@/lib/api/private-file'
 describe('private files (KYC documents, payment proofs)', () => {
   it('drops the /api/v1 the API puts in front, and only that', () => {
     expect(toClientPath('/api/v1/payments/p-1/proof')).toBe('/payments/p-1/proof')
-    expect(toClientPath('/api/v1/tenants/t-1/kyc-documents/d/stream')).toBe('/tenants/t-1/kyc-documents/d/stream')
+    expect(toClientPath('/api/v1/organizations/t-1/kyc-documents/d/stream')).toBe('/organizations/t-1/kyc-documents/d/stream')
     expect(toClientPath('/payments/p-1/proof')).toBe('/payments/p-1/proof')
     expect(toClientPath('/api/v10/x')).toBe('/api/v10/x')
   })
@@ -39,7 +39,7 @@ describe('private files (KYC documents, payment proofs)', () => {
 })
 
 describe('NEW-222: the admin KYC viewer', () => {
-  it('requests /api/v1/tenants/... once (it used to request /api/v1/api/v1/... → 404)', async () => {
+  it('requests /api/v1/organizations/... once (it used to request /api/v1/api/v1/... → 404)', async () => {
     const { adminApi } = await import('@/lib/api/admin')
     let url = ''
     const original = apiClient.defaults.adapter
@@ -48,11 +48,11 @@ describe('NEW-222: the admin KYC viewer', () => {
       return { data: new Blob(['%PDF']), status: 200, statusText: 'OK', headers: {}, config }
     }
     try {
-      await adminApi.downloadKycDocumentBlob('/api/v1/tenants/t-1/kyc-documents/doc_1/stream')
+      await adminApi.downloadKycDocumentBlob('/api/v1/organizations/t-1/kyc-documents/doc_1/stream')
     } finally {
       apiClient.defaults.adapter = original
     }
-    expect(url).toMatch(/\/api\/v1\/tenants\/t-1\/kyc-documents\/doc_1\/stream$/)
+    expect(url).toMatch(/\/api\/v1\/organizations\/t-1\/kyc-documents\/doc_1\/stream$/)
     expect(url).not.toContain('/api/v1/api/v1')
   })
 })

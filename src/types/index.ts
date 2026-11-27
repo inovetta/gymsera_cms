@@ -1,6 +1,6 @@
 export type UserRole = 'MEMBER' | 'TRAINER' | 'BRANCH_MANAGER' | 'GYM_HOST' | 'PLATFORM_ADMIN'
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_DELETION' | 'DELETED'
-export type TenantStatus = 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'ACTIVE' | 'PENDING_DELETION' | 'DELETED'
+export type OrganizationStatus = 'DRAFT' | 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'ACTIVE' | 'PENDING_DELETION' | 'DELETED'
 export type SubscriptionStatus = 'PENDING' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED'
 export type PaymentStatus = 'PENDING' | 'STAFF_COLLECTED' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | 'EXPIRED'
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'WALLET' | 'ONLINE' | 'POS'
@@ -29,8 +29,8 @@ export interface User {
  */
 export type MembershipDisplayStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'FROZEN' | 'PENDING'
 
-/** A row of GET /gyms/members: the account (`status`) plus the subscription that speaks for it. */
-export interface GymMember extends Omit<User, 'role' | 'isVerified'> {
+/** A row of GET /organizations/me/members: the account (`status`) plus the subscription that speaks for it. */
+export interface OrganizationMember extends Omit<User, 'role' | 'isVerified'> {
   role?: UserRole
   isVerified?: boolean
   membershipStatus?: MembershipDisplayStatus
@@ -40,25 +40,30 @@ export interface GymMember extends Omit<User, 'role' | 'isVerified'> {
   branchName?: string | null
 }
 
-/** R-84 (NEW-158): a photo the approval would publish (GET /admin/tenants/:id). */
+/** R-84 (NEW-158): a photo the approval would publish (GET /admin/organizations/:organizationId). */
 export interface ApprovalPhoto {
   url: string
   kind: 'logo' | 'cover' | 'gallery'
   branchId?: string
 }
 
-export interface Tenant {
+/** Contract v2 §3 "Organization": the host's company (was `tenants`). */
+export interface Organization {
   approvalPhotos?: ApprovalPhoto[]
   id: string
-  userId: string
-  businessName: string
+  /** Short human code (contract v2: was `tenantCode`; new codes start `ORG-`). */
+  organizationCode?: string
+  /** The organization's own name, private to the host and GymsEra (was `businessName`). */
+  organizationName: string
+  ownerUserId?: string
   email: string
   phone: string
   cityId: number
-  status: TenantStatus
+  status: OrganizationStatus
   selectedPackageId?: string
-  gymName?: string
-  gymDescription?: string
+  /** Become a Host draft of the first business (was `gymName` / `gymDescription`). */
+  firstBusinessName?: string
+  firstBusinessDescription?: string
   genderType?: GenderType
   logoUrl?: string
   coverImageUrl?: string
@@ -71,20 +76,10 @@ export interface Tenant {
   user?: User
   city?: City
   selectedPackage?: PlatformPackage
-  gymListing?: GymListing
-  // True only for a synthesized row representing one PENDING/REJECTED
-  // additional organization awaiting its own approve/reject decision — see
-  // admin.service.js#listTenants. Never set for a real tenant.
-  isAdditionalOrganization?: boolean
-  // Every organization this tenant owns (excluding INACTIVE/deleted ones),
-  // with real active-branch counts — only populated on GET /admin/tenants/:id
-  // for a real (non-compound-id) tenant. This is what replaced one row per
-  // organization in the tenant list: the full picture now lives here,
-  // inside the one real tenant, instead of being spread across look-alike
-  // top-level rows.
-  organizations?: TenantOrganization[]
-  // Resumable provisioning (FLOW-02), from GET /admin/tenants/:id and approve.
-  provisioning?: TenantProvisioning
+  /** The organization's businesses on GET /admin/organizations/:organizationId (G2, owner decision 2026-11-22). */
+  businesses?: OrganizationBusiness[]
+  // Resumable provisioning (FLOW-02), from GET /admin/organizations/:organizationId and approve.
+  provisioning?: OrganizationProvisioning
 }
 
 // The six provisioning steps, in order (backend tenant-provisioning.service.js).
@@ -97,7 +92,7 @@ export type ProvisioningState =
   | 'SUBSCRIPTION_LINKED'
   | 'ACTIVE'
 
-export interface TenantProvisioning {
+export interface OrganizationProvisioning {
   state: ProvisioningState | null // null: provisioned (or approved) before FLOW-02
   step: number // finished steps, 0..totalSteps
   totalSteps: number
@@ -107,21 +102,28 @@ export interface TenantProvisioning {
   canResume: boolean
 }
 
-export interface TenantOrganization {
+/** One business of an organization in the admin detail (contract v2 Business keys). */
+export interface OrganizationBusiness {
   id: string
-  title: string
+  name: string
   status: string
-  activeBranches: number
-  reservedSlots: number
-  createdAt: string
+  activeBranches?: number
+  branchCount?: number
+  reservedSlots?: number
+  kycStatus?: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  businessVerified?: boolean
+  averageRating?: number | string
+  isFeatured?: boolean
+  createdAt?: string
 }
 
-export interface TenantSubscription {
+/** Contract v2 §3 "OrganizationSubscription": the organization's GymsEra plan. */
+export interface OrganizationSubscription {
   id: string
-  tenantId: string
+  organizationId: string
   // Nullable now: only the legacy manual/PlatformPackage path (bank
   // transfer / sales-assisted) sets this. A real store-verified purchase
-  // sets branchCount/platform below instead — see TenantSubscription.model.js.
+  // sets branchCount/platform below instead.
   platformPackageId: string | null
   billingPlanId: string | null
   // MANUAL is every legacy row (bank transfer / admin-assigned). A real
@@ -170,30 +172,27 @@ export interface Area {
   imageUrl?: string | null
 }
 
-export interface Gym {
+/** Contract v2 §3 "BusinessProfile": the staff view of one business (`/organizations/me/businesses/:businessId/profile`). */
+export interface BusinessProfile {
   id: string
   name: string
-  description?: string
-  logoUrl?: string
-  coverImageUrl?: string
-  imagesJson?: string[]
-  genderType: GenderType
-  status: string
+  description?: string | null
+  contactPhone?: string | null
+  contactEmail?: string | null
+  website?: string | null
+  genderType: GenderType | string
+  logoUrl?: string | null
+  coverImageUrl?: string | null
+  socialLinksJson?: Record<string, string> | null
+  imagesJson?: string[] | null
   createdAt: string
-  phone?: string
-  email?: string
-  address?: string
-  latitude?: number | string
-  longitude?: number | string
-  /** Payout bank details; only sent to someone holding payouts.bank.manage (NEW-45). */
-  paymentDetailsJson?: Record<string, unknown> | null
-  /** Only on the PATCH /gyms/profile reply; GET /gyms/profile does not carry it. */
-  paymentDetailsUpdatedAt?: string | null
+  updatedAt?: string
 }
 
-export interface GymListing {
+/** A business as other objects embed it (reviews, admin overview). */
+export interface BusinessSummary {
   id: string
-  tenantId: string
+  organizationId: string
   name: string
   description?: string
   latitude?: number
@@ -212,7 +211,8 @@ export interface Branch {
   /** NEW-265: the branch's own area request while pending or refused (A4 reads). */
   pendingArea?: import('@/lib/api/area-requests').PendingArea | null
   id: string
-  gymId: string
+  /** The business this branch belongs to (contract v2: was `gymId`; `gymListingId` is removed). */
+  businessId: string
   branchName: string
   address: string
   cityId: number
@@ -241,11 +241,14 @@ export interface Branch {
   /** pending = in review, active = visible, deactivated = hidden by GymsEra. */
   travelerVisibilityStatus?: string | null
   deactivationReason?: string | null
+  /** D12: the branch's own refund policy (contract v2 §3 Branch). */
+  refundsAllowed?: boolean
+  refundWindowDays?: number | null
 }
 
 export interface MembershipPlan {
   id: string
-  gymId: string
+  businessId: string
   branchId?: string
   name: string
   description?: string
@@ -363,7 +366,7 @@ export interface Trainer {
   user?: User
 }
 
-export interface GymStaff {
+export interface BranchStaff {
   id: string
   userId: string
   branchId: string
@@ -383,9 +386,9 @@ export interface BranchReport {
   revenueByDay: { day: string; totalRevenue: string; count: string }[]
 }
 
-export interface GymReview {
+export interface BusinessReview {
   id: string
-  gymListingId: string
+  businessId: string
   userId: string
   rating: number
   title: string
@@ -393,11 +396,11 @@ export interface GymReview {
   status: ReviewStatus
   createdAt: string
   user?: User
-  gymListing?: GymListing
-  /** GET /admin/reviews: the reviewer, the organization, and the gym name by the traveller rule (P9b). */
+  /** GET /admin/reviews: the reviewer and the business reviewed (contract v2: `gym { title }` → `business { name }`). */
   reviewer?: Pick<User, 'id' | 'fullName' | 'email'>
-  gym?: { id: string; title: string | null }
-  gymTitle?: string | null
+  business?: { id: string; name: string | null }
+  /** The business name by the traveller rule (G7: was `gymTitle`). */
+  businessName?: string | null
 }
 
 export interface PlatformPackage {
@@ -406,7 +409,7 @@ export interface PlatformPackage {
   description?: string
   price: number
   billingCycle: BillingCycle
-  maxOrganizations: number
+  maxBusinesses: number
   maxBranches: number
   maxTrainers: number
   maxMembers: number
@@ -417,7 +420,7 @@ export interface PlatformPackage {
 // The central GymsEra plan catalog — branch-count tiers with a monthly/
 // annual PKR price, consumed unchanged by iOS, Android, the website, and
 // the in-app Host Area. Deliberately a separate catalog from PlatformPackage
-// above (see TenantSubscription.model.js's comment on the backend for why).
+// above.
 export type ProviderSyncStatus = 'SYNCED' | 'PENDING' | 'MISMATCH' | 'NOT_CONFIGURED'
 
 export interface BillingPlan {

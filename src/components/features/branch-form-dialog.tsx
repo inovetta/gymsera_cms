@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
-import { TenantBranch, CreateTenantBranchPayload, UpdateTenantBranchPayload } from '@/lib/api/admin'
+import { AdminBranch, CreateAdminBranchPayload, UpdateAdminBranchPayload } from '@/lib/api/admin'
 import { BranchLocationFields, BranchLocationValue, locationValid } from './places/branch-location-fields'
 
 const COMMON_FACILITIES = [
@@ -25,21 +25,24 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode: 'create' | 'edit'
-  branch?: TenantBranch
+  branch?: AdminBranch
   /** Our cities, for the names of an existing branch's saved city and area. */
   cities?: City[]
-  onSubmit: (payload: CreateTenantBranchPayload | UpdateTenantBranchPayload) => void
+  onSubmit: (payload: CreateAdminBranchPayload | UpdateAdminBranchPayload) => void
   loading?: boolean
+  /** The business a new branch is added to (contract v2: `businessId`, was `gymListingId`). */
+  businessId?: string | null
 }
 
-const defaultForm = (): CreateTenantBranchPayload => ({
+const defaultForm = (businessId?: string | null): CreateAdminBranchPayload => ({
+  businessId: businessId ?? '',
   branchName: '',
   address: '',
   cityId: 0,
 })
 
-export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = [], onSubmit, loading }: Props) {
-  const [form, setForm] = useState<CreateTenantBranchPayload & UpdateTenantBranchPayload>(defaultForm())
+export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = [], onSubmit, loading, businessId }: Props) {
+  const [form, setForm] = useState<CreateAdminBranchPayload & UpdateAdminBranchPayload>(defaultForm())
   // NEW-140: the location block's own fields (names shown in the searches, the Google place id).
   const [location, setLocation] = useState<BranchLocationValue>({ address: '' })
   const [facilityInput, setFacilityInput] = useState('')
@@ -48,6 +51,7 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = []
     if (open) {
       if (mode === 'edit' && branch) {
         setForm({
+          businessId: branch.businessId,
           branchName: branch.branchName,
           address: branch.address ?? '',
           cityId: branch.cityId ?? 0,
@@ -71,7 +75,7 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = []
           longitude: branch.longitude ? Number(branch.longitude) : undefined,
         })
       } else {
-        setForm(defaultForm())
+        setForm(defaultForm(businessId))
         setLocation({ address: '' })
       }
       setFacilityInput('')
@@ -110,11 +114,14 @@ export function BranchFormDialog({ open, onOpenChange, mode, branch, cities = []
     if (!payload.closingTime) delete payload.closingTime
     if (!payload.latitude) delete payload.latitude
     if (!payload.longitude) delete payload.longitude
+    // `businessId` is a create field only (contract v2 rows 111 / 112).
+    if (mode === 'edit') delete payload.businessId
     onSubmit(payload)
   }
 
   const canSubmit =
     form.branchName.trim().length > 0 &&
+    (mode === 'edit' || !!form.businessId) &&
     locationValid(location) &&
     (mode === 'edit' || (!!location.cityId && location.address.trim().length > 0))
 

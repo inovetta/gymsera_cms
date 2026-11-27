@@ -4,10 +4,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import BranchesPage from '@/app/(dashboard)/gym/branches/page'
 import { hostApi } from '@/lib/api/host'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { citiesApi } from '@/lib/api/cities'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { ownerContext, orgAdminContext } from '../fixtures/context'
 
@@ -39,10 +38,10 @@ const render_ = (context: MyContext) => {
 
 beforeEach(() => {
   accountRole = 'GYM_HOST'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
   vi.spyOn(citiesApi, 'getCities').mockResolvedValue(ok([]) as never)
-  vi.spyOn(hostApi, 'getOrganizationQuota').mockResolvedValue(ok({ maxOrganizations: 3, canCreateNext: true, blockingListingStatus: null }) as never)
+  vi.spyOn(hostApi, 'getBusinessQuota').mockResolvedValue(ok({ pool: { max: 3, used: 2, reserved: 0, free: 1 }, canAddBusiness: true, blockingBusinessStatus: null }) as never)
   vi.spyOn(hostApi, 'getBranchQuota').mockResolvedValue(
     ok({ maxBranches: 6, usedBranches: 5, remainingBranches: 1, activeBranches: 5, buildableBranches: 1, overQuotaCount: 0 }) as never
   )
@@ -68,10 +67,10 @@ describe('Branches page — capacity banner (Prompt 3B)', () => {
   })
 
   it('Organization strip: falls back to all listings when none is ACTIVE (NEW-46b)', async () => {
-    vi.spyOn(hostApi, 'getListings').mockResolvedValue(
+    vi.spyOn(hostApi, 'getBusinesses').mockResolvedValue(
       ok([{ id: 'org-savesto', name: 'Savesto Gym', status: 'PENDING' }]) as never
     )
-    const getBranchesSpy = vi.spyOn(hostApi, 'getListingBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    const getBranchesSpy = vi.spyOn(hostApi, 'getBusinessBranches').mockResolvedValue(ok({ branches: [] }) as never)
 
     render_(ownerContext)
 

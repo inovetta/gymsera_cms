@@ -23,7 +23,8 @@ export interface AccessDevice {
   key: string
   branchId: string
   branchName: string | null
-  organizationId: string | null
+  /** The business of the device's branch (contract v2 §2: `organizationId` that held a business). */
+  businessId: string | null
   name: string | null
   direction: DeviceDirection | null
   enabled: boolean

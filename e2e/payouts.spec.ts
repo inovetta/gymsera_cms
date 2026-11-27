@@ -50,7 +50,8 @@ test.describe('Payouts', () => {
       if (path === '/host/payouts/balance') return json(route, balance);
       if (path === '/host/payouts') return json(route, { payouts: [] }, 200, { pagination: { page: 1, limit: 20, total: 0, pages: 1 } });
       // P7b (NEW-217, R-94): the tenant's payout account; the organization profile is never used here.
-      if (path === '/gyms/profile') profileCalls.push(method);
+      // Contract v2: the business profile is /organizations/me/businesses/:businessId/profile (was /gyms/profile).
+      if (path === '/gyms/profile' || /^\/organizations\/me\/businesses\/[^/]+\/profile$/.test(path)) profileCalls.push(method);
       const account = (details: unknown, detailsUpdatedAt: string | null) =>
         ({ id: 'pa1', scope: 'TENANT', organizationId: null, provider: 'BANK_TRANSFER', status: 'ACTIVE', details, detailsUpdatedAt });
       if (path === '/host/payout-account' && method === 'GET') return json(route, { account: account(bank, null) });

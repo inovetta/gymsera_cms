@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/features/confirm-dialog'
 import { StaffDoorAccess } from '@/components/features/devices/staff-door-access'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { teamApi, PermissionDef, PermissionModule, TeamMemberDetail, TeamRole } from '@/lib/api/team'
 import {
   AccessTier,
@@ -60,7 +60,7 @@ export function MemberAccessPanel({ assignmentId, onClose }: MemberAccessPanelPr
     queryKey: ['team-meta', 'permissions'],
     queryFn: () => teamApi.getPermissionCatalogue(),
   })
-  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => gymApi.getBranches() })
+  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => organizationsApi.getBranches() })
 
   const detail = memberQuery.data?.data
   const roles = rolesQuery.data?.data?.roles ?? []

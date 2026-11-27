@@ -6,7 +6,7 @@ import DeviceImportPage from '@/app/(dashboard)/gym/devices/[id]/import/page'
 import DeviceDetailPage from '@/app/(dashboard)/gym/devices/[id]/page'
 import { devicesApi, AccessDevice, AttStamps, DeviceImport } from '@/lib/api/devices'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext } from '../fixtures/context'
 
@@ -64,7 +64,7 @@ const importPage = (opts: { dev?: AccessDevice; imports?: DeviceImport[]; contex
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
 })
 afterEach(() => vi.restoreAllMocks())
 

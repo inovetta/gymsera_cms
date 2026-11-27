@@ -16,8 +16,8 @@ test('an old /gym/staff link lands on Team & access', async ({ page }) => {
   });
   await page.route('**/api/v1/**', (route) => {
     const path = new URL(route.request().url()).pathname;
-    const data = path.endsWith('/tenants/me')
-      ? { tenant: { id: 't1', status: 'ACTIVE' }, subscription: null }
+    const data = path.endsWith('/organizations/me')
+      ? { organization: { id: 't1', status: 'ACTIVE' }, subscription: null }
       : path.endsWith('/team')
         ? { team: [], counts: {}, total: 0 }
         : {};

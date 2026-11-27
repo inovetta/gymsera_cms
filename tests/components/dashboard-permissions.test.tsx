@@ -4,9 +4,8 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import DashboardPage from '@/app/(dashboard)/dashboard/page'
 import { reportsApi } from '@/lib/api/reports'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { branchManagerContext, frontDeskContext, ownerContext } from '../fixtures/context'
 
@@ -47,7 +46,7 @@ const renderDashboard = (context: MyContext) => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   stats = vi.spyOn(reportsApi, 'getDashboardStats').mockResolvedValue(
     ok({ members: { active: 40 }, revenue: { thisMonth: 90000 }, attendance: { checkInsToday: 12 } }) as never
   )
@@ -55,8 +54,8 @@ beforeEach(() => {
   branchDash = vi
     .spyOn(reportsApi, 'getBranchDashboard')
     .mockResolvedValue(ok({ todaysCheckins: 7, activeMembers: 25, monthlyRevenue: null, netProfit: null }) as never)
-  members = vi.spyOn(gymApi, 'getMembers').mockResolvedValue(ok({ members: [] }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(
+  members = vi.spyOn(organizationsApi, 'getMembers').mockResolvedValue(ok({ members: [] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(
     ok({ branches: [{ id: 'branch-1', branchName: 'Uptown', address: 'x', status: 'ACTIVE' }] }) as never
   )
 })
@@ -115,10 +114,10 @@ describe('Dashboard — revenue needs dashboard.revenue.view (NEW-45f)', () => {
     }
     cleanup()
     vi.restoreAllMocks()
-    vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
     vi.spyOn(reportsApi, 'getBranchDashboard').mockResolvedValue(ok({ todaysCheckins: 1, activeMembers: 1 }) as never)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
-    const noCall = vi.spyOn(gymApi, 'getMembers').mockResolvedValue(ok({ members: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    const noCall = vi.spyOn(organizationsApi, 'getMembers').mockResolvedValue(ok({ members: [] }) as never)
     renderDashboard(noMembers)
     await screen.findAllByText('Active Members')
     // The other queries fire together once access is known; by then members would have.

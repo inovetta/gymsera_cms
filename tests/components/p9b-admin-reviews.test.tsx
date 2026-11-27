@@ -20,9 +20,9 @@ const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }))
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: toastSpy }) }))
 
 const review = {
-  id: 'r1', gymListingId: 'l1', userId: 'u1', rating: 5, title: 'Great place', body: 'Clean and friendly', status: 'PENDING',
+  id: 'r1', businessId: 'l1', userId: 'u1', rating: 5, title: 'Great place', body: 'Clean and friendly', status: 'PENDING',
   createdAt: '2026-10-30T10:00:00Z', reviewer: { id: 'u1', fullName: 'Ali Raza', email: 'ali@example.test' },
-  gym: { id: 'l1', title: 'Iron Gym' }, gymTitle: 'Iron Gym · Uptown',
+  business: { id: 'l1', name: 'Iron Gym' }, businessName: 'Iron Gym · Uptown',
 }
 
 beforeEach(() => {
@@ -40,8 +40,8 @@ describe('admin reviews: names', () => {
     expect(screen.getByText('Ali Raza')).toBeInTheDocument()
   })
 
-  it('falls back to the organization title from an older API', async () => {
-    vi.spyOn(adminApi, 'getReviews').mockResolvedValue(ok({ reviews: [{ ...review, gymTitle: undefined }] }) as never)
+  it('falls back to the business name', async () => {
+    vi.spyOn(adminApi, 'getReviews').mockResolvedValue(ok({ reviews: [{ ...review, businessName: undefined }] }) as never)
     mount()
     expect(await screen.findByText('Iron Gym')).toBeInTheDocument()
   })

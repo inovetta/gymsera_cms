@@ -39,16 +39,16 @@ export const roleLabel = (org: OrgMembership | null, accountRole?: string | null
 
 /**
  * The organization the CMS is acting in: the one chosen in the switcher, else the user's most
- * senior membership, which is what the server uses when no X-Tenant-Id is sent.
+ * senior membership, which is what the server uses when no X-Organization-Id is sent.
  */
 export const activeOrganization = (
   context: MyContext | undefined | null,
-  selectedTenantId?: string | null
+  selectedOrganizationId?: string | null
 ): OrgMembership | null => {
   const organizations = context?.organizations ?? []
   if (organizations.length === 0) return null
   // The organization the person chose (Prompt 3B); otherwise the most senior, as the server does.
-  const chosen = selectedTenantId ? organizations.find((o) => o.tenantId === selectedTenantId) : undefined
+  const chosen = selectedOrganizationId ? organizations.find((o) => o.organizationId === selectedOrganizationId) : undefined
   if (chosen) return chosen
   return organizations.reduce((best, org) => (org.role.level > best.role.level ? org : best))
 }

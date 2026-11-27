@@ -4,7 +4,7 @@ import type { MembershipDisplayStatus } from '@/types'
 /**
  * NEW-244: a member's plan status, as the app's member list shows it (Active, Expiring soon,
  * Expired, On hold, Pending). The server decides the value (`membershipStatus` on
- * GET /gyms/members); this only names and colours it.
+ * GET /organizations/me/members); this only names and colours it.
  */
 export const MEMBERSHIP_STATUS_OPTIONS: { value: MembershipDisplayStatus; label: string }[] = [
   { value: 'ACTIVE', label: 'Active' },

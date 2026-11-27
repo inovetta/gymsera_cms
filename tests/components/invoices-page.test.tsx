@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import InvoicesPage from '@/app/(dashboard)/gym/invoices/page'
 import { invoicesApi } from '@/lib/api/invoices'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, ownerContext, withPermissions } from '../fixtures/context'
 
@@ -41,7 +41,7 @@ const renderPage = (context: MyContext) => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   getInvoices = vi.spyOn(invoicesApi, 'getInvoices').mockResolvedValue(ok({ invoices: [invoice] }) as never)
 })
 afterEach(() => vi.restoreAllMocks())

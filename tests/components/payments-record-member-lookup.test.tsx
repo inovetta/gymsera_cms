@@ -4,10 +4,9 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PaymentsPage from '@/app/(dashboard)/gym/payments/page'
 import { paymentsApi } from '@/lib/api/payments'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { hostApi } from '@/lib/api/host'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, withPermissions } from '../fixtures/context'
 
@@ -36,7 +35,7 @@ const context = withPermissions(frontDeskContext, ['members.view'])
 /** Open the dialog, type the email and the amount, press Record Payment inside the dialog. */
 const fillAndSubmit = async (email = 'Ali@Example.test') => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -52,7 +51,7 @@ const fillAndSubmit = async (email = 'Ali@Example.test') => {
 }
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(paymentsApi, 'getPayments').mockResolvedValue(ok({ payments: [] }) as never)
   lookup = vi.spyOn(hostApi, 'lookupBranchMember').mockResolvedValue(
     ok({ exists: true, user: { id: MEMBER_ID, fullName: 'Ali Raza', email: 'ali@example.test' }, subscriptions: [] }) as never
@@ -64,7 +63,7 @@ afterEach(() => vi.restoreAllMocks())
 describe('Record Payment finds the member by email (NEW-57)', () => {
   it('no longer asks for a user id', async () => {
     vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
     render(
       <QueryClientProvider client={new QueryClient()}>
         <PaymentsPage />

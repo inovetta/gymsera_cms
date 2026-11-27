@@ -36,10 +36,15 @@ describe('refund API routes', () => {
     expect(http.get).toHaveBeenLastCalledWith('/subscriptions/staff/refund-requests', { params: { status: 'PENDING' } })
     await refundsApi.decide('r-1', { decision: 'APPROVE', amount: 100 })
     expect(http.post).toHaveBeenLastCalledWith('/subscriptions/staff/refund-requests/r-1/decide', { decision: 'APPROVE', amount: 100 })
-    await refundsApi.getPolicy()
+    // D12 / G9: the list without a branch, one branch with branchId; a write names a branch or all branches.
+    await refundsApi.getPolicies()
     expect(http.get).toHaveBeenLastCalledWith('/subscriptions/staff/refund-policy')
-    await refundsApi.updatePolicy({ refundsAllowed: true, refundWindowDays: null })
-    expect(http.put).toHaveBeenLastCalledWith('/subscriptions/staff/refund-policy', { refundsAllowed: true, refundWindowDays: null })
+    await refundsApi.getPolicy('br-1')
+    expect(http.get).toHaveBeenLastCalledWith('/subscriptions/staff/refund-policy', { params: { branchId: 'br-1' } })
+    await refundsApi.updatePolicy({ branchId: 'br-1' }, { refundsAllowed: true, refundWindowDays: null })
+    expect(http.put).toHaveBeenLastCalledWith('/subscriptions/staff/refund-policy', { branchId: 'br-1', refundsAllowed: true, refundWindowDays: null })
+    await refundsApi.updatePolicy({ applyToAllBranches: true }, { refundsAllowed: false, refundWindowDays: 14 })
+    expect(http.put).toHaveBeenLastCalledWith('/subscriptions/staff/refund-policy', { applyToAllBranches: true, refundsAllowed: false, refundWindowDays: 14 })
   })
 })
 

@@ -2,15 +2,15 @@
 
 import { useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { hostApi, type UpdateListingContentPayload } from '@/lib/api/host'
+import { hostApi, type UpdatePublicContentPayload } from '@/lib/api/host'
 import { readApprovalOutcome, type ApprovalOutcome } from '@/lib/api/approvals'
 import { describeRequestError } from '@/lib/api/request-errors'
 import { useToast } from '@/hooks/use-toast'
 
-export const listingContentKey = (branchId: string) => ['listing-content', branchId] as const
+export const listingContentKey = (branchId: string) => ['public-content', branchId] as const
 
 /**
- * One save for every section: PATCH /host/branches/:id/listing-content with only the fields the
+ * One save for every section: PATCH /host/branches/:branchId/public-content with only the fields the
  * section changed. A 202 is reported as "sent for approval", never as saved. A failure shows the
  * server's own message.
  */
@@ -22,12 +22,12 @@ export function useListingSave(branchId: string) {
   const [approval, setApproval] = useState<ApprovalOutcome | null>(null)
 
   const save = useCallback(
-    async (payload: UpdateListingContentPayload, successTitle: string): Promise<boolean> => {
+    async (payload: UpdatePublicContentPayload, successTitle: string): Promise<boolean> => {
       setSaving(true)
       setError(null)
       setApproval(null)
       try {
-        const response = await hostApi.updateBranchListingContent(branchId, payload)
+        const response = await hostApi.updateBranchPublicContent(branchId, payload)
         const outcome = readApprovalOutcome(response)
         if (outcome.pending) {
           setApproval(outcome)

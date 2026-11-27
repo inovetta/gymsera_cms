@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { teamApi, TeamMember, TeamRole } from '@/lib/api/team'
 import { teamErrorMessage } from '@/lib/team/access'
 import { cn } from '@/lib/utils'
@@ -43,7 +43,7 @@ export function InviteMemberDialog({ open, onOpenChange, onAdded, restoreFrom = 
   const [credentials, setCredentials] = React.useState<{ email: string; tempPassword: string } | null>(null)
 
   const rolesQuery = useQuery({ queryKey: ['team-meta', 'roles'], queryFn: () => teamApi.getRoles(), enabled: open })
-  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => gymApi.getBranches(), enabled: open })
+  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => organizationsApi.getBranches(), enabled: open })
   const roles = (rolesQuery.data?.data?.roles ?? []).filter((r) => r.assignable)
   // Only branches that are open can be given (mobile hostBranchesProvider); a deleted branch is history.
   const branches = (branchesQuery.data?.data?.branches ?? []).filter((b) => !b.status || b.status.toUpperCase() === 'ACTIVE')

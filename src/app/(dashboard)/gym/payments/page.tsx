@@ -25,7 +25,7 @@ import { SubmittedForApprovalNotice } from '@/components/features/approvals/subm
 import { paymentsApi } from '@/lib/api/payments'
 import { ApprovalOutcome, readApprovalOutcome } from '@/lib/api/approvals'
 import { lookupBranchMemberByEmail } from '@/lib/members/lookup'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { Payment } from '@/types'
 import { formatDate, getInitials } from '@/lib/utils'
 import { formatMoney, parseAmountInput, toApiAmount } from '@/lib/money'
@@ -130,7 +130,7 @@ export default function PaymentsPage() {
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
-    queryFn: () => gymApi.getBranches(),
+    queryFn: () => organizationsApi.getBranches(),
   })
   const branches = branchesData?.data?.branches ?? []
 

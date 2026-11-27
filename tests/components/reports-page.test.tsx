@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ReportsPage from '@/app/(dashboard)/gym/reports/page'
 import { reportsApi } from '@/lib/api/reports'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { ok } from '../fixtures/team'
 import { branchManagerContext, frontDeskContext, orgAdminContext, ownerContext } from '../fixtures/context'
 
@@ -55,7 +55,7 @@ const renderPage = (context: MyContext) => {
 
 beforeEach(() => {
   accountRole = 'MEMBER'
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   yearly = vi.spyOn(reportsApi, 'getYearlyRevenue').mockResolvedValue(
     ok({ year: 2026, data: [{ month: 'Jan', revenue: 1000 }, { month: 'Feb', revenue: 2500.5 }] }) as never
   )

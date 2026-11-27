@@ -9,22 +9,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/features/error-state'
 import { BillingNoticeList } from '@/components/features/billing-notices'
 import { httpStatus } from '@/lib/api/request-errors'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { hostBillingApi, CatalogPlan, SubscriptionLapse } from '@/lib/api/host-billing'
 import { LapsedPlanCard } from '@/components/features/lapsed-plan-card'
 import { HostPlanPayment } from '@/components/features/host-plan-payment'
 import { formatCurrency, formatDate, cn } from '@/lib/utils'
-import { TenantSubscription } from '@/types'
+import { OrganizationSubscription } from '@/types'
 import { useTierLabel, branchCountLabel } from '@/hooks/use-tier-names'
 
-const PLATFORM_LABEL: Record<TenantSubscription['platform'], string> = {
+const PLATFORM_LABEL: Record<OrganizationSubscription['platform'], string> = {
   IOS: 'Apple App Store',
   ANDROID: 'Google Play',
   STRIPE: 'Card payment',
   MANUAL: 'Invoiced by GymsEra',
 }
 
-const STATUS_LABEL: Record<TenantSubscription['status'], string> = {
+const STATUS_LABEL: Record<OrganizationSubscription['status'], string> = {
   ACTIVE: 'Active',
   PENDING_CANCEL: 'Action needed',
   PENDING_MIGRATION: 'Switching',
@@ -36,14 +36,14 @@ const STATUS_LABEL: Record<TenantSubscription['status'], string> = {
 export default function BillingPage() {
   const tierLabel = useTierLabel()
 
-  const { data: tenantData, isLoading: tenantLoading } = useQuery({
-    queryKey: ['my-tenant'],
-    queryFn: () => tenantsApi.getMyTenant(),
+  const { data: organizationData, isLoading: organizationLoading } = useQuery({
+    queryKey: ['my-organization'],
+    queryFn: () => organizationsApi.getMine(),
   })
 
   // The SAME endpoint the mobile app's MySubscriptionScreen reads — one
   // real entitlement, not a CMS-specific view of it. 404s (via isError)
-  // when the tenant has no active subscription at all, which is a normal
+  // when the organization has no active subscription at all, which is a normal
   // state here, not a failure to show.
   const { data: subData, isLoading: subLoading, error: subError, refetch: refetchSub } = useQuery({
     queryKey: ['host-subscription-current'],
@@ -70,7 +70,7 @@ export default function BillingPage() {
   const noActiveSub = (!!subError && httpStatus(subError) === 404) || (lapsed && !lapse)
   const subLoadFailed = !!subError && !noActiveSub
 
-  const tenant = tenantData?.data?.tenant
+  const organization = organizationData?.data?.organization
   const sub = lapsed ? undefined : subData?.data
   const quota = quotaData?.data
   const rawCatalog = catalogData?.data
@@ -80,7 +80,7 @@ export default function BillingPage() {
       ? (rawCatalog as { plans: CatalogPlan[] }).plans
       : [])
 
-  const isLoading = tenantLoading || subLoading
+  const isLoading = organizationLoading || subLoading
 
   if (isLoading) {
     return (
@@ -202,7 +202,7 @@ export default function BillingPage() {
         )}
 
         {/* Account under review notice */}
-        {tenant && tenant.status !== 'ACTIVE' && (
+        {organization && organization.status !== 'ACTIVE' && (
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="p-4 flex items-start gap-3">
               <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />

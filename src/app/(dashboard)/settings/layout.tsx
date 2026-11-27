@@ -12,13 +12,13 @@ import { useGymAccess } from '@/hooks/use-gym-access'
  */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { isTenantOwner, contextLoading } = useGymAccess()
+  const { isOrganizationOwner, contextLoading } = useGymAccess()
 
   useEffect(() => {
-    if (!contextLoading && !isTenantOwner) {
+    if (!contextLoading && !isOrganizationOwner) {
       router.replace('/dashboard')
     }
-  }, [contextLoading, isTenantOwner, router])
+  }, [contextLoading, isOrganizationOwner, router])
 
   if (contextLoading) {
     return (
@@ -28,7 +28,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     )
   }
 
-  if (!isTenantOwner) {
+  if (!isOrganizationOwner) {
     return null
   }
 

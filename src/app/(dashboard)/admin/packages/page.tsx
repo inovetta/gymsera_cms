@@ -31,7 +31,7 @@ const packageSchema = z.object({
   description: z.string().optional(),
   price: z.coerce.number().min(0),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'YEARLY']),
-  maxOrganizations: z.coerce.number().min(1),
+  maxBusinesses: z.coerce.number().min(1),
   maxBranches: z.coerce.number().min(1),
   maxTrainers: z.coerce.number().min(0),
   maxMembers: z.coerce.number().min(0),
@@ -77,7 +77,7 @@ function PackageCard({ pkg, onEdit, onToggle }: {
 
         <div className="space-y-2">
           {[
-            { label: `Up to ${pkg.maxOrganizations} organization${pkg.maxOrganizations !== 1 ? 's' : ''}` },
+            { label: `Up to ${pkg.maxBusinesses} business${pkg.maxBusinesses !== 1 ? 'es' : ''}` },
             { label: `Up to ${pkg.maxBranches} branch${pkg.maxBranches !== 1 ? 'es' : ''}` },
             { label: `Up to ${pkg.maxTrainers} trainer${pkg.maxTrainers !== 1 ? 's' : ''}` },
             { label: `Up to ${pkg.maxMembers === 0 ? 'unlimited' : pkg.maxMembers} members` },
@@ -110,7 +110,7 @@ export default function PackagesPage() {
 
   const form = useForm<PackageForm>({
     resolver: zodResolver(packageSchema),
-    defaultValues: { name: '', description: '', price: 0, billingCycle: 'MONTHLY', maxOrganizations: 1, maxBranches: 1, maxTrainers: 5, maxMembers: 100 },
+    defaultValues: { name: '', description: '', price: 0, billingCycle: 'MONTHLY', maxBusinesses: 1, maxBranches: 1, maxTrainers: 5, maxMembers: 100 },
   })
 
   const createMutation = useMutation({
@@ -145,7 +145,7 @@ export default function PackagesPage() {
 
   const openCreate = () => {
     setEditPackage(null)
-    form.reset({ name: '', description: '', price: 0, billingCycle: 'MONTHLY', maxOrganizations: 1, maxBranches: 1, maxTrainers: 5, maxMembers: 100 })
+    form.reset({ name: '', description: '', price: 0, billingCycle: 'MONTHLY', maxBusinesses: 1, maxBranches: 1, maxTrainers: 5, maxMembers: 100 })
     setDialogOpen(true)
   }
 
@@ -156,7 +156,7 @@ export default function PackagesPage() {
       description: pkg.description || '',
       price: pkg.price,
       billingCycle: pkg.billingCycle,
-      maxOrganizations: pkg.maxOrganizations,
+      maxBusinesses: pkg.maxBusinesses,
       maxBranches: pkg.maxBranches,
       maxTrainers: pkg.maxTrainers,
       maxMembers: pkg.maxMembers,
@@ -276,10 +276,10 @@ export default function PackagesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="maxOrganizations"
+                  name="maxBusinesses"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Max Organizations *</FormLabel>
+                      <FormLabel>Max Businesses *</FormLabel>
                       <FormControl><Input type="number" min="1" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>

@@ -87,11 +87,11 @@ test.describe('Team & access', () => {
       const path = url.pathname.replace('/api/v1', '');
       const method = route.request().method();
 
-      if (path === '/tenants/me') return json(route, { tenant: { id: 't1', status: 'ACTIVE' }, subscription: null });
+      if (path === '/organizations/me') return json(route, { organization: { id: 't1', status: 'ACTIVE' }, subscription: null });
       if (path === '/team/meta/roles') return json(route, { roles, myLevel: 100, isOwner: true });
       if (path === '/team/meta/permissions') return json(route, { modules: catalogue });
       if (path === '/team') return json(route, { team, counts: {}, total: team.length });
-      if (path === '/gyms/branches') return json(route, { branches: [{ id: 'branch-1', branchName: 'Uptown' }] });
+      if (path === '/organizations/me/branches') return json(route, { branches: [{ id: 'branch-1', branchName: 'Uptown' }] });
       if (path === '/team/desk-1' && method === 'GET') {
         memberReads += 1;
         // The second read is the reload after the conflict: someone else turned it off.

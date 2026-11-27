@@ -19,12 +19,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorState } from '@/components/features/error-state'
 import { Badge } from '@/components/ui/badge'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { subscriptionsApi } from '@/lib/api/subscriptions'
 import { attendanceApi } from '@/lib/api/attendance'
 import { paymentsApi } from '@/lib/api/payments'
 import { reportsApi } from '@/lib/api/reports'
-import { MemberSubscription, AttendanceLog, GymStaff, Payment, BranchReport } from '@/types'
+import { MemberSubscription, AttendanceLog, BranchStaff, Payment, BranchReport } from '@/types'
 import { formatDate, formatCurrency, getInitials } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useGymAccess } from '@/hooks/use-gym-access'
@@ -84,12 +84,12 @@ export default function BranchDetailPage() {
 
   const { data: branchData, isLoading: branchLoading, error: branchError, refetch: refetchBranch } = useQuery({
     queryKey: ['branch', branchId],
-    queryFn: () => gymApi.getBranch(branchId),
+    queryFn: () => organizationsApi.getBranch(branchId),
   })
 
   const { data: staffData, isLoading: staffLoading, error: staffLoadingError, refetch: refetch_staffLoading } = useQuery({
     queryKey: ['branch-staff', branchId],
-    queryFn: () => gymApi.getBranchStaff(branchId),
+    queryFn: () => organizationsApi.getBranchStaff(branchId),
   })
 
   const { data: subscriptionsData, isLoading: subsLoading, error: subsLoadingError, refetch: refetch_subsLoading } = useQuery({
@@ -121,7 +121,7 @@ export default function BranchDetailPage() {
   const existingImages: string[] = Array.isArray(branch?.imagesJson) ? branch.imagesJson : []
 
   const uploadImagesMutation = useMutation({
-    mutationFn: (files: File[]) => gymApi.uploadBranchImages(branchId, files),
+    mutationFn: (files: File[]) => organizationsApi.uploadBranchImages(branchId, files),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branch', branchId] })
       setPendingFiles([])
@@ -131,7 +131,7 @@ export default function BranchDetailPage() {
   })
 
   const deleteImageMutation = useMutation({
-    mutationFn: (url: string) => gymApi.deleteBranchImage(branchId, url),
+    mutationFn: (url: string) => organizationsApi.deleteBranchImage(branchId, url),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branch', branchId] })
       toast({ title: 'Image removed' })
@@ -181,7 +181,7 @@ export default function BranchDetailPage() {
     { key: 'endDate', header: 'Expires', cell: (row) => <span className="text-sm">{formatDate(row.endDate)}</span> },
   ]
 
-  const staffColumns: Column<GymStaff>[] = [
+  const staffColumns: Column<BranchStaff>[] = [
     {
       key: 'staff',
       header: 'Staff Member',
@@ -400,7 +400,7 @@ export default function BranchDetailPage() {
               <CardContent>
                 <DataTable
                   columns={staffColumns}
-                  data={(staffData?.data?.staff ?? []) as GymStaff[]}
+                  data={(staffData?.data?.staff ?? []) as BranchStaff[]}
                   loading={staffLoading}
                   error={staffLoadingError}
                   errorWhat="the staff list"

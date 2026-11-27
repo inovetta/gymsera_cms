@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Sidebar } from '@/components/layout/sidebar'
 import { approvalsApi } from '@/lib/api/approvals'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { meApi } from '@/lib/api/me'
 import { ok } from '../fixtures/team'
 import { ownerContext } from '../fixtures/context'
@@ -31,7 +31,7 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const renderSidebar = () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(ownerContext) as never)
   vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
   return render(

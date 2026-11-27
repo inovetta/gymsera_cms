@@ -62,8 +62,10 @@ export interface BankDetails {
  */
 export interface PayoutAccount {
   id: string
-  scope: 'TENANT' | 'ORGANIZATION'
-  organizationId: string | null
+  /** G10: organization-wide, or one business. */
+  scope: 'ORGANIZATION' | 'BUSINESS'
+  /** The business this account is for; null = organization-wide (contract v2 §2). */
+  businessId: string | null
   provider: 'BANK_TRANSFER'
   status: string
   details: BankDetails | null

@@ -52,7 +52,7 @@ describe('newRequestId', () => {
 describe('the API client sends X-Request-Id (OBS-01)', () => {
   it('adds a fresh UUID to every request, GET and POST alike', async () => {
     await apiClient.get('/team')
-    await apiClient.post('/gyms/members/enroll', {})
+    await apiClient.post('/organizations/me/members/enroll', {})
     await apiClient.get('/me/context')
     expect(seen).toHaveLength(3)
     expect(seen.every((s) => UUID_V4.test(String(s.id)))).toBe(true)

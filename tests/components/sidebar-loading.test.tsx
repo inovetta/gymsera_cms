@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Sidebar } from '@/components/layout/sidebar'
 import { meApi } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
+import { organizationsApi } from '@/lib/api/organizations'
 import { approvalsApi } from '@/lib/api/approvals'
 import { useSelectedOrgStore } from '@/stores/selected-org.store'
 import { ok } from '../fixtures/team'
@@ -29,7 +29,7 @@ vi.mock('@/hooks/use-auth', () => ({
 describe('Sidebar Loading State (NEW-46c)', () => {
   beforeEach(() => {
     localStorage.clear()
-    useSelectedOrgStore.setState({ tenantId: 'tenant-a' })
+    useSelectedOrgStore.setState({ organizationId: 'tenant-a' })
     vi.spyOn(approvalsApi, 'list').mockResolvedValue(ok([]) as never)
   })
 
@@ -46,14 +46,14 @@ describe('Sidebar Loading State (NEW-46c)', () => {
     const twoOrgOwnerContext = {
       ...twoOrgContext,
       organizations: [
-        { ...twoOrgContext.organizations[0], tenantId: 'tenant-a', isOwner: true },
-        { ...twoOrgContext.organizations[1], tenantId: 'tenant-b', isOwner: true },
+        { ...twoOrgContext.organizations[0], organizationId: 'tenant-a', isOwner: true },
+        { ...twoOrgContext.organizations[1], organizationId: 'tenant-b', isOwner: true },
       ],
     }
     vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(twoOrgOwnerContext) as never)
     // Initially loaded tenant
-    vi.spyOn(tenantsApi, 'getMyTenant').mockImplementationOnce(() =>
-      Promise.resolve(ok({ tenant: { id: 'tenant-a', status: 'ACTIVE' } }) as never)
+    vi.spyOn(organizationsApi, 'getMine').mockImplementationOnce(() =>
+      Promise.resolve(ok({ organization: { id: 'tenant-a', status: 'ACTIVE' } }) as never)
     )
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -66,10 +66,10 @@ describe('Sidebar Loading State (NEW-46c)', () => {
 
     // Wait until initially loaded
     expect(await screen.findByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Gym Profile' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Business Profile' })).toBeInTheDocument()
 
-    // Next time getMyTenant is called (after switcher resetQueries), return the unresolved promise
-    vi.spyOn(tenantsApi, 'getMyTenant').mockImplementation(() => pendingTenantPromise as never)
+    // Next time getMine is called (after switcher resetQueries), return the unresolved promise
+    vi.spyOn(organizationsApi, 'getMine').mockImplementation(() => pendingTenantPromise as never)
 
     // Switch organization to tenant-b
     const select = (await screen.findAllByLabelText('Organization'))[0] as HTMLSelectElement
@@ -80,7 +80,7 @@ describe('Sidebar Loading State (NEW-46c)', () => {
     expect(screen.getAllByTestId('nav-skeleton-item').length).toBeGreaterThan(0)
 
     // Resolve the tenant query
-    resolveTenant(ok({ tenant: { id: 'tenant-b', status: 'ACTIVE' } }))
+    resolveTenant(ok({ organization: { id: 'tenant-b', status: 'ACTIVE' } }))
 
     // Once resolved, skeletons should disappear
     await waitFor(() => {

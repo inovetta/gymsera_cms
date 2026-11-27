@@ -7,7 +7,7 @@ import { useSelectedOrgStore } from '@/stores/selected-org.store'
 /**
  * Organization switcher (Prompt 3B). Shown only to someone who works in more than one
  * organization (the same rule as the mobile app's `needsContextSwitcher`). The choice is
- * sent as X-Tenant-Id and remembered across reloads; the menu, the guards and every page
+ * sent as X-Organization-Id and remembered across reloads; the menu, the guards and every page
  * follow it, because they all read the organization from useGymAccess.
  */
 export function OrganizationSwitcher({ collapsed = false }: { collapsed?: boolean }) {
@@ -17,8 +17,8 @@ export function OrganizationSwitcher({ collapsed = false }: { collapsed?: boolea
 
   if (collapsed || organizations.length < 2) return null
 
-  const change = (tenantId: string) => {
-    select(tenantId)
+  const change = (organizationId: string) => {
+    select(organizationId)
     // Nothing cached for the previous organization may be shown for the new one. The context
     // itself lists them all and does not depend on the choice, so it stays.
     queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'me-context' })
@@ -32,11 +32,11 @@ export function OrganizationSwitcher({ collapsed = false }: { collapsed?: boolea
       <select
         id="organization-switcher"
         className="h-9 w-full rounded-md border border-sidebar-border bg-sidebar px-2 text-sm text-sidebar-foreground"
-        value={organization?.tenantId ?? ''}
+        value={organization?.organizationId ?? ''}
         onChange={(e) => change(e.target.value)}
       >
         {organizations.map((o) => (
-          <option key={o.tenantId} value={o.tenantId}>
+          <option key={o.organizationId} value={o.organizationId}>
             {o.name}
           </option>
         ))}

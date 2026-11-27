@@ -17,8 +17,10 @@ export interface BranchAccess {
   permissions: string[]
 }
 
+/** Contract v2 §3 Workspace: one organization of the person ("org" in RBAC is the organization). */
 export interface OrgMembership {
-  tenantId: string
+  organizationId: string
+  /** The organization name. */
   name: string
   isOwner: boolean
   role: { key: string; name: string; displayName?: string; level: number }
@@ -41,7 +43,7 @@ export const meApi = {
     const { data } = await apiClient.get('/me/context')
     // Before anything else uses the answer: keep the remembered organization only if it is
     // still one of theirs, so a stale id is never sent to the server.
-    useSelectedOrgStore.getState().reconcile((data?.data?.organizations ?? []).map((o: OrgMembership) => o.tenantId))
+    useSelectedOrgStore.getState().reconcile((data?.data?.organizations ?? []).map((o: OrgMembership) => o.organizationId))
     return data
   },
 }

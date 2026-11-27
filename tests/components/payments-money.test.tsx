@@ -4,10 +4,9 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import PaymentsPage from '@/app/(dashboard)/gym/payments/page'
 import { paymentsApi } from '@/lib/api/payments'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { hostApi } from '@/lib/api/host'
 import { meApi, MyContext } from '@/lib/api/me'
-import { tenantsApi } from '@/lib/api/tenants'
 import { ok } from '../fixtures/team'
 import { frontDeskContext, withPermissions } from '../fixtures/context'
 
@@ -40,7 +39,7 @@ let paymentAction: ReturnType<typeof vi.spyOn>
 
 const renderPage = (context: MyContext = staff) => {
   vi.spyOn(meApi, 'getContext').mockResolvedValue(ok(context) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [{ id: 'branch-1', branchName: 'Uptown' }] }) as never)
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <PaymentsPage />
@@ -58,7 +57,7 @@ const openRecord = async () => {
 const submitRecord = (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: /^record payment$/i }))
 
 beforeEach(() => {
-  vi.spyOn(tenantsApi, 'getMyTenant').mockResolvedValue(ok({ tenant: { status: 'ACTIVE' }, subscription: null }) as never)
+  vi.spyOn(organizationsApi, 'getMine').mockResolvedValue(ok({ organization: { status: 'ACTIVE' }, subscription: null }) as never)
   getPayments = vi.spyOn(paymentsApi, 'getPayments').mockResolvedValue(
     ok({ payments: [row('p1', 'PENDING'), row('p2', 'STAFF_COLLECTED')] }) as never
   )

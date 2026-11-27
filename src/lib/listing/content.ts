@@ -1,4 +1,4 @@
-import type { BranchListingContent, UpdateListingContentPayload } from '@/lib/api/host'
+import type { BranchPublicContent, UpdatePublicContentPayload } from '@/lib/api/host'
 
 /**
  * Pure helpers for the listing editor (UX-21). Mirrors what the mobile editor does in
@@ -58,7 +58,7 @@ const sameList = (a: string[], b: string[]) => a.length === b.length && a.every(
  * Only the keys whose value changed, so a PATCH never rewrites what the person did not touch.
  * `base` is the branch as loaded; `draft` holds the section's new values.
  */
-export function changedFields(base: BranchListingContent, draft: UpdateListingContentPayload): UpdateListingContentPayload {
+export function changedFields(base: BranchPublicContent, draft: UpdatePublicContentPayload): UpdatePublicContentPayload {
   const out: Record<string, unknown> = {}
   const listKeys = new Set(['tagsJson', 'facilitiesJson', 'imagesJson'])
   for (const [key, next] of Object.entries(draft)) {
@@ -76,7 +76,7 @@ export function changedFields(base: BranchListingContent, draft: UpdateListingCo
       out[key] = next
     }
   }
-  return out as UpdateListingContentPayload
+  return out as UpdatePublicContentPayload
 }
 
 export interface ListingQuality {
@@ -89,7 +89,7 @@ export interface ListingQuality {
  * (not INACTIVE) packages, or null when the person may not see packages: that part is then left
  * out instead of counted as missing.
  */
-export function listingQuality(branch: BranchListingContent, planCount: number | null): ListingQuality {
+export function listingQuality(branch: BranchPublicContent, planCount: number | null): ListingQuality {
   const photos = asStringList(branch.imagesJson).length
   const amenities = asStringList(branch.facilitiesJson).length
   const parts = [

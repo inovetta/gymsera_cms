@@ -1,7 +1,7 @@
 import React from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { branchFixture, contextWith, httpError, renderEditor } from '../fixtures/listing'
 
 vi.mock('next/navigation', () => ({
@@ -27,7 +27,7 @@ describe('Listing editor: Photos', () => {
   })
 
   it('uploads through the branch images endpoint and reads the list again', async () => {
-    const upload = vi.spyOn(gymApi, 'uploadBranchImages').mockResolvedValue({ success: true, data: { uploadedUrls: ['https://cdn.test/c.jpg'] } } as never)
+    const upload = vi.spyOn(organizationsApi, 'uploadBranchImages').mockResolvedValue({ success: true, data: { uploadedUrls: ['https://cdn.test/c.jpg'] } } as never)
     const { get } = renderEditor()
     await openPhotos()
     fireEvent.change(fileInput(), { target: { files: [image('c.png')] } })
@@ -36,7 +36,7 @@ describe('Listing editor: Photos', () => {
   })
 
   it('refuses a batch that would pass ten photos, without calling the server', async () => {
-    const upload = vi.spyOn(gymApi, 'uploadBranchImages')
+    const upload = vi.spyOn(organizationsApi, 'uploadBranchImages')
     const nine = Array.from({ length: 9 }, (_, i) => `https://cdn.test/${i}.jpg`)
     renderEditor(undefined, { ...branchFixture, imagesJson: nine })
     await openPhotos()
@@ -53,7 +53,7 @@ describe('Listing editor: Photos', () => {
   })
 
   it('shows the server message when an upload is refused', async () => {
-    vi.spyOn(gymApi, 'uploadBranchImages').mockRejectedValue(httpError(422, { message: 'Image is larger than 5 MB' }))
+    vi.spyOn(organizationsApi, 'uploadBranchImages').mockRejectedValue(httpError(422, { message: 'Image is larger than 5 MB' }))
     renderEditor()
     await openPhotos()
     fireEvent.change(fileInput(), { target: { files: [image('big.png')] } })

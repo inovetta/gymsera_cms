@@ -31,18 +31,18 @@ const STATUS_TABS: Array<{ value: 'all' | BillingEventStatus; label: string }> =
 ]
 
 const PAGE_SIZE = 20
-const TENANT_PICKER_LIMIT = 100
+const ORGANIZATION_PICKER_LIMIT = 100
 const ID_PATTERN = /^[0-9a-fA-F-]{36}$/
 
-/** A ?tenantId= link from another page, accepted only if the server would accept it (it answers 422 otherwise). */
-const tenantFromLink = (raw: string | null) => (raw && (raw === 'none' || ID_PATTERN.test(raw)) ? raw : '')
+/** A ?organizationId= link from another page, accepted only if the server would accept it (it answers 422 otherwise). */
+const organizationFromLink = (raw: string | null) => (raw && (raw === 'none' || ID_PATTERN.test(raw)) ? raw : '')
 
 function OrganizationCell({ event }: { event: BillingEvent }) {
-  if (!event.tenantId) return <span className="text-sm text-muted-foreground">Not matched to an organization</span>
-  if (!event.tenantName) return <span className="text-sm text-muted-foreground">Organization {event.tenantId.slice(0, 8)}…</span>
+  if (!event.organizationId) return <span className="text-sm text-muted-foreground">Not matched to an organization</span>
+  if (!event.organizationName) return <span className="text-sm text-muted-foreground">Organization {event.organizationId.slice(0, 8)}…</span>
   return (
-    <Link href={`/admin/tenants/${event.tenantId}`} className="text-sm font-medium text-primary hover:underline">
-      {event.tenantName}
+    <Link href={`/admin/organizations/${event.organizationId}`} className="text-sm font-medium text-primary hover:underline">
+      {event.organizationName}
     </Link>
   )
 }
@@ -94,15 +94,15 @@ const columns: Column<BillingEvent>[] = [
 
 export default function BillingEventsPage() {
   const searchParams = useSearchParams()
-  const [tenantId, setTenantId] = useState(() => tenantFromLink(searchParams?.get('tenantId') ?? null))
+  const [organizationId, setOrganizationId] = useState(() => organizationFromLink(searchParams?.get('organizationId') ?? null))
   const [status, setStatus] = useState<'all' | BillingEventStatus>('all')
   const [page, setPage] = useState(1)
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['billing-events', tenantId, status, page],
+    queryKey: ['billing-events', organizationId, status, page],
     queryFn: () =>
       adminApi.getBillingEvents({
-        tenantId: tenantId || undefined,
+        organizationId: organizationId || undefined,
         status: status === 'all' ? undefined : status,
         page,
         limit: PAGE_SIZE,
@@ -110,9 +110,9 @@ export default function BillingEventsPage() {
   })
 
   // The picker is a convenience: if it cannot load, the filter still works for "all" and "not matched".
-  const { data: tenantsData } = useQuery({
-    queryKey: ['billing-events-tenants'],
-    queryFn: () => adminApi.getTenants({ limit: TENANT_PICKER_LIMIT }),
+  const { data: organizationsData } = useQuery({
+    queryKey: ['billing-events-organizations'],
+    queryFn: () => adminApi.getOrganizations({ limit: ORGANIZATION_PICKER_LIMIT }),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -133,13 +133,13 @@ export default function BillingEventsPage() {
     )
   }
 
-  const tenants = tenantsData?.data?.tenants ?? []
-  const picked = tenantId && tenantId !== 'none' ? tenantId : null
-  const pickedKnown = !picked || tenants.some((t) => t.id === picked)
-  const pickedName = data?.data?.find((e) => e.tenantId === picked)?.tenantName
-  const filtered = Boolean(tenantId) || status !== 'all'
+  const organizations = organizationsData?.data?.organizations ?? []
+  const picked = organizationId && organizationId !== 'none' ? organizationId : null
+  const pickedKnown = !picked || organizations.some((t) => t.id === picked)
+  const pickedName = data?.data?.find((e) => e.organizationId === picked)?.organizationName
+  const filtered = Boolean(organizationId) || status !== 'all'
   const clearFilters = () => {
-    setTenantId('')
+    setOrganizationId('')
     setStatus('all')
     setPage(1)
   }
@@ -165,23 +165,23 @@ export default function BillingEventsPage() {
             <select
               id="billing-events-organization"
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={tenantId}
+              value={organizationId}
               onChange={(e) => {
-                setTenantId(e.target.value)
+                setOrganizationId(e.target.value)
                 setPage(1)
               }}
             >
               <option value="">All organizations</option>
               <option value="none">Not matched to an organization</option>
               {picked && !pickedKnown && <option value={picked}>{pickedName ?? `Organization ${picked.slice(0, 8)}…`}</option>}
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>{t.businessName}</option>
+              {organizations.map((t) => (
+                <option key={t.id} value={t.id}>{t.organizationName}</option>
               ))}
             </select>
           </div>
-          {tenantsData?.pagination && tenantsData.pagination.total > TENANT_PICKER_LIMIT && (
+          {(organizationsData?.data?.total ?? 0) > ORGANIZATION_PICKER_LIMIT && (
             <p className="text-xs text-muted-foreground">
-              The list shows the first {TENANT_PICKER_LIMIT} organizations. Open this page from an organization&apos;s page to filter by any other.
+              The list shows the first {ORGANIZATION_PICKER_LIMIT} organizations. Open this page from an organization&apos;s page to filter by any other.
             </p>
           )}
         </div>

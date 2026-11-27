@@ -1,6 +1,6 @@
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { TenantProvisioning } from '@/types'
+import type { OrganizationProvisioning } from '@/types'
 
 // Admin labels for the six backend steps (FLOW-02), in order.
 export const PROVISIONING_STEP_LABELS = [
@@ -14,13 +14,13 @@ export const PROVISIONING_STEP_LABELS = [
 
 interface ProvisioningStatusProps {
   status: string
-  provisioning?: TenantProvisioning | null
+  provisioning?: OrganizationProvisioning | null
   onResume: () => void
   resuming?: boolean
 }
 
 /**
- * "Provisioning… (step n/6)" for an APPROVED tenant, with Resume when the
+ * "Provisioning… (step n/6)" for an APPROVED organization, with Resume when the
  * last run stopped. Shows only what the API reports; the server decides
  * whether a run is in progress and whether Resume is allowed.
  */

@@ -47,14 +47,15 @@ test.describe('Record Payment', () => {
           pendingApprovals: 0,
           needsContextSwitcher: false,
           organizations: [{
-            tenantId: 'tenant-1', name: 'Iron Gym', isOwner: true,
+            organizationId: 'tenant-1', name: 'Iron Gym', isOwner: true,
             role: { key: 'OWNER', name: 'Owner', level: 100 }, scopeType: 'ORG',
             orgPermissions: ['*'], branches: [{ id: BRANCH_ID, name: 'Uptown', permissions: ['*'] }], pendingApprovals: 0,
           }],
         });
       }
-      if (path === '/tenants/me') return json(route, { tenant: { id: 't1', status: 'ACTIVE' }, subscription: null });
-      if (path === '/gyms/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
+      // Contract v2: GET /organizations/me → { organization, subscription }; GET /organizations/me/branches.
+      if (path === '/organizations/me') return json(route, { organization: { id: 't1', status: 'ACTIVE' }, subscription: null });
+      if (path === '/organizations/me/branches') return json(route, { branches: [{ id: BRANCH_ID, branchName: 'Uptown' }] });
       if (path === `/host/branches/${BRANCH_ID}/members/lookup`) {
         const email = url.searchParams.get('email') ?? '';
         lookups.push(email);

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import TeamPage from '@/app/(dashboard)/gym/team/page'
 import { InviteMemberDialog } from '@/components/features/team/invite-member-dialog'
 import { teamApi } from '@/lib/api/team'
-import { gymApi } from '@/lib/api/gym'
+import { organizationsApi } from '@/lib/api/organizations'
 import { catalogue, ok, rolesForOwner } from '../fixtures/team'
 
 /**
@@ -40,7 +40,7 @@ const withClient = (ui: React.ReactElement) =>
 beforeEach(() => {
   vi.spyOn(teamApi, 'getRoles').mockResolvedValue(ok({ roles: rolesForOwner, myLevel: 100, isOwner: true }) as never)
   vi.spyOn(teamApi, 'getPermissionCatalogue').mockResolvedValue(ok({ modules: catalogue }) as never)
-  vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [
+  vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [
     { id: 'branch-1', branchName: 'Uptown', status: 'ACTIVE' },
     { id: 'branch-2', branchName: 'Downtown', status: 'ACTIVE' },
     { id: 'branch-9', branchName: 'Old Mall', status: 'INACTIVE' },
@@ -99,7 +99,7 @@ describe('Add team member: roles and branches (app add_team_member_screen.dart)'
   })
 
   it('a failed branches load shows an error state with Retry, not an empty list', async () => {
-    const getBranches = vi.spyOn(gymApi, 'getBranches').mockRejectedValue(failure(500, 'internal_error', 'req-br'))
+    const getBranches = vi.spyOn(organizationsApi, 'getBranches').mockRejectedValue(failure(500, 'internal_error', 'req-br'))
     withClient(<InviteMemberDialog open onOpenChange={vi.fn()} onAdded={vi.fn()} />)
     await toBranchStep()
     const state = await screen.findByTestId('error-state')
@@ -109,7 +109,7 @@ describe('Add team member: roles and branches (app add_team_member_screen.dart)'
   })
 
   it('no branch yet: says so, and All branches still works', async () => {
-    vi.spyOn(gymApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
+    vi.spyOn(organizationsApi, 'getBranches').mockResolvedValue(ok({ branches: [] }) as never)
     withClient(<InviteMemberDialog open onOpenChange={vi.fn()} onAdded={vi.fn()} />)
     await toBranchStep()
     expect(await screen.findByText(/no branches yet/i)).toBeInTheDocument()
